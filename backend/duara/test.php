@@ -1,4 +1,4 @@
 <?php
-include "config.php";
-echo "Umeunganishwa na database kwa mafanikio!";
+require_once 'config.php';
+respond(['success' => true, 'service' => 'THE CIRCLE API', 'status' => 'ok']);
 ?>
