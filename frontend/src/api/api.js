@@ -18,3 +18,20 @@ export async function searchProfiles(term) { const { data, error } = await supab
 export async function getNotifications(userId) { const { data, error } = await supabase.from("notifications").select("*, actor:profiles!notifications_actor_id_fkey(display_name, username, avatar_url)").eq("recipient_id", userId).order("created_at", { ascending: false }).limit(20); if (error) throw error; return data || []; }
 export async function uploadImage(userId, file, bucket = "post-media") { const extension = file.name.split(".").pop(); const path = `${userId}/${crypto.randomUUID()}.${extension}`; const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type }); if (error) throw error; const { data } = supabase.storage.from(bucket).getPublicUrl(path); return data.publicUrl; }
 export function subscribeToRealtime(onPost, onComment, onNotification) { const channel = supabase.channel("the-circle-live").on("postgres_changes", { event: "*", schema: "public", table: "posts" }, onPost).on("postgres_changes", { event: "*", schema: "public", table: "comments" }, onComment).on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, onNotification).subscribe(); return () => supabase.removeChannel(channel); }
+
+export async function findOrCreateDirectConversation(userId, otherUserId) {
+  const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id, user_id").in("user_id", [userId, otherUserId]);
+  if (membershipError) throw membershipError;
+  const grouped = (memberships || []).reduce((map, row) => { map[row.conversation_id] ||= new Set(); map[row.conversation_id].add(row.user_id); return map; }, {});
+  const existing = Object.entries(grouped).find(([, members]) => members.size === 2);
+  if (existing) return existing[0];
+  const { data: conversation, error } = await supabase.from("conversations").insert({ created_by: userId, kind: "direct" }).select().single();
+  if (error) throw error;
+  const { error: memberError } = await supabase.from("conversation_members").insert([{ conversation_id: conversation.id, user_id: userId }, { conversation_id: conversation.id, user_id: otherUserId }]);
+  if (memberError) throw memberError;
+  return conversation.id;
+}
+export async function getMessages(conversationId) { const { data, error } = await supabase.from("messages").select("*, profiles!messages_sender_id_fkey(display_name, username, avatar_url)").eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(100); if (error) throw error; return data || []; }
+export async function sendMessage(conversationId, senderId, body) { const { data, error } = await supabase.from("messages").insert({ conversation_id: conversationId, sender_id: senderId, body }).select("*, profiles!messages_sender_id_fkey(display_name, username, avatar_url)").single(); if (error) throw error; return data; }
+export async function sendCallSignal(conversationId, senderId, recipientId, signalType, payload = {}) { const { error } = await supabase.from("call_signals").insert({ conversation_id: conversationId, sender_id: senderId, recipient_id: recipientId, signal_type: signalType, payload }); if (error) throw error; }
+export function subscribeToConversation(conversationId, onMessage, onSignal) { const channel = supabase.channel(`conversation-${conversationId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` }, onMessage).on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `conversation_id=eq.${conversationId}` }, onSignal).subscribe(); return () => supabase.removeChannel(channel); }
