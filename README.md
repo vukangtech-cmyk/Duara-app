@@ -103,3 +103,11 @@ node scripts/realtime_smoke_test.mjs
 ```
 
 The test validates the direct-message delivery flow and WebRTC signaling order: `ringing → offer → answer → ice → hangup`. It is a local deterministic simulation and does not insert test data into Supabase. A real two-browser test still needs two signed-in accounts, HTTPS, camera/microphone permission, and the production Vercel URL.
+
+## Green theme and new modules
+
+THE CIRCLE now uses a green-first visual system with persistent light/dark mode. The theme is saved in browser local storage and can be switched from the sidebar.
+
+The current navigation includes **Add Friend**, **Marketplace**, **Reels**, and **Wallet**. Supabase foundations and RLS are included for `friend_requests`, `marketplace_listings`, `reels`, `wallet_accounts`, and `wallet_transactions`. Marketplace and Reels read live data when available; Wallet currently displays the protected balance and transaction ledger foundation.
+
+Wallet deposits, withdrawals, and purchases are intentionally UI placeholders until a payment provider and server-side transaction verification are selected. Never credit balances directly from the browser.
