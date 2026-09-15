@@ -1,9 +1,20 @@
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost/duara";
-const client = axios.create({ baseURL: API_URL, headers: { "Content-Type": "application/json" } });
-
-export async function registerUser(name, phone, pin) { const res = await client.post("/register.php", { name, phone, pin }); return res.data; }
-export async function loginUser(phone, pin) { const res = await client.post("/login.php", { phone, pin }); return res.data; }
-export async function getFeed() { const res = await client.get("/feed.php"); return res.data; }
-export async function createPost(userId, content) { const res = await client.post("/posts.php", { user_id: userId, content }); return res.data; }
+export async function registerUser({ email, password, displayName, username }) {
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName, username } } });
+  if (error) throw error;
+  return data;
+}
+export async function loginUser(email, password) { const { data, error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; return data; }
+export async function logoutUser() { const { error } = await supabase.auth.signOut(); if (error) throw error; }
+export async function getCurrentProfile(userId) { const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single(); if (error) throw error; return data; }
+export async function updateProfile(userId, values) { const { data, error } = await supabase.from("profiles").update(values).eq("id", userId).select().single(); if (error) throw error; return data; }
+export async function getFeed() { const { data, error } = await supabase.from("posts").select("id, content, media_url, created_at, author_id, profiles!posts_author_id_fkey(id, display_name, username, avatar_url), likes(user_id), comments(count)").order("created_at", { ascending: false }).limit(50); if (error) throw error; return data || []; }
+export async function createPost(authorId, content, mediaUrl = null) { const { data, error } = await supabase.from("posts").insert({ author_id: authorId, content, media_url: mediaUrl }).select().single(); if (error) throw error; return data; }
+export async function toggleLike(userId, postId, liked) { if (liked) { const { error } = await supabase.from("likes").delete().match({ user_id: userId, post_id: postId }); if (error) throw error; } else { const { error } = await supabase.from("likes").insert({ user_id: userId, post_id: postId }); if (error) throw error; } }
+export async function addComment(authorId, postId, content) { const { data, error } = await supabase.from("comments").insert({ author_id: authorId, post_id: postId, content }).select("*, profiles!comments_author_id_fkey(display_name, username, avatar_url)").single(); if (error) throw error; return data; }
+export async function followUser(followerId, followingId, following) { if (following) { const { error } = await supabase.from("follows").delete().match({ follower_id: followerId, following_id: followingId }); if (error) throw error; } else { const { error } = await supabase.from("follows").insert({ follower_id: followerId, following_id: followingId }); if (error) throw error; } }
+export async function searchProfiles(term) { const { data, error } = await supabase.from("profiles").select("id, display_name, username, avatar_url").or(`display_name.ilike.%${term}%,username.ilike.%${term}%`).limit(10); if (error) throw error; return data || []; }
+export async function getNotifications(userId) { const { data, error } = await supabase.from("notifications").select("*, actor:profiles!notifications_actor_id_fkey(display_name, username, avatar_url)").eq("recipient_id", userId).order("created_at", { ascending: false }).limit(20); if (error) throw error; return data || []; }
+export async function uploadImage(userId, file, bucket = "post-media") { const extension = file.name.split(".").pop(); const path = `${userId}/${crypto.randomUUID()}.${extension}`; const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type }); if (error) throw error; const { data } = supabase.storage.from(bucket).getPublicUrl(path); return data.publicUrl; }
+export function subscribeToRealtime(onPost, onComment, onNotification) { const channel = supabase.channel("the-circle-live").on("postgres_changes", { event: "*", schema: "public", table: "posts" }, onPost).on("postgres_changes", { event: "*", schema: "public", table: "comments" }, onComment).on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, onNotification).subscribe(); return () => supabase.removeChannel(channel); }
