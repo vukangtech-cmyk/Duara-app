@@ -75,3 +75,31 @@ Signup/login, persistent sessions, profile editing, public feed, real-time posts
 ## Next hardening
 
 Kabla ya scale kubwa, ongeza pagination/infinite scroll, rate limits/abuse protection, content moderation, image transformations, verified email requirement, account recovery UX, blocking/reporting, analytics na automated end-to-end tests.
+
+## Vercel deployment configuration
+
+In Vercel, open **Project → Settings → Environment Variables** and add these values for Production, Preview and Development:
+
+```env
+VITE_SUPABASE_URL=https://vcbcyhqekbdbxiraxtro.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+```
+
+After saving variables, open **Deployments**, choose the latest deployment, open the `...` menu and select **Redeploy**. Vercel does not run the message realtime server itself; it serves this frontend while Supabase Realtime handles `messages` and `call_signals`.
+
+In Supabase, open **Authentication → URL Configuration** and set **Site URL** to the Vercel production URL. Add these **Redirect URLs**:
+
+```text
+https://YOUR-VERCEL-DOMAIN.vercel.app/**
+http://localhost:5173/**
+```
+
+Replace `YOUR-VERCEL-DOMAIN` with the actual Vercel URL. If a custom domain is added later, add its HTTPS URL and wildcard redirect too.
+
+## Local realtime smoke test
+
+```bash
+node scripts/realtime_smoke_test.mjs
+```
+
+The test validates the direct-message delivery flow and WebRTC signaling order: `ringing → offer → answer → ice → hangup`. It is a local deterministic simulation and does not insert test data into Supabase. A real two-browser test still needs two signed-in accounts, HTTPS, camera/microphone permission, and the production Vercel URL.
