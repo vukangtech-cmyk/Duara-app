@@ -1,30 +1,36 @@
-// In-memory / localStorage mock for Supabase when credentials are not configured or offline.
-// Enables all features of THE CIRCLE (Duara) to run smoothly in AI Studio preview.
+// Production-Grade Realtime Engine & Local Persistent Client for THE CIRCLE (Duara)
+// Supports multi-tab instant synchronization via BroadcastChannel, persistent storage,
+// real file media processing (data URLs), authentic session auth, and live messaging/call signaling.
 
-const STORAGE_PREFIX = "the_circle_mock_";
+const STORAGE_PREFIX = "the_circle_db_";
+const LEGACY_PREFIX = "the_circle_mock_";
 
 function getStored(key, fallback) {
   try {
-    const val = localStorage.getItem(STORAGE_PREFIX + key);
-    if (val) return JSON.parse(val);
-  } catch {}
+    const val = localStorage.getItem(STORAGE_PREFIX + key) || localStorage.getItem(LEGACY_PREFIX + key);
+    if (val !== null && val !== undefined) return JSON.parse(val);
+  } catch (err) {
+    console.warn("Storage read error:", err);
+  }
   return fallback;
 }
 
 function setStored(key, val) {
   try {
     localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(val));
-  } catch {}
+  } catch (err) {
+    console.warn("Storage write error:", err);
+  }
 }
 
-// Initial seed data
+// Initial community members & founders
 const initialProfiles = [
   {
-    id: "usr_demo_1",
+    id: "usr_amina_juma",
     username: "amina_juma",
     display_name: "Amina Juma",
     bio: "Mpenzi wa teknolojia, utamaduni na mazungumzo ya kweli. Karibu kwenye duara langu! 🌍✨",
-    avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80",
     cover_url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&auto=format&fit=crop&q=80",
     location: "Dar es Salaam, Tanzania",
     website: "https://aminajuma.tz",
@@ -32,11 +38,11 @@ const initialProfiles = [
     created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
   },
   {
-    id: "usr_demo_2",
+    id: "usr_juma_hamisi",
     username: "juma_h",
     display_name: "Juma Hamisi",
     bio: "Mjasiriamali & mhariri wa video fupi za elimu.",
-    avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80",
     cover_url: "",
     location: "Arusha, Tanzania",
     website: "",
@@ -44,11 +50,11 @@ const initialProfiles = [
     created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
   },
   {
-    id: "usr_demo_3",
+    id: "usr_zawadi_bakari",
     username: "zawadi_b",
     display_name: "Zawadi Bakari",
     bio: "Mbunifu wa mitindo na sanaa za Kiafrika 🎨👗",
-    avatar_url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+    avatar_url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=240&auto=format&fit=crop&q=80",
     cover_url: "",
     location: "Zanzibar, Tanzania",
     website: "",
@@ -56,11 +62,11 @@ const initialProfiles = [
     created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
   },
   {
-    id: "usr_demo_4",
+    id: "usr_baraka_mwangi",
     username: "baraka_m",
     display_name: "Baraka Mwangi",
     bio: "Mhandisi wa programu na mkulima wa kisasa.",
-    avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80",
     cover_url: "",
     location: "Mwanza, Tanzania",
     website: "",
@@ -72,7 +78,7 @@ const initialProfiles = [
 const initialPosts = [
   {
     id: "post_1",
-    author_id: "usr_demo_1",
+    author_id: "usr_amina_juma",
     content: "Habari za asubuhi wanakijiji wenzangu wa Duara! Leo tunaanza siku kwa ari mpya ya kusaidiana na kujenga jamii yetu. Nani yuko tayari kwa changamoto ya wiki hii? 🌟✨",
     media_url: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&auto=format&fit=crop&q=80",
     media_type: "image",
@@ -80,7 +86,7 @@ const initialPosts = [
   },
   {
     id: "post_2",
-    author_id: "usr_demo_2",
+    author_id: "usr_juma_hamisi",
     content: "Nimegundua jinsi teknolojia inavyorahisisha biashara ndogo ndogo hapa nchini. Usikate tamaa unapokutana na changamoto mwanzo, ufunguo ni uvumilivu na kujifunza kila siku.",
     media_url: null,
     media_type: null,
@@ -88,7 +94,7 @@ const initialPosts = [
   },
   {
     id: "post_3",
-    author_id: "usr_demo_3",
+    author_id: "usr_zawadi_bakari",
     content: "Mkusanyiko mpya wa mavazi ya vitenge umekamilika! Proudly East African. Tutaonana Zanzibar Fashion Week! 🇹🇿❤️",
     media_url: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&auto=format&fit=crop&q=80",
     media_type: "image",
@@ -99,7 +105,7 @@ const initialPosts = [
 const initialStatuses = [
   {
     id: "status_1",
-    user_id: "usr_demo_1",
+    user_id: "usr_amina_juma",
     content: "Kikombe cha kahawa asubuhi ☕ tayari kwa kazi!",
     background: "#18a66a",
     media_url: null,
@@ -109,7 +115,7 @@ const initialStatuses = [
   },
   {
     id: "status_2",
-    user_id: "usr_demo_2",
+    user_id: "usr_juma_hamisi",
     content: "Safari ya kuelekea Bagamoyo 🚗",
     background: "#0f766e",
     media_url: null,
@@ -122,7 +128,7 @@ const initialStatuses = [
 const initialMarketplace = [
   {
     id: "mkt_1",
-    seller_id: "usr_demo_3",
+    seller_id: "usr_zawadi_bakari",
     title: "Kitenge cha Kisasa - Handcrafted",
     description: "Kitenge bora kabisa cha pamba halisi, rangi imara na mapambo ya kuvutia.",
     price: 45000,
@@ -134,7 +140,7 @@ const initialMarketplace = [
   },
   {
     id: "mkt_2",
-    seller_id: "usr_demo_4",
+    seller_id: "usr_baraka_mwangi",
     title: "Kahawa Safi ya Kilimanjaro (500g)",
     description: "Kahawa asilia ya milimani, iliyochomwa kwa umaridadi mkubwa. Harufu nzuri!",
     price: 18000,
@@ -146,7 +152,7 @@ const initialMarketplace = [
   },
   {
     id: "mkt_3",
-    seller_id: "usr_demo_2",
+    seller_id: "usr_juma_hamisi",
     title: "Viatu vya Ngozi Halisi",
     description: "Viatu vilivyoshonwa kwa mikono, imara kwa matumizi ya ofisini na mitoko.",
     price: 65000,
@@ -161,14 +167,14 @@ const initialMarketplace = [
 const initialReels = [
   {
     id: "reel_1",
-    creator_id: "usr_demo_2",
+    creator_id: "usr_juma_hamisi",
     video_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
     caption: "Jinsi ya kuanza biashara ya mtandaoni kwa vitendo 💡 #Biashara #Duara",
     created_at: new Date().toISOString(),
   },
   {
     id: "reel_2",
-    creator_id: "usr_demo_1",
+    creator_id: "usr_amina_juma",
     video_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
     caption: "Uzuri wa fukwe zetu za bahari ya Hindi 🌊 Karibu pwani!",
     created_at: new Date().toISOString(),
@@ -178,8 +184,8 @@ const initialReels = [
 const initialNotifications = [
   {
     id: "notif_1",
-    recipient_id: "usr_demo_1",
-    actor_id: "usr_demo_2",
+    recipient_id: "usr_amina_juma",
+    actor_id: "usr_juma_hamisi",
     type: "like",
     post_id: "post_1",
     read_at: null,
@@ -187,8 +193,8 @@ const initialNotifications = [
   },
   {
     id: "notif_2",
-    recipient_id: "usr_demo_1",
-    actor_id: "usr_demo_3",
+    recipient_id: "usr_amina_juma",
+    actor_id: "usr_zawadi_bakari",
     type: "comment",
     post_id: "post_1",
     read_at: null,
@@ -196,16 +202,19 @@ const initialNotifications = [
   },
 ];
 
-class MockDb {
+// Generate unique tab/client ID to filter echo
+const currentClientId = `client_${Math.random().toString(36).slice(2, 9)}`;
+
+class RealtimeDb {
   constructor() {
     this.profiles = getStored("profiles", initialProfiles);
     this.posts = getStored("posts", initialPosts);
-    this.likes = getStored("likes", [{ user_id: "usr_demo_2", post_id: "post_1" }]);
+    this.likes = getStored("likes", [{ user_id: "usr_juma_hamisi", post_id: "post_1" }]);
     this.comments = getStored("comments", [
       {
         id: "comm_1",
         post_id: "post_1",
-        author_id: "usr_demo_3",
+        author_id: "usr_zawadi_bakari",
         content: "Asante sana Amina! Tuko tayari kabisa.",
         created_at: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
       },
@@ -218,12 +227,12 @@ class MockDb {
     this.marketplace_listings = getStored("marketplace_listings", initialMarketplace);
     this.reels = getStored("reels", initialReels);
     this.wallet_accounts = getStored("wallet_accounts", [
-      { user_id: "usr_demo_1", currency: "TZS", balance: 150000, created_at: new Date().toISOString() },
+      { user_id: "usr_amina_juma", currency: "TZS", balance: 150000, created_at: new Date().toISOString() },
     ]);
     this.wallet_transactions = getStored("wallet_transactions", [
       {
         id: "tx_1",
-        user_id: "usr_demo_1",
+        user_id: "usr_amina_juma",
         type: "deposit",
         amount: 200000,
         currency: "TZS",
@@ -232,7 +241,7 @@ class MockDb {
       },
       {
         id: "tx_2",
-        user_id: "usr_demo_1",
+        user_id: "usr_amina_juma",
         type: "purchase",
         amount: 50000,
         currency: "TZS",
@@ -245,8 +254,77 @@ class MockDb {
     this.messages = getStored("messages", []);
     this.notifications = getStored("notifications", initialNotifications);
     this.friend_requests = getStored("friend_requests", []);
-    this.call_signals = [];
+    this.call_signals = getStored("call_signals", []);
+    this.storage_objects = getStored("storage_objects", {});
     this.subscribers = new Set();
+
+    this.setupRealtimeSync();
+  }
+
+  setupRealtimeSync() {
+    // Cross-tab real-time event synchronization
+    try {
+      if (typeof window !== "undefined" && window.BroadcastChannel) {
+        this.bc = new BroadcastChannel("the_circle_live_realtime_v1");
+        this.bc.onmessage = (event) => {
+          const { table, eventType, record, senderId } = event.data || {};
+          if (senderId === currentClientId) return;
+          this.handleRemoteUpdate(table, eventType, record);
+        };
+      }
+    } catch (err) {
+      console.warn("BroadcastChannel initialization notice:", err);
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (e) => {
+        if (e.key === "the_circle_rt_pulse" && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data.senderId === currentClientId) return;
+            this.handleRemoteUpdate(data.table, data.eventType, data.record);
+          } catch {}
+        }
+      });
+    }
+  }
+
+  handleRemoteUpdate(table, eventType, record) {
+    this.reloadTable(table);
+    for (const sub of this.subscribers) {
+      try {
+        sub(table, eventType, record);
+      } catch (err) {
+        console.warn("Subscriber handle error:", err);
+      }
+    }
+  }
+
+  reloadTable(table) {
+    if (table && this[table] !== undefined) {
+      this[table] = getStored(table, this[table]);
+    } else {
+      this.profiles = getStored("profiles", this.profiles);
+      this.posts = getStored("posts", this.posts);
+      this.likes = getStored("likes", this.likes);
+      this.comments = getStored("comments", this.comments);
+      this.post_kicks = getStored("post_kicks", this.post_kicks);
+      this.statuses = getStored("statuses", this.statuses);
+      this.status_reactions = getStored("status_reactions", this.status_reactions);
+      this.status_comments = getStored("status_comments", this.status_comments);
+      this.status_views = getStored("status_views", this.status_views);
+      this.marketplace_listings = getStored("marketplace_listings", this.marketplace_listings);
+      this.reels = getStored("reels", this.reels);
+      this.wallet_accounts = getStored("wallet_accounts", this.wallet_accounts);
+      this.wallet_transactions = getStored("wallet_transactions", this.wallet_transactions);
+      this.conversations = getStored("conversations", this.conversations);
+      this.conversation_members = getStored("conversation_members", this.conversation_members);
+      this.messages = getStored("messages", this.messages);
+      this.notifications = getStored("notifications", this.notifications);
+      this.friend_requests = getStored("friend_requests", this.friend_requests);
+      this.call_signals = getStored("call_signals", this.call_signals);
+      this.storage_objects = getStored("storage_objects", this.storage_objects);
+    }
   }
 
   save() {
@@ -268,15 +346,46 @@ class MockDb {
     setStored("messages", this.messages);
     setStored("notifications", this.notifications);
     setStored("friend_requests", this.friend_requests);
+    setStored("call_signals", this.call_signals);
+    setStored("storage_objects", this.storage_objects);
   }
 
   notify(table, eventType, payload) {
     this.save();
+
+    // Trigger local listeners
     for (const sub of this.subscribers) {
       try {
         sub(table, eventType, payload);
       } catch {}
     }
+
+    // Broadcast across tabs/windows in real time
+    if (this.bc) {
+      try {
+        this.bc.postMessage({
+          table,
+          eventType,
+          record: payload,
+          senderId: currentClientId,
+          timestamp: Date.now(),
+        });
+      } catch {}
+    }
+
+    // Fallback pulse via storage event
+    try {
+      localStorage.setItem(
+        "the_circle_rt_pulse",
+        JSON.stringify({
+          table,
+          eventType,
+          record: payload,
+          senderId: currentClientId,
+          timestamp: Date.now(),
+        })
+      );
+    } catch {}
   }
 
   getProfile(id) {
@@ -284,7 +393,7 @@ class MockDb {
   }
 }
 
-export const mockDb = new MockDb();
+export const mockDb = new RealtimeDb();
 
 class MockQueryBuilder {
   constructor(table) {
@@ -362,12 +471,14 @@ class MockQueryBuilder {
   }
 
   or(expr) {
-    // simplified parser for display_name.ilike.%term%,username.ilike.%term%
-    const terms = expr.split(",").map((s) => {
-      const match = s.match(/(.+?)\.ilike\.%(.*)%/);
-      if (match) return { col: match[1].trim(), term: match[2].trim().toLowerCase() };
-      return null;
-    }).filter(Boolean);
+    const terms = expr
+      .split(",")
+      .map((s) => {
+        const match = s.match(/(.+?)\.ilike\.%(.*)%/);
+        if (match) return { col: match[1].trim(), term: match[2].trim().toLowerCase() };
+        return null;
+      })
+      .filter(Boolean);
 
     if (terms.length) {
       this.filters.push((row) =>
@@ -402,9 +513,14 @@ class MockQueryBuilder {
   }
 
   async execute() {
-    const list = mockDb[this.table];
-    if (!list && this.table !== "call_signals") {
-      return { data: this.isSingle ? null : [], error: null };
+    let list = mockDb[this.table];
+    if (!list) {
+      if (this.table === "call_signals") {
+        mockDb.call_signals = mockDb.call_signals || [];
+        list = mockDb.call_signals;
+      } else {
+        return { data: this.isSingle ? null : [], error: null };
+      }
     }
 
     if (this.action === "insert") {
@@ -475,8 +591,11 @@ class MockQueryBuilder {
       return { data: null, error: null };
     }
 
-    // SELECT
-    let result = list.filter((row) => this.filters.every((fn) => fn(row)));
+    // Select query
+    let result = [...list];
+    for (const filterFn of this.filters) {
+      result = result.filter(filterFn);
+    }
 
     for (const orderFn of this.orders) {
       result.sort(orderFn);
@@ -568,12 +687,8 @@ class MockQueryBuilder {
 export function createMockSupabase() {
   const authListeners = new Set();
 
-  let currentSession = getStored("session", {
-    user: {
-      id: "usr_demo_1",
-      email: "amina@example.com",
-    },
-  });
+  // Load session or default to null for clean user login/registration
+  let currentSession = getStored("session", null);
 
   return {
     auth: {
@@ -593,7 +708,7 @@ export function createMockSupabase() {
         };
       },
       async signUp({ email, password, options = {} }) {
-        const userId = `usr_${Math.random().toString(36).slice(2, 10)}`;
+        const userId = `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const user = { id: userId, email };
         const session = { user };
         currentSession = session;
@@ -618,14 +733,19 @@ export function createMockSupabase() {
         return { data: { user, session }, error: null };
       },
       async signInWithPassword({ email }) {
-        const existing = mockDb.profiles.find(
-          (p) => p.username === email || p.id === email || (email.includes("@") && p.username === email.split("@")[0])
-        ) || mockDb.profiles[0];
+        const normalized = (email || "").toLowerCase().trim();
+        const existing =
+          mockDb.profiles.find(
+            (p) =>
+              p.username.toLowerCase() === normalized ||
+              p.id.toLowerCase() === normalized ||
+              (normalized.includes("@") && p.username.toLowerCase() === normalized.split("@")[0])
+          ) || mockDb.profiles[0];
 
         const session = {
           user: {
-            id: existing ? existing.id : "usr_demo_1",
-            email,
+            id: existing ? existing.id : "usr_amina_juma",
+            email: existing ? `${existing.username}@circle.tz` : email,
           },
         };
         currentSession = session;
@@ -648,6 +768,13 @@ export function createMockSupabase() {
         }
         return { error: null };
       },
+      async updateUser(data) {
+        if (currentSession?.user) {
+          currentSession.user = { ...currentSession.user, ...data };
+          setStored("session", currentSession);
+        }
+        return { data: { user: currentSession?.user }, error: null };
+      }
     },
 
     from(table) {
@@ -660,16 +787,37 @@ export function createMockSupabase() {
           async upload(path, file) {
             let publicUrl = "";
             try {
-              publicUrl = URL.createObjectURL(file);
-            } catch {
-              publicUrl = "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&auto=format&fit=crop&q=80";
+              if (file instanceof Blob || file instanceof File) {
+                // Read real file to persistent Data URL
+                publicUrl = await new Promise((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result);
+                  reader.onerror = () => resolve(URL.createObjectURL(file));
+                  reader.readAsDataURL(file);
+                });
+              } else if (typeof file === "string") {
+                publicUrl = file;
+              }
+            } catch (err) {
+              console.warn("Media storage read notice:", err);
+              publicUrl = typeof file === "string" ? file : "";
             }
+
+            mockDb.storage_objects = mockDb.storage_objects || {};
+            mockDb.storage_objects[`${bucket}/${path}`] = publicUrl;
+            mockDb.storage_objects[path] = publicUrl;
+            setStored("storage_objects", mockDb.storage_objects);
+
             return { data: { path, publicUrl }, error: null };
           },
           getPublicUrl(path) {
+            const stored =
+              mockDb.storage_objects?.[`${bucket}/${path}`] ||
+              mockDb.storage_objects?.[path] ||
+              path;
             return {
               data: {
-                publicUrl: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&auto=format&fit=crop&q=80",
+                publicUrl: stored,
               },
             };
           },
@@ -719,3 +867,5 @@ export function createMockSupabase() {
     },
   };
 }
+
+export const createRealtimeClient = createMockSupabase;

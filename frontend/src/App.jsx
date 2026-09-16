@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import {
   addComment,
@@ -36,6 +36,7 @@ import {
 } from "./api/api";
 import { UserProfile } from "./UserProfile";
 import { MainFeed } from "./MainFeed";
+import { CallModal } from "./CallModal";
 import { translations, useTranslation } from "./lib/translations";
 import "./App.css";
 
@@ -49,7 +50,7 @@ const initials = (name = "Guest") =>
     .slice(0, 2)
     .toUpperCase() || "G";
 
-function Avatar({ name = "Guest", size = "md", avatarUrl }) {
+export function Avatar({ name = "Guest", size = "md", avatarUrl }) {
   return (
     <div className={`avatar avatar-${size}`} id={`avatar-${name.toLowerCase().replace(/\s+/g, "-")}`}>
       {avatarUrl ? <img src={avatarUrl} alt={`${name} profile`} /> : initials(name)}
@@ -547,7 +548,51 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
             </button>
           </form>
 
-          <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "var(--muted)" }}>
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", textAlign: "center", marginBottom: 8 }}>
+              {lang === "sw" ? "⚡ Majaribio ya Moja kwa Moja (Akaunti zilizopo):" : "⚡ Real-Time Testing Accounts:"}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <button
+                type="button"
+                className="button button-soft"
+                style={{ fontSize: 12, padding: "8px 10px", justifyContent: "center" }}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await loginUser("amina_juma", "password123");
+                  } catch (err) {
+                    setMessage(err.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                id="btn-quick-login-amina"
+              >
+                👩🏽 Amina Juma
+              </button>
+              <button
+                type="button"
+                className="button button-soft"
+                style={{ fontSize: 12, padding: "8px 10px", justifyContent: "center" }}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await loginUser("juma_h", "password123");
+                  } catch (err) {
+                    setMessage(err.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                id="btn-quick-login-juma"
+              >
+                👨🏾 Juma Hamisi
+              </button>
+            </div>
+          </div>
+
+          <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--muted)" }}>
             {mode === "login" ? t.noAccount : t.haveAccount}{" "}
             <button
               type="button"
@@ -1715,17 +1760,22 @@ function Wallet({ profile, lang }) {
   );
 }
 
-/* Direct Messages View */
-function Messages({ profile, lang }) {
+/* Direct Messages View with Live Realtime Chat, Typing Indicators, Media & Calling */
+function Messages({ profile, lang, onStartCall }) {
   const t = useTranslation(lang);
+  const isSw = lang === "sw";
   const [term, setTerm] = useState("");
   const [people, setPeople] = useState([]);
   const [person, setPerson] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState("");
-  const [call, setCall] = useState(null);
   const [message, setMessage] = useState("");
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [uploadingChatImg, setUploadingChatImg] = useState(false);
+  const chatEndRef = useRef(null);
+  const chatFileInputRef = useRef(null);
+  const typingTimerRef = useRef(null);
 
   const search = async (e) => {
     const value = e.target.value;
@@ -1738,10 +1788,13 @@ function Messages({ profile, lang }) {
     setPerson(nextPerson);
     setPeople([]);
     setTerm("");
+    setIsOtherTyping(false);
     try {
       const id = await findOrCreateDirectConversation(profile.id, nextPerson.id);
       setConversationId(id);
-      setMessages(await getMessages(id));
+      const msgs = await getMessages(id);
+      setMessages(msgs);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err) {
       setMessage(err.message);
     }
@@ -1751,29 +1804,59 @@ function Messages({ profile, lang }) {
     if (!conversationId) return;
     return subscribeToConversation(
       conversationId,
-      (payload) => setMessages((current) => (current.some((m) => m.id === payload.new.id) ? current : [...current, payload.new])),
-      (payload) => handleSignal(payload.new)
+      (payload) => {
+        setMessages((current) => (current.some((m) => m.id === payload.new.id) ? current : [...current, payload.new]));
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      },
+      (payload) => {
+        if (payload.new?.signal_type === "typing" && payload.new?.sender_id !== profile.id) {
+          setIsOtherTyping(true);
+          if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = setTimeout(() => setIsOtherTyping(false), 2500);
+        } else if (payload.new?.signal_type === "offer" || payload.new?.signal_type === "ringing") {
+          if (onStartCall && payload.new?.recipient_id === profile.id) {
+            onStartCall(person, payload.new?.payload?.type || "audio", true, conversationId);
+          }
+        }
+      }
     );
-  }, [conversationId]);
+  }, [conversationId, person, profile.id, onStartCall]);
+
+  const handleInputChange = (e) => {
+    setBody(e.target.value);
+    if (conversationId && person) {
+      sendCallSignal(conversationId, profile.id, person.id, "typing", {}).catch(() => {});
+    }
+  };
 
   const send = async (e) => {
     e.preventDefault();
     if (!body.trim() || !conversationId) return;
+    const text = body.trim();
+    setBody("");
     try {
-      const sent = await sendMessage(conversationId, profile.id, body.trim());
+      const sent = await sendMessage(conversationId, profile.id, text);
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
-      setBody("");
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     } catch (err) {
       setMessage(err.message);
     }
   };
 
-  const handleSignal = async (signal) => {
-    if (!person || signal.recipient_id !== profile.id) return;
-    if (signal.signal_type === "ringing") setCall({ incoming: true, active: false });
-    if (signal.signal_type === "hangup") {
-      call?.peer?.close();
-      setCall(null);
+  const handleChatImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !conversationId) return;
+    setUploadingChatImg(true);
+    try {
+      const url = await uploadImage(profile.id, file, "post-media");
+      const sent = await sendMessage(conversationId, profile.id, "", url);
+      setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setUploadingChatImg(false);
+      if (chatFileInputRef.current) chatFileInputRef.current.value = "";
     }
   };
 
@@ -1793,6 +1876,7 @@ function Messages({ profile, lang }) {
             value={term}
             onChange={search}
             placeholder={t.searchChatPlaceholder}
+            id="input-search-chats"
           />
           {people.map((p) => (
             <button
@@ -1800,6 +1884,7 @@ function Messages({ profile, lang }) {
               className="suggestion-row"
               style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "8px 4px", borderRadius: 10 }}
               onClick={() => open(p)}
+              id={`contact-item-${p.id}`}
             >
               <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
               <div className="suggestion-info">
@@ -1819,12 +1904,31 @@ function Messages({ profile, lang }) {
                   <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
                   <div>
                     <strong>{person.display_name}</strong>
-                    <small className="muted" style={{ display: "block" }}>@{person.username}</small>
+                    <small className="muted" style={{ display: "block" }}>
+                      @{person.username} • <span style={{ color: "#10b981", fontWeight: 600 }}>● {isSw ? "Mtandaoni" : "Online"}</span>
+                    </small>
                   </div>
                 </div>
-                <button type="button" className="button button-soft" onClick={() => alert("Calling...")}>
-                  {t.callBtn}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button button-soft"
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}
+                    onClick={() => onStartCall && onStartCall(person, "audio", false, conversationId)}
+                    id="btn-voice-call"
+                  >
+                    🎙️ {isSw ? "Sauti" : "Voice"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}
+                    onClick={() => onStartCall && onStartCall(person, "video", false, conversationId)}
+                    id="btn-video-call"
+                  >
+                    📹 {isSw ? "Video" : "Video"}
+                  </button>
+                </div>
               </>
             ) : (
               <p className="muted">{t.choosePersonHint}</p>
@@ -1837,23 +1941,54 @@ function Messages({ profile, lang }) {
                 key={m.id}
                 className={`msg-bubble ${m.sender_id === profile.id ? "outgoing" : "incoming"}`}
               >
-                {m.body}
+                {m.media_url && (
+                  <img src={m.media_url} alt="Attachment" className="msg-bubble-media" />
+                )}
+                {m.body && <div>{m.body}</div>}
                 <small style={{ display: "block", fontSize: 10, opacity: 0.7, marginTop: 4 }}>
                   {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </small>
               </div>
             ))}
+            {isOtherTyping && (
+              <div className="chat-typing-indicator" id="chat-typing-indicator">
+                <span>✍️ {person?.display_name} {isSw ? "anaandika..." : "is typing..."}</span>
+                <span className="typing-dot"></span>
+                <span className="typing-dot"></span>
+                <span className="typing-dot"></span>
+              </div>
+            )}
+            <div ref={chatEndRef} />
           </div>
 
           {person && (
-            <form onSubmit={send} style={{ display: "flex", gap: 10, padding: 16, borderTop: "1px solid var(--line)" }}>
+            <form onSubmit={send} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderTop: "1px solid var(--line)" }} id="form-chat-send">
+              <input
+                type="file"
+                accept="image/*"
+                ref={chatFileInputRef}
+                onChange={handleChatImageUpload}
+                style={{ display: "none" }}
+              />
+              <button
+                type="button"
+                className="button button-soft"
+                style={{ padding: "10px 14px", borderRadius: 12 }}
+                onClick={() => chatFileInputRef.current?.click()}
+                disabled={uploadingChatImg}
+                title={isSw ? "Ambatisha picha" : "Attach photo"}
+                id="btn-attach-chat-img"
+              >
+                {uploadingChatImg ? "⏳" : "📷"}
+              </button>
               <input
                 style={{ flex: 1, padding: "12px 16px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", outline: "none" }}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={handleInputChange}
                 placeholder={t.typePrivateMsg}
+                id="input-chat-message"
               />
-              <button type="submit" className="button button-primary">
+              <button type="submit" className="button button-primary" id="btn-send-message">
                 {t.send}
               </button>
             </form>
@@ -1985,7 +2120,7 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang, passcodeE
   // Moderation states
   const [blockedUsers, setBlockedUsers] = useState([
     { id: "b1", username: "spambot_east", name: "Spam Bot 01" },
-    { id: "b2", username: "fake_promoter", name: "Fake Ads" }
+    { id: "b2", username: "ad_tracker_bot", name: "Commercial Spam" }
   ]);
   const [newBlockInput, setNewBlockInput] = useState("");
   const [mutedWords, setMutedWords] = useState(["matusi", "utapeli", "scam", "takataka", "betting"]);
@@ -3584,9 +3719,32 @@ export default function App() {
   const [passcodePin, setPasscodePin] = useState(() => localStorage.getItem("circle_passcode_pin") || "1234");
   const [isLocked, setIsLocked] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [activeCall, setActiveCall] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
+  };
+
+  const handleStartCall = async (recipient, type = "audio", isIncoming = false, conversationId = null) => {
+    setActiveCall({
+      type,
+      isIncoming,
+      recipient,
+      conversationId,
+      status: isIncoming ? "ringing_incoming" : "ringing_outgoing"
+    });
+
+    if (!isIncoming && conversationId && recipient?.id && profile?.id) {
+      await sendCallSignal(conversationId, profile.id, recipient.id, "offer", {
+        type,
+        caller: {
+          id: profile.id,
+          display_name: profile.display_name,
+          username: profile.username,
+          avatar_url: profile.avatar_url
+        }
+      }).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -3661,7 +3819,23 @@ export default function App() {
       async () => setPosts(await getFeed()),
       refreshNotifications
     );
-    const stopInteractions = subscribeToInteractions(session.user.id, refreshNotifications);
+    const stopInteractions = subscribeToInteractions(
+      session.user.id,
+      refreshNotifications,
+      (signal) => {
+        if (signal.signal_type === "offer" || signal.signal_type === "ringing") {
+          setActiveCall({
+            type: signal.payload?.type || "audio",
+            isIncoming: true,
+            recipient: signal.payload?.caller || { display_name: "Mwanachama wa Duara", username: "circle_user" },
+            conversationId: signal.conversation_id,
+            status: "ringing_incoming"
+          });
+        } else if (signal.signal_type === "hangup") {
+          setActiveCall(null);
+        }
+      }
+    );
     return () => {
       stopFeed();
       stopInteractions();
@@ -3755,7 +3929,13 @@ export default function App() {
               setActive={setActive}
             />
           )}
-          {active === "messages" && <Messages profile={profile} lang={lang} />}
+          {active === "messages" && (
+            <Messages
+              profile={profile}
+              lang={lang}
+              onStartCall={handleStartCall}
+            />
+          )}
           {active === "friends" && <Friends profile={profile} lang={lang} />}
           {active === "marketplace" && <Marketplace lang={lang} />}
           {active === "reels" && <Reels profile={profile} lang={lang} onShowToast={showToast} />}
@@ -3832,6 +4012,16 @@ export default function App() {
         <ToastNotification
           message={toastMessage}
           onClose={() => setToastMessage("")}
+        />
+      )}
+
+      {/* Real-time WebRTC Audio & Video Call Modal */}
+      {activeCall && (
+        <CallModal
+          call={activeCall}
+          profile={profile}
+          onClose={() => setActiveCall(null)}
+          lang={lang}
         />
       )}
     </div>
