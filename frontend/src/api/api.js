@@ -13,7 +13,97 @@ export async function getFeed() { const { data, error } = await supabase.from("p
 export async function createPost(authorId, content, mediaUrl = null, mediaType = null) { const { data, error } = await supabase.from("posts").insert({ author_id: authorId, content, media_url: mediaUrl, media_type: mediaType }).select().single(); if (error) throw error; return data; }
 export async function toggleLike(userId, postId, liked) { if (liked) { const { error } = await supabase.from("likes").delete().match({ user_id: userId, post_id: postId }); if (error) throw error; } else { const { error } = await supabase.from("likes").insert({ user_id: userId, post_id: postId }); if (error) throw error; } }
 export async function addComment(authorId, postId, content) { const { data, error } = await supabase.from("comments").insert({ author_id: authorId, post_id: postId, content }).select("*, profiles!comments_author_id_fkey(display_name, username, avatar_url)").single(); if (error) throw error; return data; }
-export async function followUser(followerId, followingId, following) { if (following) { const { error } = await supabase.from("follows").delete().match({ follower_id: followerId, following_id: followingId }); if (error) throw error; } else { const { error } = await supabase.from("follows").insert({ follower_id: followerId, following_id: followingId }); if (error) throw error; } }
+export async function followUser(followerId, followingId, following) {
+  try {
+    if (following) {
+      const { error } = await supabase.from("follows").delete().match({ follower_id: followerId, following_id: followingId });
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("follows").insert({ follower_id: followerId, following_id: followingId });
+      if (error) throw error;
+    }
+  } catch (err) {
+    console.warn("followUser remote error:", err);
+  } finally {
+    // Keep local cache in sync for instant snappy UI
+    try {
+      const key = `circle_following_${followerId}`;
+      const stored = JSON.parse(localStorage.getItem(key) || "[]");
+      let updated;
+      if (following) {
+        updated = stored.filter((id) => id !== followingId);
+      } else {
+        updated = Array.from(new Set([...stored, followingId]));
+      }
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+  }
+}
+
+export async function getFollowedUserIds(userId) {
+  let remoteIds = [];
+  try {
+    const { data, error } = await supabase.from("follows").select("following_id").eq("follower_id", userId);
+    if (!error && data) {
+      remoteIds = data.map((r) => r.following_id);
+    }
+  } catch (err) {
+    console.warn("getFollowedUserIds remote error:", err);
+  }
+  try {
+    const local = JSON.parse(localStorage.getItem(`circle_following_${userId}`) || "[]");
+    const merged = Array.from(new Set([...remoteIds, ...local]));
+    localStorage.setItem(`circle_following_${userId}`, JSON.stringify(merged));
+    return merged;
+  } catch {
+    return remoteIds;
+  }
+}
+
+export async function getSuggestedUsers(currentUserId) {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, display_name, username, avatar_url, bio")
+      .neq("id", currentUserId)
+      .limit(10);
+    if (!error && data && data.length > 0) return data;
+  } catch (err) {
+    console.warn("getSuggestedUsers error:", err);
+  }
+  // Return default suggested creators if profiles table has few users
+  return [
+    {
+      id: "creator_baraka",
+      display_name: "Baraka Msuya",
+      username: "baraka_tech",
+      avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      bio: "Tech entrepreneur, Silicon Dar & AI developer 🇹🇿"
+    },
+    {
+      id: "creator_amina",
+      display_name: "Amina Juma",
+      username: "amina_art",
+      avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      bio: "Visual storyteller, photographer & culture enthusiast."
+    },
+    {
+      id: "creator_kilimo",
+      display_name: "Kilimo Bora TZ",
+      username: "kilimobora",
+      avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+      bio: "Smart modern farming & agritech insights across East Africa."
+    },
+    {
+      id: "creator_zanzibar",
+      display_name: "Rashid Zenji",
+      username: "rashid_sound",
+      avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+      bio: "Music producer, Taarab fusion & live sound engineer 🎵"
+    }
+  ];
+}
+
 export async function searchProfiles(term) { const { data, error } = await supabase.from("profiles").select("id, display_name, username, avatar_url").or(`display_name.ilike.%${term}%,username.ilike.%${term}%`).limit(10); if (error) throw error; return data || []; }
 export async function getNotifications(userId) { const { data, error } = await supabase.from("notifications").select("*, actor:profiles!notifications_actor_id_fkey(display_name, username, avatar_url)").eq("recipient_id", userId).order("created_at", { ascending: false }).limit(20); if (error) throw error; return data || []; }
 export async function uploadImage(userId, file, bucket = "post-media") { const extension = file.name.split(".").pop(); const path = `${userId}/${crypto.randomUUID()}.${extension}`; const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type }); if (error) throw error; const { data } = supabase.storage.from(bucket).getPublicUrl(path); return data.publicUrl; }

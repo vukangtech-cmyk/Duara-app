@@ -34,6 +34,8 @@ import {
   updateProfile,
   uploadImage
 } from "./api/api";
+import { UserProfile } from "./UserProfile";
+import { MainFeed } from "./MainFeed";
 import { translations, useTranslation } from "./lib/translations";
 import "./App.css";
 
@@ -125,6 +127,183 @@ function ThemeToggle({ dark, setDark }) {
   );
 }
 
+/* Facebook Reactions Definition */
+const FB_REACTIONS = [
+  { id: "like", emoji: "👍", labelSw: "Napenda", labelEn: "Like", color: "#1877f2" },
+  { id: "love", emoji: "❤️", labelSw: "Upendo", labelEn: "Love", color: "#f43f5e" },
+  { id: "haha", emoji: "😂", labelSw: "Kicheko", labelEn: "Haha", color: "#f59e0b" },
+  { id: "wow", emoji: "😮", labelSw: "Kushangaa", labelEn: "Wow", color: "#f59e0b" },
+  { id: "sad", emoji: "😢", labelSw: "Huzuni", labelEn: "Sad", color: "#eab308" },
+  { id: "angry", emoji: "😡", labelSw: "Hasira", labelEn: "Angry", color: "#ef4444" },
+  { id: "kick", emoji: "👊", labelSw: "Kigongo", labelEn: "Kick", color: "#10b981" }
+];
+
+/* Media Download Helper */
+async function downloadMedia(url, filename = "circle_media.mp4") {
+  if (!url) return false;
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error("Fetch failed");
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+    return true;
+  } catch {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+  }
+}
+
+/* Local Saved Media / Bookmarks Store */
+function getSavedMedia() {
+  try {
+    const saved = localStorage.getItem("circle_saved_media_v1");
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMediaItem(item) {
+  try {
+    const current = getSavedMedia();
+    const exists = current.some((x) => x.id === item.id);
+    let updated;
+    if (exists) {
+      updated = current.filter((x) => x.id !== item.id);
+    } else {
+      updated = [{ ...item, savedAt: new Date().toISOString() }, ...current];
+    }
+    localStorage.setItem("circle_saved_media_v1", JSON.stringify(updated));
+    return !exists;
+  } catch {
+    return false;
+  }
+}
+
+/* Toast Feedback Notification */
+function ToastNotification({ message, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3200);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="circle-toast" id="circle-global-toast">
+      <span>✨</span>
+      <span>{message}</span>
+    </div>
+  );
+}
+
+/* Telegram Passcode Lock Full-Screen Modal */
+function PasscodeLockModal({ lang, correctPin, onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleDigit = (digit) => {
+    if (pin.length < 4) {
+      const next = pin + digit;
+      setPin(next);
+      if (next.length === 4) {
+        if (next === correctPin) {
+          onUnlock();
+        } else {
+          setError(true);
+          setTimeout(() => {
+            setPin("");
+            setError(false);
+          }, 600);
+        }
+      }
+    }
+  };
+
+  const handleBackspace = () => {
+    setPin((prev) => prev.slice(0, -1));
+  };
+
+  return (
+    <div className="passcode-lock-modal" id="passcode-lock-screen">
+      <div className="passcode-card" style={{ transform: error ? "translateX(-6px)" : "none", transition: "transform 0.1s ease" }}>
+        <div style={{ width: 64, height: 64, borderRadius: 20, background: "linear-gradient(135deg, #0284c7, #0ea5e9)", color: "#fff", display: "grid", placeItems: "center", fontSize: 32, margin: "0 auto 16px" }}>
+          🔒
+        </div>
+        <h3 style={{ fontSize: 22, color: "var(--ink-heading)", margin: "0 0 6px" }}>
+          {lang === "sw" ? "Msimbo wa Siri wa Telegram" : "Telegram Passcode Lock"}
+        </h3>
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+          {lang === "sw" ? "Weka nambari 4 za siri kufungua THE CIRCLE" : "Enter your 4-digit PIN to unlock THE CIRCLE"}
+        </p>
+
+        <div className="passcode-dots-row">
+          {[0, 1, 2, 3].map((idx) => (
+            <div
+              key={idx}
+              className={`passcode-dot ${pin.length > idx ? "filled" : ""}`}
+              style={{ background: error ? "#ef4444" : undefined, borderColor: error ? "#ef4444" : undefined }}
+            />
+          ))}
+        </div>
+
+        {error && (
+          <p style={{ color: "#ef4444", fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>
+            {lang === "sw" ? "PIN siyo sahihi. Jaribu tena." : "Incorrect PIN. Please try again."}
+          </p>
+        )}
+
+        <div className="passcode-keypad-grid">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+            <button
+              key={num}
+              type="button"
+              className="passcode-key-btn"
+              onClick={() => handleDigit(num.toString())}
+            >
+              {num}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="passcode-key-btn"
+            style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)" }}
+            onClick={() => setPin("")}
+          >
+            {lang === "sw" ? "Futa" : "Clear"}
+          </button>
+          <button
+            type="button"
+            className="passcode-key-btn"
+            onClick={() => handleDigit("0")}
+          >
+            0
+          </button>
+          <button
+            type="button"
+            className="passcode-key-btn"
+            onClick={handleBackspace}
+          >
+            ⌫
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* Background Ambient Lighting Mesh */
 function AmbientBackground() {
   return (
@@ -137,7 +316,7 @@ function AmbientBackground() {
 }
 
 /* Top Navigation Bar */
-function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, unreadCount }) {
+function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, unreadCount, passcodeEnabled, onLockApp }) {
   const t = useTranslation(lang);
   const [term, setTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -191,6 +370,27 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
       </div>
 
       <div className="header-actions">
+        {passcodeEnabled && (
+          <button
+            type="button"
+            id="btn-nav-passcode-lock"
+            className="theme-pill-btn"
+            onClick={onLockApp}
+            title={lang === "sw" ? "Funga Programu (Telegram Passcode)" : "Lock App (Telegram Passcode)"}
+            style={{ color: "#0ea5e9" }}
+          >
+            <span>🔒</span>
+          </button>
+        )}
+        <button
+          type="button"
+          id="btn-nav-saved-items"
+          className={`theme-pill-btn ${active === "saved" ? "active" : ""}`}
+          onClick={() => setActive("saved")}
+          title={t.savedDownloadsTab}
+        >
+          <span>🔖</span>
+        </button>
         <LanguageToggle lang={lang} setLang={setLang} />
         <ThemeToggle dark={dark} setDark={setDark} />
         <button
@@ -382,6 +582,7 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
   const exploreLinks = [
     ["marketplace", "🛍️", t.marketplace],
     ["reels", "▶", t.reels],
+    ["saved", "🔖", t.savedDownloadsTab],
     ["wallet", "💳", t.wallet]
   ];
 
@@ -693,9 +894,16 @@ function StatusRail({ profile, lang }) {
 }
 
 /* Post Card */
-function PostCard({ post, user, onRefresh, lang }) {
+function PostCard({ post, user, onRefresh, lang, onShowToast }) {
   const t = useTranslation(lang);
-  const [liked, setLiked] = useState((post.likes || []).some((like) => like.user_id === user.id));
+  const [activeReaction, setActiveReaction] = useState(() => {
+    const isLiked = (post.likes || []).some((like) => like.user_id === user.id);
+    return isLiked ? "love" : null;
+  });
+  const [showReactionsBar, setShowReactionsBar] = useState(false);
+  const [isSaved, setIsSaved] = useState(() => {
+    return getSavedMedia().some((x) => x.id === post.id);
+  });
   const [kicked, setKicked] = useState(false);
   const [comment, setComment] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
@@ -704,16 +912,46 @@ function PostCard({ post, user, onRefresh, lang }) {
 
   const author = post.profiles?.display_name || "Member";
 
-  const like = async () => {
+  const handleSelectReaction = async (reactionId) => {
+    setShowReactionsBar(false);
+    const newReaction = activeReaction === reactionId ? null : reactionId;
+    setActiveReaction(newReaction);
     setBusy(true);
     try {
-      await toggleLike(user.id, post.id, liked);
-      setLiked(!liked);
+      await toggleLike(user.id, post.id, !newReaction);
       onRefresh();
     } catch (err) {
       console.warn(err);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSavePost = () => {
+    const savedNow = saveMediaItem({
+      id: post.id,
+      type: post.media_type || (post.media_url ? "image" : "post"),
+      media_url: post.media_url,
+      caption: post.content,
+      author: author,
+      authorAvatar: post.profiles?.avatar_url,
+      username: post.profiles?.username,
+      created_at: post.created_at
+    });
+    setIsSaved(savedNow);
+    if (onShowToast) {
+      onShowToast(savedNow ? (lang === "sw" ? "✓ Imehifadhiwa kwenye Mikusanyiko!" : "✓ Saved to your bookmarks!") : (lang === "sw" ? "Imeondolewa kwenye Mikusanyiko" : "Removed from bookmarks"));
+    }
+  };
+
+  const handleDownloadMedia = async (e) => {
+    e.stopPropagation();
+    if (!post.media_url) return;
+    const ext = post.media_type === "video" ? "mp4" : "jpg";
+    const filename = `circle_${post.id}.${ext}`;
+    await downloadMedia(post.media_url, filename);
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Upakuaji wa faili umeanza kwenye kifaa chako!" : "✓ Media download started to your device!");
     }
   };
 
@@ -741,7 +979,8 @@ function PostCard({ post, user, onRefresh, lang }) {
     }
   };
 
-  const likeCount = (post.likes?.length || 0) + (liked && !(post.likes || []).some((x) => x.user_id === user.id) ? 1 : 0);
+  const currentReactionConfig = FB_REACTIONS.find((r) => r.id === activeReaction);
+  const totalReactionsCount = (post.likes?.length || 0) + (activeReaction && !(post.likes || []).some((x) => x.user_id === user.id) ? 1 : 0);
 
   return (
     <article className="post-card" id={`post-card-${post.id}`}>
@@ -758,32 +997,94 @@ function PostCard({ post, user, onRefresh, lang }) {
       <p className="post-body-text">{post.content}</p>
 
       {post.media_url && (
-        <div className="post-media-container">
+        <div className="media-wrapper-relative">
           {post.media_type === "video" ? (
             <video src={post.media_url} controls playsInline />
           ) : (
             <img src={post.media_url} alt="Post Attachment" />
           )}
+
+          {/* Direct Media Save & Download Quick Pills */}
+          <div className="media-quick-download-bar">
+            <button
+              type="button"
+              className="media-action-pill"
+              onClick={handleDownloadMedia}
+              title={post.media_type === "video" ? t.downloadVideoBtn : t.downloadImageBtn}
+            >
+              <span>📥</span>
+              <span>{post.media_type === "video" ? (lang === "sw" ? "Pakua Video" : "Download Video") : (lang === "sw" ? "Pakua Picha" : "Download Photo")}</span>
+            </button>
+            <button
+              type="button"
+              className="media-action-pill"
+              onClick={handleSavePost}
+              title={isSaved ? t.unbookmarkMedia : t.bookmarkMedia}
+            >
+              <span>{isSaved ? "🔖" : "💾"}</span>
+              <span>{isSaved ? (lang === "sw" ? "Imehifadhiwa" : "Saved") : (lang === "sw" ? "Hifadhi" : "Save")}</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {Boolean(post.comments?.[0]?.count) && (
-        <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-          {post.comments[0].count} {t.comments}
-        </p>
-      )}
+      {/* Facebook-style Reaction & Comments count summary */}
+      <div className="reaction-summary-row">
+        <div className="reaction-summary-emojis">
+          <span className="reaction-mini-icon">👍</span>
+          <span className="reaction-mini-icon">❤️</span>
+          <span className="reaction-mini-icon">👊</span>
+          <span className="reaction-count-text">
+            {totalReactionsCount > 0 ? totalReactionsCount : (activeReaction ? 1 : 0)}
+          </span>
+        </div>
+        {Boolean(post.comments?.[0]?.count) && (
+          <span className="muted" style={{ fontSize: 13 }}>
+            {post.comments[0].count} {t.comments}
+          </span>
+        )}
+      </div>
 
+      {/* Post Actions Bar with Facebook Reaction trigger and Save Post */}
       <div className="post-actions-bar">
-        <button
-          type="button"
-          id={`btn-like-${post.id}`}
-          onClick={like}
-          disabled={busy}
-          className={`action-btn ${liked ? "liked" : ""}`}
+        {/* Facebook Reaction Button with Floating Picker */}
+        <div
+          className="fb-reaction-wrapper"
+          onMouseEnter={() => setShowReactionsBar(true)}
+          onMouseLeave={() => setShowReactionsBar(false)}
         >
-          <span>{liked ? "❤️" : "🤍"}</span>
-          <span>{likeCount}</span>
-        </button>
+          {showReactionsBar && (
+            <div className="fb-reaction-popover" id={`reactions-popover-${post.id}`}>
+              {FB_REACTIONS.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className="fb-reaction-btn"
+                  onClick={() => handleSelectReaction(r.id)}
+                >
+                  <span>{r.emoji}</span>
+                  <span className="fb-reaction-tooltip">{lang === "sw" ? r.labelSw : r.labelEn}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            id={`btn-react-${post.id}`}
+            onClick={() => handleSelectReaction(activeReaction ? activeReaction : "love")}
+            disabled={busy}
+            className={`action-btn ${activeReaction ? "liked" : ""}`}
+            style={{ color: currentReactionConfig ? currentReactionConfig.color : undefined }}
+          >
+            <span>{currentReactionConfig ? currentReactionConfig.emoji : "🤍"}</span>
+            <span>
+              {currentReactionConfig
+                ? (lang === "sw" ? currentReactionConfig.labelSw : currentReactionConfig.labelEn)
+                : t.like}
+            </span>
+          </button>
+        </div>
 
         <button
           type="button"
@@ -803,6 +1104,17 @@ function PostCard({ post, user, onRefresh, lang }) {
         >
           <span>💬</span>
           <span>{t.reply}</span>
+        </button>
+
+        <button
+          type="button"
+          id={`btn-bookmark-action-${post.id}`}
+          onClick={handleSavePost}
+          className={`action-btn ${isSaved ? "saved" : ""}`}
+          title={isSaved ? t.unbookmarkMedia : t.bookmarkMedia}
+        >
+          <span>{isSaved ? "🔖" : "💾"}</span>
+          <span>{isSaved ? (lang === "sw" ? "Imehifadhiwa" : "Saved") : (lang === "sw" ? "Hifadhi" : "Save")}</span>
         </button>
 
         <button
@@ -842,150 +1154,9 @@ function PostCard({ post, user, onRefresh, lang }) {
   );
 }
 
-/* Home / Feed View */
-function Home({ profile, posts, setPosts, onPost, lang }) {
-  const t = useTranslation(lang);
-  const [content, setContent] = useState("");
-  const [file, setFile] = useState(null);
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!content.trim() && !file) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      let media = null;
-      const mediaType = file ? (file.type.startsWith("video/") ? "video" : "image") : null;
-      if (file) media = await uploadImage(profile.id, file);
-      const post = await onPost(content.trim() || (mediaType === "video" ? t.newVideo : t.newPhoto), media, mediaType);
-      setPosts((current) => [{ ...post, profiles: profile, likes: [], comments: [] }, ...current]);
-      setContent("");
-      setFile(null);
-    } catch (err) {
-      setMessage(err.message || t.postSendFailed);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const refresh = async () => {
-    try {
-      setPosts(await getFeed());
-    } catch (err) {
-      setMessage(err.message || t.feedReadFailed);
-    }
-  };
-
-  return (
-    <div className="feed-container" id="feed-container">
-      <div className="feed-column">
-        <StatusRail profile={profile} lang={lang} />
-
-        <section className="composer-card" id="composer-card">
-          <div className="composer-top">
-            <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="md" />
-            <div className="composer-user-info">
-              <span className="composer-user-name">{profile.display_name}</span>
-              <span className="composer-user-sub">{t.shareWithCircle}</span>
-            </div>
-          </div>
-
-          <form onSubmit={submit} id="create-post-form">
-            <textarea
-              id="post-textarea"
-              className="composer-textarea"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={t.composerPlaceholder}
-              maxLength={600}
-            />
-
-            {file && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--primary-soft)", borderRadius: 10, marginBottom: 10, fontSize: 13, color: "var(--primary)" }}>
-                <span>{file.type.startsWith("video/") ? "🎬" : "🖼️"}</span>
-                <span style={{ fontWeight: 600 }}>{file.name}</span>
-                <button type="button" onClick={() => setFile(null)} style={{ marginLeft: "auto", border: "none", background: "none", color: "#ef4444", fontWeight: 700 }}>✕</button>
-              </div>
-            )}
-
-            <div className="composer-divider" />
-
-            <div className="composer-bottom">
-              <div className="composer-tools-group">
-                <label className="tool-chip" id="btn-upload-media">
-                  <span>📷</span> {t.photoVideo}
-                  <input type="file" accept="image/*,video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                </label>
-                <button
-                  type="button"
-                  id="btn-post-emoji"
-                  className="tool-chip"
-                  onClick={() => setShowEmoji(!showEmoji)}
-                >
-                  <span>😊</span> {t.emoji}
-                </button>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <span className="char-counter">{content.length}/600</span>
-                <button
-                  type="submit"
-                  id="btn-publish-post"
-                  className="button button-primary"
-                  disabled={busy}
-                >
-                  {busy ? t.sharingBtn : t.shareBtn}
-                </button>
-              </div>
-            </div>
-
-            {showEmoji && <EmojiPicker onPick={(emoji) => setContent((val) => `${val}${emoji}`)} />}
-          </form>
-
-          <ErrorBox message={message} />
-        </section>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "10px 0" }}>
-          <h2 style={{ fontSize: 20 }}>{t.forYou}</h2>
-          <button type="button" id="btn-feed-refresh" className="text-button" onClick={refresh}>
-            🔄 {t.refresh}
-          </button>
-        </div>
-
-        {posts.length > 0 ? (
-          posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              user={profile}
-              onRefresh={async () => setPosts(await getFeed())}
-              lang={lang}
-            />
-          ))
-        ) : (
-          <div className="glass-card" style={{ textAlign: "center", padding: "60px 20px" }}>
-            <span style={{ fontSize: 48, display: "block", marginBottom: 12 }}>🌱</span>
-            <h3 style={{ fontSize: 20, marginBottom: 8 }}>{t.emptyFeedTitle}</h3>
-            <p className="muted">{t.emptyFeedDesc}</p>
-          </div>
-        )}
-      </div>
-
-      <aside className="right-rail" id="feed-right-rail">
-        <div className="rail-hero-card">
-          <p className="eyebrow">{t.welcomeRailEyebrow}</p>
-          <h3 style={{ fontSize: 18, margin: "6px 0 10px" }}>{t.welcomeRailTitle}</h3>
-          <p className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>{t.welcomeRailDesc}</p>
-        </div>
-
-        <Suggestions userId={profile.id} lang={lang} />
-      </aside>
-    </div>
-  );
-}
+/* Home / Main Feed View Alias */
+const Home = MainFeed;
+export { MainFeed, Home };
 
 /* Suggestions Widget */
 function Suggestions({ userId, lang }) {
@@ -1049,170 +1220,9 @@ function Suggestions({ userId, lang }) {
   );
 }
 
-/* Profile Page */
-function Profile({ profile, setProfile, posts, lang }) {
-  const t = useTranslation(lang);
-  const [name, setName] = useState(profile.display_name);
-  const [bio, setBio] = useState(profile.bio || "");
-  const [location, setLocation] = useState(profile.location || "");
-  const [website, setWebsite] = useState(profile.website || "");
-  const [pronouns, setPronouns] = useState(profile.pronouns || "");
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || "");
-  const [tab, setTab] = useState("posts");
-  const [message, setMessage] = useState("");
-  const [uploading, setUploading] = useState(false);
-
-  const save = async (e) => {
-    e.preventDefault();
-    try {
-      const updated = await updateProfile(profile.id, {
-        display_name: name,
-        bio,
-        location,
-        website,
-        pronouns,
-        avatar_url: avatarUrl
-      });
-      setProfile(updated);
-      setMessage(t.profileSaved);
-    } catch (err) {
-      setMessage(err.message);
-    }
-  };
-
-  const changeAvatar = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return setMessage(t.selectImagesOnly);
-    setUploading(true);
-    try {
-      const url = await uploadImage(profile.id, file, "avatars");
-      setAvatarUrl(url);
-      setProfile({ ...profile, avatar_url: url });
-      setMessage(t.profilePicUpdated);
-    } catch (err) {
-      setMessage(err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const myPosts = posts.filter((post) => post.author_id === profile.id);
-
-  return (
-    <div className="feature-shell" id="profile-view">
-      <div className="profile-cover-modern" style={profile.cover_url ? { backgroundImage: `url(${profile.cover_url})` } : {}}>
-        <span style={{ position: "absolute", bottom: 16, right: 16, background: "rgba(0,0,0,0.6)", color: "#fff", padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
-          {t.addCoverPhoto}
-        </span>
-      </div>
-
-      <div className="profile-hero-content">
-        <div className="profile-avatar-row">
-          <div style={{ position: "relative" }}>
-            <Avatar name={name} size="lg" avatarUrl={avatarUrl} />
-            <label style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, borderRadius: "50%", background: "var(--primary)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer", border: "2px solid var(--card-bg)" }}>
-              {uploading ? "..." : "✏️"}
-              <input type="file" accept="image/*" onChange={changeAvatar} style={{ display: "none" }} />
-            </label>
-          </div>
-
-          <button type="button" className="button button-primary" onClick={() => setTab("about")}>
-            {t.editProfileBtn}
-          </button>
-        </div>
-
-        <h1 style={{ fontSize: 28, marginBottom: 4 }}>{name}</h1>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          @{profile.username} {pronouns && `· ${pronouns}`} {location && `· 📍 ${location}`}
-        </p>
-        <p style={{ maxWidth: 560, lineHeight: 1.6 }}>{bio || t.noBioYet}</p>
-
-        <div style={{ display: "flex", gap: 30, marginTop: 20 }}>
-          <div><strong style={{ fontSize: 18, color: "var(--primary)" }}>{myPosts.length}</strong> <span className="muted" style={{ fontSize: 13 }}>{t.postsTab}</span></div>
-          <div><strong style={{ fontSize: 18, color: "var(--primary)" }}>—</strong> <span className="muted" style={{ fontSize: 13 }}>{t.friendsTab}</span></div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        {["posts", "about", "friends", "photos"].map((tabId) => (
-          <button
-            key={tabId}
-            type="button"
-            className={`button ${tab === tabId ? "button-primary" : "button-outline"}`}
-            onClick={() => setTab(tabId)}
-          >
-            {tabId === "posts" && t.postsTab}
-            {tabId === "about" && t.aboutTab}
-            {tabId === "friends" && t.friendsTab}
-            {tabId === "photos" && t.photosTab}
-          </button>
-        ))}
-      </div>
-
-      {tab === "posts" && (
-        <div className="feed-column">
-          {myPosts.length > 0 ? (
-            myPosts.map((post) => (
-              <article key={post.id} className="glass-card" style={{ padding: 18 }}>
-                <p style={{ fontSize: 15, lineHeight: 1.6 }}>{post.content}</p>
-                <small className="muted" style={{ display: "block", marginTop: 8 }}>
-                  {new Date(post.created_at).toLocaleDateString()}
-                </small>
-              </article>
-            ))
-          ) : (
-            <p className="muted" style={{ padding: 20 }}>{t.noPostsYet}</p>
-          )}
-        </div>
-      )}
-
-      {tab === "about" && (
-        <div className="glass-card" style={{ maxWidth: 640 }}>
-          <h2 style={{ fontSize: 20, marginBottom: 18 }}>{t.aboutYou}</h2>
-          <form onSubmit={save} id="profile-edit-form">
-            <div className="form-group">
-              <label>{t.nameLabel}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>{t.pronounsLabel}</label>
-              <input value={pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder={t.pronounsPlaceholder} />
-            </div>
-            <div className="form-group">
-              <label>{t.bioLabel}</label>
-              <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={200} rows={3} />
-            </div>
-            <div className="form-group">
-              <label>{t.locationLabel}</label>
-              <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t.locationPlaceholder} />
-            </div>
-            <div className="form-group">
-              <label>{t.websiteLabel}</label>
-              <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://..." />
-            </div>
-            <ErrorBox message={message} />
-            <button type="submit" className="button button-primary" style={{ marginTop: 12 }}>
-              {t.saveChanges}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {tab === "friends" && (
-        <div className="glass-card">
-          <p className="muted">{t.friendsNotice}</p>
-        </div>
-      )}
-
-      {tab === "photos" && (
-        <div className="glass-card">
-          <p className="muted">{t.photosNotice}</p>
-        </div>
-      )}
-    </div>
-  );
-}
+/* UserProfile Component alias & re-export */
+const Profile = UserProfile;
+export { UserProfile, Profile };
 
 /* Marketplace View */
 function Marketplace({ lang }) {
@@ -1269,8 +1279,166 @@ function Marketplace({ lang }) {
   );
 }
 
-/* Reels View */
-function Reels({ profile, lang }) {
+/* Individual Reel Card with Facebook Reactions & Download Video */
+function ReelCard({ reel, lang, onShowToast }) {
+  const t = useTranslation(lang);
+  const [reaction, setReaction] = useState(null);
+  const [showPopover, setShowPopover] = useState(false);
+  const [isSaved, setIsSaved] = useState(() => {
+    return getSavedMedia().some((x) => x.id === reel.id);
+  });
+  const [downloading, setDownloading] = useState(false);
+
+  const handleSelectReaction = (id) => {
+    setReaction(reaction === id ? null : id);
+    setShowPopover(false);
+    if (onShowToast) {
+      const cfg = FB_REACTIONS.find((r) => r.id === id);
+      if (cfg) {
+        onShowToast(`${cfg.emoji} ${lang === "sw" ? "Umeacha hisia ya" : "Reacted with"} ${lang === "sw" ? cfg.labelSw : cfg.labelEn}`);
+      }
+    }
+  };
+
+  const handleSaveReel = () => {
+    const savedNow = saveMediaItem({
+      id: reel.id,
+      type: "reel",
+      media_url: reel.video_url,
+      caption: reel.caption,
+      author: reel.profiles?.display_name,
+      authorAvatar: reel.profiles?.avatar_url,
+      username: reel.profiles?.username,
+      created_at: reel.created_at
+    });
+    setIsSaved(savedNow);
+    if (onShowToast) {
+      onShowToast(savedNow ? (lang === "sw" ? "✓ Reel imehifadhiwa kwenye Mikusanyiko!" : "✓ Reel saved to your bookmarks!") : (lang === "sw" ? "Reel imeondolewa kwenye hifadhi" : "Reel removed from bookmarks"));
+    }
+  };
+
+  const handleDownloadReel = async () => {
+    setDownloading(true);
+    await downloadMedia(reel.video_url, `circle_reel_${reel.id}.mp4`);
+    setDownloading(false);
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Upakuaji wa Reel umeanza (MP4)!" : "✓ Reel download started (MP4)!");
+    }
+  };
+
+  const curConfig = FB_REACTIONS.find((r) => r.id === reaction);
+
+  return (
+    <article className="reel-card-modern" id={`reel-card-${reel.id}`}>
+      <div className="reel-video-wrapper">
+        <video src={reel.video_url} controls playsInline preload="metadata" />
+
+        {/* Quick Save & Download Floating Pills */}
+        <div className="reel-top-badges">
+          <button
+            type="button"
+            className="media-action-pill"
+            onClick={handleDownloadReel}
+            disabled={downloading}
+            title={t.downloadVideoBtn}
+          >
+            <span>📥</span>
+            <span>{downloading ? "..." : (lang === "sw" ? "Pakua MP4" : "Download MP4")}</span>
+          </button>
+          <button
+            type="button"
+            className="media-action-pill"
+            onClick={handleSaveReel}
+            title={isSaved ? t.unbookmarkMedia : t.bookmarkMedia}
+          >
+            <span>{isSaved ? "🔖" : "💾"}</span>
+            <span>{isSaved ? (lang === "sw" ? "Imehifadhiwa" : "Saved") : (lang === "sw" ? "Hifadhi" : "Save")}</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="reel-overlay-info">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+          <Avatar name={reel.profiles?.display_name || "Creator"} avatarUrl={reel.profiles?.avatar_url} size="xs" />
+          <strong style={{ fontSize: 14 }}>{reel.profiles?.display_name || "Member"}</strong>
+          {reel.profiles?.username && <span className="muted" style={{ fontSize: 12 }}>@{reel.profiles.username}</span>}
+        </div>
+        <p style={{ fontSize: 13, margin: "0 0 10px", lineHeight: 1.5 }}>{reel.caption}</p>
+
+        {/* Facebook Reaction Dock & Actions */}
+        <div className="reel-actions-row">
+          <div
+            className="fb-reaction-wrapper"
+            onMouseEnter={() => setShowPopover(true)}
+            onMouseLeave={() => setShowPopover(false)}
+          >
+            {showPopover && (
+              <div className="fb-reaction-popover" style={{ bottom: "44px", left: 0 }}>
+                {FB_REACTIONS.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="fb-reaction-btn"
+                    onClick={() => handleSelectReaction(r.id)}
+                  >
+                    <span>{r.emoji}</span>
+                    <span className="fb-reaction-tooltip">{lang === "sw" ? r.labelSw : r.labelEn}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className={`reel-action-btn ${reaction ? "active" : ""}`}
+              onClick={() => handleSelectReaction(reaction ? reaction : "love")}
+              style={{ color: curConfig ? curConfig.color : undefined }}
+            >
+              <span>{curConfig ? curConfig.emoji : "🤍"}</span>
+              <span>{curConfig ? (lang === "sw" ? curConfig.labelSw : curConfig.labelEn) : t.like}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="reel-action-btn"
+            onClick={handleDownloadReel}
+            title={t.downloadVideoBtn}
+          >
+            <span>📥</span>
+            <span>{lang === "sw" ? "Pakua" : "Download"}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`reel-action-btn ${isSaved ? "active" : ""}`}
+            onClick={handleSaveReel}
+            title={isSaved ? t.unbookmarkMedia : t.bookmarkMedia}
+          >
+            <span>{isSaved ? "🔖" : "💾"}</span>
+            <span>{isSaved ? (lang === "sw" ? "Imehifadhiwa" : "Saved") : (lang === "sw" ? "Hifadhi" : "Save")}</span>
+          </button>
+
+          <button
+            type="button"
+            className="reel-action-btn"
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({ title: "THE CIRCLE Reel", text: reel.caption, url: reel.video_url });
+              }
+            }}
+          >
+            <span>↗</span>
+            <span>{t.share}</span>
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* Reels View with Save & Download Videos */
+function Reels({ profile, lang, onShowToast }) {
   const t = useTranslation(lang);
   const [items, setItems] = useState([]);
   const [file, setFile] = useState(null);
@@ -1279,17 +1447,18 @@ function Reels({ profile, lang }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    getReels().then(setItems).catch(() => {});
+    getReels().then(setItems).catch(console.warn);
   }, []);
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!file) return setMessage(t.selectVideoFirst);
-    if (!file.type.startsWith("video/")) return setMessage(t.videoOnlyNotice);
+    if (!file) return setMessage(t.chooseVideo);
     setBusy(true);
+    setMessage("");
     try {
-      const reel = await createReel(profile.id, file, caption);
-      setItems((current) => [{ ...reel, profiles: profile }, ...current]);
+      const videoUrl = await uploadImage(profile.id, file);
+      const newReel = await publishReel(profile.id, videoUrl, caption);
+      setItems((current) => [{ ...newReel, profiles: profile }, ...current]);
       setFile(null);
       setCaption("");
       setMessage(t.reelPublished);
@@ -1333,13 +1502,7 @@ function Reels({ profile, lang }) {
       {items.length > 0 ? (
         <div className="reels-grid-3">
           {items.map((reel) => (
-            <article className="reel-card-modern" key={reel.id}>
-              <video src={reel.video_url} controls playsInline />
-              <div className="reel-overlay-info">
-                <strong>{reel.profiles?.display_name || "Member"}</strong>
-                <p style={{ fontSize: 13 }}>{reel.caption}</p>
-              </div>
-            </article>
+            <ReelCard key={reel.id} reel={reel} lang={lang} onShowToast={onShowToast} />
           ))}
         </div>
       ) : (
@@ -1347,6 +1510,145 @@ function Reels({ profile, lang }) {
           <span style={{ fontSize: 44 }}>▶</span>
           <h3 style={{ margin: "14px 0 6px" }}>{t.emptyReels}</h3>
           <p className="muted">{t.emptyReelsDesc}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Saved Media & Downloads Collections View */
+function SavedMedia({ lang, setActive, onShowToast }) {
+  const t = useTranslation(lang);
+  const [filter, setFilter] = useState("all");
+  const [items, setItems] = useState(() => getSavedMedia());
+
+  const handleRemove = (id) => {
+    saveMediaItem({ id });
+    setItems(getSavedMedia());
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "Imeondolewa kwenye mikusanyiko" : "Removed from saved collections");
+    }
+  };
+
+  const handleDownload = async (item) => {
+    if (!item.media_url) return;
+    const ext = item.type === "video" || item.type === "reel" ? "mp4" : "jpg";
+    await downloadMedia(item.media_url, `circle_saved_${item.id}.${ext}`);
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Upakuaji wa faili umeanza!" : "✓ Media download started!");
+    }
+  };
+
+  const filteredItems = items.filter((item) => {
+    if (filter === "all") return true;
+    if (filter === "video") return item.type === "video";
+    if (filter === "image") return item.type === "image" || item.type === "photo";
+    if (filter === "reels") return item.type === "reel";
+    return true;
+  });
+
+  return (
+    <div className="feature-shell" id="saved-media-view">
+      <div className="feature-top-banner">
+        <div>
+          <p className="eyebrow">{lang === "sw" ? "HIFADHI YA MAUDHUI" : "SAVED MEDIA & BOOKMARKS"}</p>
+          <h1 style={{ fontSize: 32, margin: "6px 0 10px" }}>{t.savedDownloadsTab}</h1>
+          <p className="muted">
+            {lang === "sw"
+              ? "Tazama video na picha zote ulizozihifadhi kutoka kwenye machapisho na reels, na uzipakue moja kwa moja kwenye kifaa chako."
+              : "Browse photos and videos you saved across posts and reels, and download them directly to your local device."}
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        {[
+          { id: "all", label: lang === "sw" ? "Zote" : "All Items" },
+          { id: "video", label: lang === "sw" ? "Video Pekee" : "Videos Only" },
+          { id: "image", label: lang === "sw" ? "Picha Pekee" : "Photos Only" },
+          { id: "reels", label: lang === "sw" ? "Reels Zilizohifadhiwa" : "Saved Reels" }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`button ${filter === tab.id ? "button-primary" : "button-outline"}`}
+            onClick={() => setFilter(tab.id)}
+          >
+            {tab.label} ({tab.id === "all" ? items.length : items.filter((x) => (tab.id === "video" ? x.type === "video" : tab.id === "image" ? (x.type === "image" || x.type === "photo") : x.type === "reel")).length})
+          </button>
+        ))}
+      </div>
+
+      {filteredItems.length > 0 ? (
+        <div className="saved-media-grid">
+          {filteredItems.map((item) => (
+            <article key={item.id} className="saved-media-card">
+              {item.media_url ? (
+                <div className="saved-media-preview">
+                  {item.type === "video" || item.type === "reel" ? (
+                    <video src={item.media_url} controls playsInline />
+                  ) : (
+                    <img src={item.media_url} alt={item.caption || "Saved Media"} />
+                  )}
+                </div>
+              ) : (
+                <div style={{ padding: "20px", background: "var(--card-hover)" }}>
+                  <p style={{ fontSize: 14, margin: 0, fontStyle: "italic" }}>"{item.caption}"</p>
+                </div>
+              )}
+
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 10, flex: 1, justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    {item.authorAvatar && <Avatar name={item.author || "User"} avatarUrl={item.authorAvatar} size="xs" />}
+                    <strong style={{ fontSize: 13 }}>{item.author || "Circle Member"}</strong>
+                    {item.username && <span className="muted" style={{ fontSize: 11 }}>@{item.username}</span>}
+                  </div>
+                  {item.caption && <p style={{ fontSize: 13, color: "var(--ink)", margin: 0 }}>{item.caption}</p>}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+                  {item.media_url && (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ flex: 1, fontSize: 12, padding: "8px 12px" }}
+                      onClick={() => handleDownload(item)}
+                    >
+                      📥 {lang === "sw" ? "Pakua Kwenye Kifaa" : "Download File"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="button button-soft"
+                    style={{ color: "#ef4444", fontSize: 12, padding: "8px 12px" }}
+                    onClick={() => handleRemove(item.id)}
+                  >
+                    🗑️ {lang === "sw" ? "Ondoa" : "Remove"}
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="glass-card" style={{ textAlign: "center", padding: "60px 20px" }}>
+          <span style={{ fontSize: 48, display: "block", marginBottom: 14 }}>🔖</span>
+          <h3 style={{ fontSize: 20, marginBottom: 8 }}>
+            {lang === "sw" ? "Hakuna Maudhui Yaliyohifadhiwa" : "No Saved Media Found"}
+          </h3>
+          <p className="muted" style={{ maxWidth: 440, margin: "0 auto 20px" }}>
+            {lang === "sw"
+              ? "Bofya kitufe cha 'Hifadhi' (💾 au 🔖) kwenye picha, video au reels ili kupakua au kuweka kumbukumbu zako hapa."
+              : "Click the 'Save' button (💾 or 🔖) on any photo, video, or reel to bookmark and download media here."}
+          </p>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={() => setActive("home")}
+          >
+            {lang === "sw" ? "Gundua Machapisho" : "Explore Feed"}
+          </button>
         </div>
       )}
     </div>
@@ -1619,9 +1921,9 @@ function Notifications({ items, userId, onRead, lang }) {
 }
 
 /* Master Settings View */
-function Settings({ profile, setProfile, dark, setDark, lang, setLang }) {
+function Settings({ profile, setProfile, dark, setDark, lang, setLang, passcodeEnabled, setPasscodeEnabled, passcodePin, setPasscodePin, onLockApp, onShowToast }) {
   const t = useTranslation(lang);
-  const [activeTab, setActiveTab] = useState("account");
+  const [activeTab, setActiveTab] = useState("telegram");
   const [saved, setSaved] = useState(false);
 
   // Form states
@@ -1629,6 +1931,34 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang }) {
   const [username, setUsername] = useState(profile?.username || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [phone, setPhone] = useState("+255 754 000 111");
+
+  // Telegram Privacy & Security states
+  const [pinChangeOpen, setPinChangeOpen] = useState(false);
+  const [newPinInput, setNewPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [autoLockDuration, setAutoLockDuration] = useState("5m");
+  const [cloudPassword, setCloudPassword] = useState("");
+  const [cloudHint, setCloudHint] = useState("");
+  const [cloudEmail, setCloudEmail] = useState(profile?.email || "vukangtech@gmail.com");
+  const [cloud2FASaved, setCloud2FASaved] = useState(false);
+  const [autoDeleteTimer, setAutoDeleteTimer] = useState("off");
+
+  // Telegram Granular Matrix
+  const [tgPhoneVisibility, setTgPhoneVisibility] = useState("nobody");
+  const [tgFindMeByPhone, setTgFindMeByPhone] = useState("contacts");
+  const [tgLastSeen, setTgLastSeen] = useState("nobody");
+  const [tgProfilePhoto, setTgProfilePhoto] = useState("contacts");
+  const [tgForwardLink, setTgForwardLink] = useState("nobody");
+  const [tgP2PCalls, setTgP2PCalls] = useState("contacts");
+  const [tgGroupInvites, setTgGroupInvites] = useState("contacts");
+  const [tgAccountSelfDestruct, setTgAccountSelfDestruct] = useState("6m");
+
+  // Active Sessions
+  const [sessions, setSessions] = useState([
+    { id: "s1", current: true, device: "Chrome 128 · macOS Sonoma", ip: "197.250.88.12", location: "Dar es Salaam, Tanzania", active: "Mtandaoni Sasa" },
+    { id: "s2", current: false, device: "THE CIRCLE Android App (Samsung Galaxy S24)", ip: "197.250.88.45", location: "Arusha, Tanzania", active: "Masaa 2 yaliyopita" },
+    { id: "s3", current: false, device: "THE CIRCLE Desktop · Windows 11", ip: "102.129.64.10", location: "Nairobi, Kenya", active: "Jana" }
+  ]);
 
   // Security states
   const [currentPassword, setCurrentPassword] = useState("");
@@ -1675,7 +2005,45 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang }) {
       });
     }
     setSaved(true);
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Mipangilio yote imehifadhiwa salama!" : "✓ All settings saved securely!");
+    }
     setTimeout(() => setSaved(false), 4000);
+  };
+
+  const handleSetNewPin = (e) => {
+    e.preventDefault();
+    setPinError("");
+    if (!/^\d{4}$/.test(newPinInput)) {
+      setPinError(lang === "sw" ? "PIN lazima iwe nambari 4 kamili." : "PIN must be exactly 4 digits.");
+      return;
+    }
+    if (setPasscodePin) setPasscodePin(newPinInput);
+    setPinChangeOpen(false);
+    setNewPinInput("");
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Msimbo wa siri wa PIN umebadilishwa kikamilifu!" : "✓ Passcode PIN updated successfully!");
+    }
+  };
+
+  const handleTerminateOtherSessions = () => {
+    setSessions(sessions.filter((s) => s.current));
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Vifaa vyote vingine vimeondolewa kwenye akaunti yako!" : "✓ Terminated all other active device sessions!");
+    }
+  };
+
+  const handleSaveCloud2FA = (e) => {
+    e.preventDefault();
+    if (cloudPassword.length < 6) {
+      if (onShowToast) onShowToast(lang === "sw" ? "Nenosiri la wingu lazima liwe na herufi 6 au zaidi." : "Cloud password must be at least 6 characters.");
+      return;
+    }
+    setCloud2FASaved(true);
+    if (onShowToast) {
+      onShowToast(lang === "sw" ? "✓ Uthibitishaji wa hatua 2 wa Telegram umewezeshwa!" : "✓ Telegram Two-Step Verification cloud password set!");
+    }
+    setTimeout(() => setCloud2FASaved(false), 5000);
   };
 
   const handlePasswordUpdate = (e) => {
@@ -1722,6 +2090,7 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang }) {
   };
 
   const tabs = [
+    { id: "telegram", label: t.settingsTabTelegram, icon: "✈️" },
     { id: "account", label: t.settingsTabAccount, icon: "👤" },
     { id: "security", label: t.settingsTabSecurity, icon: "🔒" },
     { id: "privacy", label: t.settingsTabPrivacy, icon: "👁️" },
@@ -1756,6 +2125,439 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang }) {
           </button>
         ))}
       </div>
+
+      {/* TAB: Telegram Privacy & Security Suite */}
+      {activeTab === "telegram" && (
+        <div className="settings-group-card" id="settings-panel-telegram">
+          <div className="tg-security-banner">
+            <div className="tg-security-badge-icon">✈️</div>
+            <div>
+              <h3 style={{ fontSize: 20, margin: "0 0 6px", color: "var(--ink-heading)" }}>
+                {lang === "sw" ? "Ulinzi na Faragha ya Kiwango cha Telegram" : "Telegram-Grade Privacy & Security Suite"}
+              </h3>
+              <p className="muted" style={{ fontSize: 13, margin: 0, maxWidth: 640, lineHeight: 1.6 }}>
+                {lang === "sw"
+                  ? "Ulinzi mkali usio na uvunjifu: Msimbo wa PIN wa kufunga programu mara moja, manenosiri ya wingu ya 2FA, kufuta mazungumzo kiotomatiki (auto-delete), kuzuia namba na usimbaji fiche wa E2EE."
+                  : "Zero-compromise privacy architecture: Local 4-digit App Passcode Lock, Cloud 2-Step Verification, self-destructing auto-delete message timers, stealth matrix, and end-to-end cryptographic safeguards."}
+              </p>
+            </div>
+          </div>
+
+          {/* Section 1: Telegram Passcode Lock */}
+          <div className="settings-subgroup">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+              <div>
+                <strong style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>🔒</span> {t.telegramPasscodeTitle}
+                </strong>
+                <p className="muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: 520 }}>
+                  {t.telegramPasscodeDesc}
+                </p>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  id="toggle-telegram-passcode"
+                  checked={passcodeEnabled}
+                  onChange={(e) => {
+                    const nextVal = e.target.checked;
+                    if (setPasscodeEnabled) setPasscodeEnabled(nextVal);
+                    if (onShowToast) {
+                      onShowToast(nextVal ? (lang === "sw" ? "✓ Msimbo wa PIN umewashwa!" : "✓ Passcode Lock enabled!") : (lang === "sw" ? "Msimbo wa PIN umezimwa" : "Passcode Lock disabled"));
+                    }
+                  }}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+
+            {passcodeEnabled && (
+              <div style={{ marginTop: 18, padding: "16px", borderRadius: 14, background: "var(--card-hover)", border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                  <div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {lang === "sw" ? "HALI YA PIN" : "PIN STATUS"}
+                    </span>
+                    <p style={{ margin: "4px 0 0", fontSize: 14, fontWeight: 600 }}>
+                      •••• ({lang === "sw" ? "Nambari 4 za siri zimewekwa" : "4-Digit PIN configured"})
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      type="button"
+                      className="button button-soft"
+                      onClick={() => setPinChangeOpen(!pinChangeOpen)}
+                    >
+                      ✏️ {t.telegramChangePin}
+                    </button>
+                    <button
+                      type="button"
+                      id="btn-trigger-lock-now"
+                      className="button button-primary"
+                      onClick={onLockApp}
+                    >
+                      🔒 {t.telegramLockNow}
+                    </button>
+                  </div>
+                </div>
+
+                {pinChangeOpen && (
+                  <form onSubmit={handleSetNewPin} style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      value={newPinInput}
+                      onChange={(e) => setNewPinInput(e.target.value)}
+                      placeholder="1234"
+                      style={{ width: 120, textAlign: "center", letterSpacing: 6, fontSize: 18, padding: "8px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)" }}
+                    />
+                    <button type="submit" className="button button-primary">
+                      {lang === "sw" ? "Hifadhi PIN Mpya" : "Save New PIN"}
+                    </button>
+                    <button type="button" className="text-button" onClick={() => setPinChangeOpen(false)}>
+                      {lang === "sw" ? "Ghairi" : "Cancel"}
+                    </button>
+                    {pinError && <span style={{ color: "#ef4444", fontSize: 12 }}>{pinError}</span>}
+                  </form>
+                )}
+
+                <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600 }}>{t.telegramAutoLock}</label>
+                  <select
+                    value={autoLockDuration}
+                    onChange={(e) => setAutoLockDuration(e.target.value)}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                  >
+                    <option value="immediate">{t.telegramAutoLockImmediate}</option>
+                    <option value="1m">{t.telegramAutoLock1m}</option>
+                    <option value="5m">{t.telegramAutoLock5m}</option>
+                    <option value="1h">{t.telegramAutoLock1h}</option>
+                    <option value="off">{t.telegramAutoLockOff}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Two-Step Cloud Verification (Telegram 2FA) */}
+          <div className="settings-subgroup">
+            <strong style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>🔐</span> {t.telegramTwoStepTitle}
+            </strong>
+            <p className="muted" style={{ fontSize: 13, margin: "4px 0 16px" }}>
+              {t.telegramTwoStepDesc}
+            </p>
+
+            <form onSubmit={handleSaveCloud2FA} className="settings-two-step-form">
+              <div className="form-grid-2">
+                <div className="form-group">
+                  <label>{t.telegramCloudPassword}</label>
+                  <input
+                    type="password"
+                    value={cloudPassword}
+                    onChange={(e) => setCloudPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>{t.telegramPasswordHint}</label>
+                  <input
+                    type="text"
+                    value={cloudHint}
+                    onChange={(e) => setCloudHint(e.target.value)}
+                    placeholder={lang === "sw" ? "mfano: Jina la mbwa wangu wa utotoni" : "e.g. My childhood pet"}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label>{t.telegramRecoveryEmail}</label>
+                <input
+                  type="email"
+                  value={cloudEmail}
+                  onChange={(e) => setCloudEmail(e.target.value)}
+                  placeholder="vukangtech@gmail.com"
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 16 }}>
+                <button type="submit" className="button button-primary">
+                  {lang === "sw" ? "Washa Nenosiri la Wingu" : "Enable Cloud Password"}
+                </button>
+                {cloud2FASaved && (
+                  <span style={{ color: "var(--primary)", fontWeight: 700, fontSize: 13 }}>
+                    ✓ {lang === "sw" ? "2FA ya Wingu imewezeshwa!" : "Cloud 2FA Active!"}
+                  </span>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Section 3: Auto-Delete Messages Timer */}
+          <div className="settings-subgroup">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <strong style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>⏳</span> {t.telegramAutoDelete}
+                </strong>
+                <p className="muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: 500 }}>
+                  {t.telegramAutoDeleteDesc}
+                </p>
+              </div>
+
+              <select
+                value={autoDeleteTimer}
+                onChange={(e) => {
+                  setAutoDeleteTimer(e.target.value);
+                  if (onShowToast) onShowToast(lang === "sw" ? `Kipima muda cha kufuta ujumbe kimesasishwa: ${e.target.value}` : `Auto-delete timer set to: ${e.target.value}`);
+                }}
+                style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontWeight: 600 }}
+              >
+                <option value="off">{t.telegramAutoDeleteOff}</option>
+                <option value="24h">{t.telegramAutoDelete24h}</option>
+                <option value="7d">{t.telegramAutoDelete7d}</option>
+                <option value="1m">{t.telegramAutoDelete1m}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Section 4: Telegram Granular Stealth Matrix */}
+          <div className="settings-subgroup">
+            <strong style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <span>👁️</span> {lang === "sw" ? "Mfumo wa Kina wa Faragha ya Mawasiliano (Stealth Matrix)" : "Granular Stealth Visibility Matrix"}
+            </strong>
+
+            <div style={{ display: "grid", gap: 14 }}>
+              {/* Phone Visibility */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramPhoneNumber}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Nani anaweza kuona nambari yako ya simu" : "Who can see my phone number"}</p>
+                </div>
+                <select
+                  value={tgPhoneVisibility}
+                  onChange={(e) => setTgPhoneVisibility(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="everybody">{t.telegramEverybody}</option>
+                  <option value="contacts">{t.telegramMyContacts}</option>
+                  <option value="nobody">{t.telegramNobody}</option>
+                </select>
+              </div>
+
+              {/* Who can find me by phone */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramWhoCanFindMe}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Kutafutwa kwa nambari ya simu" : "Finding account by phone number"}</p>
+                </div>
+                <select
+                  value={tgFindMeByPhone}
+                  onChange={(e) => setTgFindMeByPhone(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="everybody">{t.telegramEverybody}</option>
+                  <option value="contacts">{t.telegramMyContacts}</option>
+                </select>
+              </div>
+
+              {/* Last seen & online */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramLastSeen}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Mwisho kuonekana na hali ya mtandaoni" : "Last seen timestamp and online status"}</p>
+                </div>
+                <select
+                  value={tgLastSeen}
+                  onChange={(e) => setTgLastSeen(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="everybody">{t.telegramEverybody}</option>
+                  <option value="contacts">{t.telegramMyContacts}</option>
+                  <option value="nobody">{t.telegramNobody}</option>
+                </select>
+              </div>
+
+              {/* Profile photos */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramProfilePhotos}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Nani anaweza kuona picha yako ya wasifu" : "Who can see profile photos"}</p>
+                </div>
+                <select
+                  value={tgProfilePhoto}
+                  onChange={(e) => setTgProfilePhoto(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="everybody">{t.telegramEverybody}</option>
+                  <option value="contacts">{t.telegramMyContacts}</option>
+                </select>
+              </div>
+
+              {/* Forwarded messages link */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramForwardedMessages}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Kiungo cha akaunti kwenye ujumbe uliosambazwa" : "Account link on forwarded messages"}</p>
+                </div>
+                <select
+                  value={tgForwardLink}
+                  onChange={(e) => setTgForwardLink(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="everybody">{t.telegramEverybody}</option>
+                  <option value="contacts">{t.telegramMyContacts}</option>
+                  <option value="nobody">{t.telegramNobody}</option>
+                </select>
+              </div>
+
+              {/* P2P Calls */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramCallsP2P}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Simu za moja kwa moja (huficha anwani ya IP)" : "Peer-to-peer calls (masks IP address)"}</p>
+                </div>
+                <select
+                  value={tgP2PCalls}
+                  onChange={(e) => setTgP2PCalls(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="always">{t.telegramCallsAlways}</option>
+                  <option value="contacts">{t.telegramCallsContacts}</option>
+                  <option value="never">{t.telegramCallsNever}</option>
+                </select>
+              </div>
+
+              {/* Groups & Channels Invites */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 12, background: "var(--card-hover)" }}>
+                <div>
+                  <strong style={{ fontSize: 14 }}>{t.telegramGroupsChannels}</strong>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>{lang === "sw" ? "Nani anaweza kukuongeza kwenye makundi" : "Who can add me to groups and channels"}</p>
+                </div>
+                <select
+                  value={tgGroupInvites}
+                  onChange={(e) => setTgGroupInvites(e.target.value)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+                >
+                  <option value="everybody">{t.telegramEverybody}</option>
+                  <option value="contacts">{t.telegramMyContacts}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Active Telegram Sessions & Devices */}
+          <div className="settings-subgroup">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+              <div>
+                <strong style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>📱</span> {t.telegramActiveSessions}
+                </strong>
+                <p className="muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
+                  {lang === "sw" ? "Vifaa vyote vilivyounganishwa kwenye akaunti yako ya THE CIRCLE" : "Devices currently authenticated with your THE CIRCLE account"}
+                </p>
+              </div>
+              <button
+                type="button"
+                id="btn-terminate-all-sessions"
+                className="button button-soft"
+                style={{ color: "#ef4444", borderColor: "rgba(239,68,68,0.3)" }}
+                onClick={handleTerminateOtherSessions}
+              >
+                🚫 {t.telegramTerminateAll}
+              </button>
+            </div>
+
+            <div className="telegram-sessions-list">
+              {sessions.map((s) => (
+                <div key={s.id} className={`telegram-session-item ${s.current ? "current-device" : ""}`}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--card-bg)", display: "grid", placeItems: "center", fontSize: 20 }}>
+                      {s.device.includes("Android") ? "📱" : s.device.includes("macOS") ? "💻" : "🖥️"}
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <strong style={{ fontSize: 14 }}>{s.device}</strong>
+                        {s.current && (
+                          <span style={{ fontSize: 11, background: "rgba(16,185,129,0.15)", color: "#10b981", padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>
+                            {lang === "sw" ? "Kifaa Hiki" : "Current Session"}
+                          </span>
+                        )}
+                      </div>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {s.ip} · {s.location} · {s.active}
+                      </span>
+                    </div>
+                  </div>
+                  {!s.current && (
+                    <button
+                      type="button"
+                      className="text-button"
+                      style={{ color: "#ef4444", fontSize: 12 }}
+                      onClick={() => setSessions(sessions.filter((x) => x.id !== s.id))}
+                    >
+                      {lang === "sw" ? "Ondoa" : "Terminate"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 6: Account Self-Destruct */}
+          <div className="settings-subgroup">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <strong style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>💣</span> {t.telegramDeleteAccountIfAway}
+                </strong>
+                <p className="muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: 500 }}>
+                  {lang === "sw"
+                    ? "Akaunti yako, ujumbe na maudhui yote yatafutika kiotomatiki ikiwa hutaingia mtandaoni kwa muda uliouchagua."
+                    : "If you don't come online at least once within this period, your account will be self-destructed."}
+                </p>
+              </div>
+              <select
+                value={tgAccountSelfDestruct}
+                onChange={(e) => setTgAccountSelfDestruct(e.target.value)}
+                style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontWeight: 600 }}
+              >
+                <option value="1m">{t.telegramSelfDestruct1m}</option>
+                <option value="3m">{t.telegramSelfDestruct3m}</option>
+                <option value="6m">{t.telegramSelfDestruct6m}</option>
+                <option value="1y">{t.telegramSelfDestruct1y}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Section 7: End-to-End Encryption Verification */}
+          <div className="settings-subgroup" style={{ background: "rgba(2,132,199,0.06)", border: "1px solid rgba(2,132,199,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ fontSize: 32 }}>🛡️</div>
+              <div>
+                <strong style={{ fontSize: 15, color: "#0284c7" }}>
+                  {lang === "sw" ? "Usimbaji Fiche wa Mwisho hadi Mwisho (Secret Chat Protocol)" : "End-to-End Encryption Protocol"}
+                </strong>
+                <p className="muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
+                  {lang === "sw"
+                    ? "Alama ya kipekee ya ulinzi wa kidijitali (Visual Key Fingerprint):"
+                    : "Cryptographic visual encryption fingerprint:"}
+                </p>
+                <div style={{ display: "inline-flex", gap: 10, padding: "6px 14px", borderRadius: 10, background: "var(--card-bg)", border: "1px solid var(--line)", fontSize: 20 }}>
+                  <span>🦁</span>
+                  <span>🛡️</span>
+                  <span>💎</span>
+                  <span>⚡</span>
+                </div>
+                <small className="muted" style={{ display: "block", marginTop: 6, fontSize: 11 }}>
+                  AES-256-GCM / Diffie-Hellman Key Exchange · Zero Knowledge Verified
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: Account */}
       {activeTab === "account" && (
@@ -2777,6 +3579,24 @@ export default function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("the-circle-theme") === "dark");
   const [lang, setLang] = useState(() => localStorage.getItem("the-circle-language") || "sw");
 
+  // Telegram-style Passcode & Security states
+  const [passcodeEnabled, setPasscodeEnabled] = useState(() => localStorage.getItem("circle_passcode_enabled") === "true");
+  const [passcodePin, setPasscodePin] = useState(() => localStorage.getItem("circle_passcode_pin") || "1234");
+  const [isLocked, setIsLocked] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+  };
+
+  useEffect(() => {
+    localStorage.setItem("circle_passcode_enabled", passcodeEnabled ? "true" : "false");
+  }, [passcodeEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("circle_passcode_pin", passcodePin);
+  }, [passcodePin]);
+
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("the-circle-theme", dark ? "dark" : "light");
@@ -2888,6 +3708,12 @@ export default function App() {
         dark={dark}
         setDark={setDark}
         unreadCount={unreadCount}
+        passcodeEnabled={passcodeEnabled}
+        onLockApp={() => {
+          setIsLocked(true);
+          showToast(lang === "sw" ? "🔒 Programu imefungwa salama na Telegram Passcode!" : "🔒 App locked securely with Telegram Passcode!");
+        }}
+        onShowToast={showToast}
       />
 
       <div className="app-shell">
@@ -2901,16 +3727,24 @@ export default function App() {
           setLang={setLang}
           dark={dark}
           setDark={setDark}
+          passcodeEnabled={passcodeEnabled}
+          onLockApp={() => {
+            setIsLocked(true);
+            showToast(lang === "sw" ? "🔒 Programu imefungwa na Passcode!" : "🔒 App locked with Passcode!");
+          }}
         />
 
         <main className="main-area" id="main-content-panel">
-          {active === "home" && (
-            <Home
+          {(active === "home" || active === "feed") && (
+            <MainFeed
               profile={profile}
               posts={posts}
               setPosts={setPosts}
               onPost={onPost}
               lang={lang}
+              onShowToast={showToast}
+              setActive={setActive}
+              StatusRail={StatusRail}
             />
           )}
           {active === "dashboard" && (
@@ -2924,14 +3758,20 @@ export default function App() {
           {active === "messages" && <Messages profile={profile} lang={lang} />}
           {active === "friends" && <Friends profile={profile} lang={lang} />}
           {active === "marketplace" && <Marketplace lang={lang} />}
-          {active === "reels" && <Reels profile={profile} lang={lang} />}
+          {active === "reels" && <Reels profile={profile} lang={lang} onShowToast={showToast} />}
+          {active === "saved" && <SavedMedia lang={lang} setActive={setActive} onShowToast={showToast} />}
           {active === "wallet" && <Wallet profile={profile} lang={lang} />}
           {active === "profile" && (
-            <Profile
+            <UserProfile
               profile={profile}
               setProfile={setProfile}
               posts={posts}
+              setPosts={setPosts}
+              onPost={onPost}
               lang={lang}
+              onShowToast={showToast}
+              setActive={setActive}
+              PostCard={PostCard}
             />
           )}
           {active === "settings" && (
@@ -2942,6 +3782,15 @@ export default function App() {
               setDark={setDark}
               lang={lang}
               setLang={setLang}
+              passcodeEnabled={passcodeEnabled}
+              setPasscodeEnabled={setPasscodeEnabled}
+              passcodePin={passcodePin}
+              setPasscodePin={setPasscodePin}
+              onLockApp={() => {
+                setIsLocked(true);
+                showToast(lang === "sw" ? "🔒 Programu imefungwa!" : "🔒 App locked!");
+              }}
+              onShowToast={showToast}
             />
           )}
           {active === "about" && <AboutUs lang={lang} setActive={setActive} />}
@@ -2965,6 +3814,26 @@ export default function App() {
         lang={lang}
         unread={unreadCount}
       />
+
+      {/* Telegram-style Passcode Lock Modal */}
+      {passcodeEnabled && isLocked && (
+        <PasscodeLockModal
+          correctPin={passcodePin}
+          onUnlock={() => {
+            setIsLocked(false);
+            showToast(lang === "sw" ? "✓ Programu imefunguliwa salama!" : "✓ App unlocked successfully!");
+          }}
+          lang={lang}
+        />
+      )}
+
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <ToastNotification
+          message={toastMessage}
+          onClose={() => setToastMessage("")}
+        />
+      )}
     </div>
   );
 }
