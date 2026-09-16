@@ -83,9 +83,13 @@ In Vercel, open **Project → Settings → Environment Variables** and add these
 ```env
 VITE_SUPABASE_URL=https://vcbcyhqekbdbxiraxtro.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+GEMINI_API_KEY=your_google_ai_studio_key
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-After saving variables, open **Deployments**, choose the latest deployment, open the `...` menu and select **Redeploy**. Vercel does not run the message realtime server itself; it serves this frontend while Supabase Realtime handles `messages` and `call_signals`.
+`GEMINI_API_KEY` ni server-only: usiiweke kwenye frontend code, usiipatie prefix `VITE_`, na usii-commit. Frontend hutumia `askGemini()` kutoka `frontend/src/api/gemini.js`, ambayo hu-call `/api/gemini`. Endpoint hiyo iko `frontend/api/gemini.js` na inapeleka request Google Gemini API kwa `x-goog-api-key` kutoka Vercel environment variable. Vercel Project Root Directory ikiwa `frontend`, function hii itapatikana moja kwa moja kama `/api/gemini`.
+
+Baada ya kuhifadhi variables, fungua **Deployments**, chagua deployment mpya na ufanye **Redeploy**. Vercel does not run the message realtime server itself; it serves this frontend while Supabase Realtime handles `messages` and `call_signals`.
 
 In Supabase, open **Authentication → URL Configuration** and set **Site URL** to the Vercel production URL. Add these **Redirect URLs**:
 
