@@ -1,6 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
+import { createMockSupabase } from "./mockSupabase";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-if (!url || !key) throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY");
-export const supabase = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+
+const isConfigured = Boolean(
+  url &&
+  key &&
+  !url.includes("YOUR_PROJECT_REF") &&
+  !key.includes("xxx")
+);
+
+export const supabase = isConfigured
+  ? createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
+  : createMockSupabase();
+

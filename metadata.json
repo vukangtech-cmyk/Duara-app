@@ -1,0 +1,11 @@
+{
+  "name": "THE CIRCLE (Duara)",
+  "description": "Mtandao wa kijamii wa mazungumzo ya kweli, urafiki wa maana na jamii inayokujali.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

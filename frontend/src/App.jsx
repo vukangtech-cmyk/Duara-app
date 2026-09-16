@@ -59,7 +59,37 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = dark ? "dark" : "light"; localStorage.setItem("the-circle-theme", dark ? "dark" : "light"); }, [dark]);
   useEffect(() => { localStorage.setItem("the-circle-language", lang); document.documentElement.lang = lang === "sw" ? "sw" : "en"; }, [lang]);
   const load = async (user) => { const [p, f, n] = await Promise.all([getCurrentProfile(user.id), getFeed(), getNotifications(user.id)]); setProfile(p); setPosts(f); setNotifications(n); };
-  useEffect(() => { supabase.auth.getSession().then(async ({ data }) => { setSession(data.session); if (data.session) await load(data.session.user); setBooting(false); }); const { data: listener } = supabase.auth.onAuthStateChange(async (_event, next) => { setSession(next); if (next) await load(next.user); else { setProfile(null); setPosts([]); } }); return () => listener.subscription.unsubscribe(); }, []);
+  useEffect(() => {
+    supabase.auth.getSession()
+      .then(async (res) => {
+        const nextSession = res?.data?.session || null;
+        setSession(nextSession);
+        if (nextSession?.user) {
+          try {
+            await load(nextSession.user);
+          } catch (err) {
+            console.warn("Initial load failed:", err);
+          }
+        }
+      })
+      .catch((err) => console.warn("Session check error:", err))
+      .finally(() => setBooting(false));
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, next) => {
+      setSession(next);
+      if (next?.user) {
+        try {
+          await load(next.user);
+        } catch (err) {
+          console.warn("Auth state load failed:", err);
+        }
+      } else {
+        setProfile(null);
+        setPosts([]);
+      }
+    });
+    return () => listener?.subscription?.unsubscribe?.();
+  }, []);
   useEffect(() => { if (!session) return; const refreshNotifications = async () => setNotifications(await getNotifications(session.user.id)); const stopFeed = subscribeToRealtime(async (payload) => { if (payload.eventType === "INSERT") setPosts(await getFeed()); }, async () => setPosts(await getFeed()), refreshNotifications); const stopInteractions = subscribeToInteractions(session.user.id, refreshNotifications); return () => { stopFeed(); stopInteractions(); }; }, [session]);
   const markRead = async () => { await markNotificationsRead(session.user.id).catch(() => {}); setNotifications((current) => current.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }))); };
   const onPost = async (content, media, mediaType) => createPost(session.user.id, content, media, mediaType); const logout = async () => logoutUser();
