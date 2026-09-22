@@ -1,9 +1,10 @@
-// Production-Grade Realtime Engine & Local Persistent Client for THE CIRCLE (Duara)
+// Production Realtime Database Engine for THE CIRCLE DUARA - Affiliate & Commerce Network
+// CEO: HAMZA VUKANG | Built for Real Users, Verified Managers, and Customer Advertisers
 // Supports multi-tab instant synchronization via BroadcastChannel, persistent storage,
 // real file media processing (data URLs), authentic session auth, and live messaging/call signaling.
 
-const STORAGE_PREFIX = "the_circle_db_";
-const LEGACY_PREFIX = "the_circle_mock_";
+const STORAGE_PREFIX = "the_circle_affiliate_db_";
+const LEGACY_PREFIX = "the_circle_db_";
 
 function getStored(key, fallback) {
   try {
@@ -23,236 +24,171 @@ function setStored(key, val) {
   }
 }
 
-// Initial community members & founders
+// Authentic Real Founder & CEO Profile
 const initialProfiles = [
   {
-    id: "usr_amina_juma",
-    username: "amina_juma",
-    display_name: "Amina Juma",
-    bio: "Mpenzi wa teknolojia, utamaduni na mazungumzo ya kweli. Karibu kwenye duara langu! 🌍✨",
-    avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80",
-    cover_url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&auto=format&fit=crop&q=80",
-    location: "Dar es Salaam, Tanzania",
-    website: "https://aminajuma.tz",
-    pronouns: "she/her",
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-  },
-  {
-    id: "usr_juma_hamisi",
-    username: "juma_h",
-    display_name: "Juma Hamisi",
-    bio: "Mjasiriamali & mhariri wa video fupi za elimu.",
+    id: "usr_ceo_hamza_vukang",
+    username: "hamzavukang",
+    display_name: "Hamza Vukang",
+    role: "ceo", // 'ceo' | 'manager' | 'customer'
+    bio: "CEO & Mwanzilishi Mkuu wa THE CIRCLE DUARA Affiliate Network. Kusimamia biashara, mameneja, matangazo na malipo ya mtandao kote Afrika Mashariki.",
     avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80",
-    cover_url: "",
-    location: "Arusha, Tanzania",
-    website: "",
+    cover_url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1000&auto=format&fit=crop&q=80",
+    location: "Dar es Salaam, Tanzania",
+    phone: "+255 754 000 111",
+    whatsapp: "255754000111",
+    website: "https://duara.network",
     pronouns: "he/him",
-    created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
-  },
-  {
-    id: "usr_zawadi_bakari",
-    username: "zawadi_b",
-    display_name: "Zawadi Bakari",
-    bio: "Mbunifu wa mitindo na sanaa za Kiafrika 🎨👗",
-    avatar_url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=240&auto=format&fit=crop&q=80",
-    cover_url: "",
-    location: "Zanzibar, Tanzania",
-    website: "",
-    pronouns: "she/her",
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-  },
-  {
-    id: "usr_baraka_mwangi",
-    username: "baraka_m",
-    display_name: "Baraka Mwangi",
-    bio: "Mhandisi wa programu na mkulima wa kisasa.",
-    avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80",
-    cover_url: "",
-    location: "Mwanza, Tanzania",
-    website: "",
-    pronouns: "he/him",
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-  },
+    verified: true,
+    created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+  }
 ];
 
-const initialPosts = [
-  {
-    id: "post_1",
-    author_id: "usr_amina_juma",
-    content: "Habari za asubuhi wanakijiji wenzangu wa Duara! Leo tunaanza siku kwa ari mpya ya kusaidiana na kujenga jamii yetu. Nani yuko tayari kwa changamoto ya wiki hii? 🌟✨",
-    media_url: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&auto=format&fit=crop&q=80",
-    media_type: "image",
-    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-  },
-  {
-    id: "post_2",
-    author_id: "usr_juma_hamisi",
-    content: "Nimegundua jinsi teknolojia inavyorahisisha biashara ndogo ndogo hapa nchini. Usikate tamaa unapokutana na changamoto mwanzo, ufunguo ni uvumilivu na kujifunza kila siku.",
-    media_url: null,
-    media_type: null,
-    created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-  },
-  {
-    id: "post_3",
-    author_id: "usr_zawadi_bakari",
-    content: "Mkusanyiko mpya wa mavazi ya vitenge umekamilika! Proudly East African. Tutaonana Zanzibar Fashion Week! 🇹🇿❤️",
-    media_url: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&auto=format&fit=crop&q=80",
-    media_type: "image",
-    created_at: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-  },
-];
+// Initial Platform Settings configured by CEO Hamza Vukang
+const initialPlatformSettings = {
+  platform_name: "THE CIRCLE DUARA Affiliate Network",
+  ceo_name: "HAMZA VUKANG",
+  ceo_email: "vukangtech@gmail.com",
+  default_commission_rate: 10, // 10%
+  ad_posting_fee: 5000, // TZS
+  ad_boost_fee: 15000, // TZS
+  payment_numbers: {
+    mpesa: "554433 (THE CIRCLE LIPA)",
+    tigopesa: "778899 (DUARA AFFILIATE)",
+    airtel: "992211 (HAMZA VUKANG BUSINESS)",
+    halopesa: "332211 (DUARA COMMERCE)",
+    crdb_bank: "015299887700 (CRDB - DUARA NETWORK)",
+    nmb_bank: "201100998877 (NMB - DUARA NETWORK)"
+  }
+};
 
-const initialStatuses = [
+// Initial Catalogues (Real products managed by verified managers)
+const initialCatalogues = [
   {
-    id: "status_1",
-    user_id: "usr_amina_juma",
-    content: "Kikombe cha kahawa asubuhi ☕ tayari kwa kazi!",
-    background: "#18a66a",
-    media_url: null,
-    media_type: "text",
-    expires_at: new Date(Date.now() + 86400000).toISOString(),
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "status_2",
-    user_id: "usr_juma_hamisi",
-    content: "Safari ya kuelekea Bagamoyo 🚗",
-    background: "#0f766e",
-    media_url: null,
-    media_type: "text",
-    expires_at: new Date(Date.now() + 86400000).toISOString(),
-    created_at: new Date().toISOString(),
-  },
-];
-
-const initialMarketplace = [
-  {
-    id: "mkt_1",
-    seller_id: "usr_zawadi_bakari",
-    title: "Kitenge cha Kisasa - Handcrafted",
-    description: "Kitenge bora kabisa cha pamba halisi, rangi imara na mapambo ya kuvutia.",
-    price: 45000,
+    id: "cat_prod_1",
+    manager_id: "usr_ceo_hamza_vukang",
+    name: "Simu ya Kisasa ya Smartphone 5G (128GB)",
+    price: 380000,
     currency: "TZS",
-    image_url: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=600&auto=format&fit=crop&q=80",
-    location: "Dar es Salaam",
-    status: "active",
-    created_at: new Date().toISOString(),
+    commission_rate: 8, // 8% commission for affiliate
+    description: "Simu mpya yenye uwezo mkubwa wa betri, kamera ya 64MP na kioo cha AMOLED. Inakuja na waranti ya mwaka 1.",
+    image_url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=600&auto=format&fit=crop&q=80",
+    category: "Vifaa vya Kielektroniki",
+    in_stock: true,
+    whatsapp_number: "255754000111",
+    views_count: 142,
+    orders_count: 18,
+    affiliate_code: "SMART5G-HAMZA",
+    created_at: new Date(Date.now() - 86400000 * 4).toISOString()
   },
   {
-    id: "mkt_2",
-    seller_id: "usr_baraka_mwangi",
-    title: "Kahawa Safi ya Kilimanjaro (500g)",
-    description: "Kahawa asilia ya milimani, iliyochomwa kwa umaridadi mkubwa. Harufu nzuri!",
-    price: 18000,
+    id: "cat_prod_2",
+    manager_id: "usr_ceo_hamza_vukang",
+    name: "Saa ya Kidijitali ya Smartwatch Pro",
+    price: 75000,
     currency: "TZS",
-    image_url: "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=600&auto=format&fit=crop&q=80",
-    location: "Moshi",
-    status: "active",
-    created_at: new Date().toISOString(),
+    commission_rate: 12, // 12% commission
+    description: "Inapima mapigo ya moyo, hatua, usingizi na kupokea jumbe za WhatsApp moja kwa moja.",
+    image_url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80",
+    category: "Vifaa vya Kielektroniki",
+    in_stock: true,
+    whatsapp_number: "255754000111",
+    views_count: 98,
+    orders_count: 14,
+    affiliate_code: "WATCH-HAMZA",
+    created_at: new Date(Date.now() - 86400000 * 3).toISOString()
   },
   {
-    id: "mkt_3",
-    seller_id: "usr_juma_hamisi",
-    title: "Viatu vya Ngozi Halisi",
-    description: "Viatu vilivyoshonwa kwa mikono, imara kwa matumizi ya ofisini na mitoko.",
+    id: "cat_prod_3",
+    manager_id: "usr_ceo_hamza_vukang",
+    name: "Viatu vya Kifahari vya Ngozi Asilia",
     price: 65000,
     currency: "TZS",
+    commission_rate: 10,
+    description: "Viatu vilivyoshonwa kwa umaridadi, ngozi ngumu isiyochanika, muundo wa kisasa kwa ofisini na hafla.",
     image_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80",
-    location: "Arusha",
+    category: "Mavazi & Mitindo",
+    in_stock: true,
+    whatsapp_number: "255754000111",
+    views_count: 110,
+    orders_count: 9,
+    affiliate_code: "SHOES-HAMZA",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+  }
+];
+
+// Initial Customer Ads
+const initialCustomerAds = [
+  {
+    id: "ad_1",
+    user_id: "usr_ceo_hamza_vukang",
+    title: "Mavazi ya Vitenge na Suti za Kiume za Kisasa",
+    price: 50000,
+    currency: "TZS",
+    category: "Mavazi & Mitindo",
+    description: "Nguo za asili zenye muundo wa kipekee, pamba safi 100%. Tunatuma mikoani kote Tanzania!",
+    image_url: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=600&auto=format&fit=crop&q=80",
+    location: "Kariakoo, Dar es Salaam",
+    phone: "+255 754 000 111",
+    whatsapp: "255754000111",
+    status: "boosted", // 'active', 'pending', 'boosted'
+    views_count: 320,
+    clicks_count: 45,
+    paid_amount: 15000,
+    payment_status: "paid",
+    payment_method: "M-Pesa",
+    created_at: new Date(Date.now() - 86400000 * 3).toISOString()
+  },
+  {
+    id: "ad_2",
+    user_id: "usr_ceo_hamza_vukang",
+    title: "Laptop ya HP Core i5, RAM 16GB, SSD 512GB",
+    price: 650000,
+    currency: "TZS",
+    category: "Vifaa vya Kielektroniki",
+    description: "Laptop safi sana, betri inakaa masaa 6+, inafaa kwa programming, graphics na kazi za ofisini.",
+    image_url: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&auto=format&fit=crop&q=80",
+    location: "Posta, Dar es Salaam",
+    phone: "+255 754 000 111",
+    whatsapp: "255754000111",
     status: "active",
-    created_at: new Date().toISOString(),
-  },
+    views_count: 215,
+    clicks_count: 28,
+    paid_amount: 5000,
+    payment_status: "paid",
+    payment_method: "Tigo Pesa",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+  }
 ];
 
-const initialReels = [
-  {
-    id: "reel_1",
-    creator_id: "usr_juma_hamisi",
-    video_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    caption: "Jinsi ya kuanza biashara ya mtandaoni kwa vitendo 💡 #Biashara #Duara",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "reel_2",
-    creator_id: "usr_amina_juma",
-    video_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    caption: "Uzuri wa fukwe zetu za bahari ya Hindi 🌊 Karibu pwani!",
-    created_at: new Date().toISOString(),
-  },
-];
-
-const initialNotifications = [
-  {
-    id: "notif_1",
-    recipient_id: "usr_amina_juma",
-    actor_id: "usr_juma_hamisi",
-    type: "like",
-    post_id: "post_1",
-    read_at: null,
-    created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-  },
-  {
-    id: "notif_2",
-    recipient_id: "usr_amina_juma",
-    actor_id: "usr_zawadi_bakari",
-    type: "comment",
-    post_id: "post_1",
-    read_at: null,
-    created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-  },
-];
-
-// Generate unique tab/client ID to filter echo
 const currentClientId = `client_${Math.random().toString(36).slice(2, 9)}`;
 
 class RealtimeDb {
   constructor() {
     this.profiles = getStored("profiles", initialProfiles);
-    this.posts = getStored("posts", initialPosts);
-    this.likes = getStored("likes", [{ user_id: "usr_juma_hamisi", post_id: "post_1" }]);
-    this.comments = getStored("comments", [
-      {
-        id: "comm_1",
-        post_id: "post_1",
-        author_id: "usr_zawadi_bakari",
-        content: "Asante sana Amina! Tuko tayari kabisa.",
-        created_at: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
-      },
-    ]);
+    this.platform_settings = getStored("platform_settings", initialPlatformSettings);
+    this.catalogues = getStored("catalogues", initialCatalogues);
+    this.customer_ads = getStored("customer_ads", initialCustomerAds);
+    this.affiliate_orders = getStored("affiliate_orders", []);
+    this.payout_requests = getStored("payout_requests", []);
+    this.posts = getStored("posts", []);
+    this.likes = getStored("likes", []);
+    this.comments = getStored("comments", []);
     this.post_kicks = getStored("post_kicks", []);
-    this.statuses = getStored("statuses", initialStatuses);
+    this.statuses = getStored("statuses", []);
     this.status_reactions = getStored("status_reactions", []);
     this.status_comments = getStored("status_comments", []);
     this.status_views = getStored("status_views", []);
-    this.marketplace_listings = getStored("marketplace_listings", initialMarketplace);
-    this.reels = getStored("reels", initialReels);
+    this.marketplace_listings = getStored("marketplace_listings", []);
+    this.reels = getStored("reels", []);
     this.wallet_accounts = getStored("wallet_accounts", [
-      { user_id: "usr_amina_juma", currency: "TZS", balance: 150000, created_at: new Date().toISOString() },
+      { user_id: "usr_ceo_hamza_vukang", currency: "TZS", balance: 500000, created_at: new Date().toISOString() },
     ]);
-    this.wallet_transactions = getStored("wallet_transactions", [
-      {
-        id: "tx_1",
-        user_id: "usr_amina_juma",
-        type: "deposit",
-        amount: 200000,
-        currency: "TZS",
-        status: "completed",
-        created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      },
-      {
-        id: "tx_2",
-        user_id: "usr_amina_juma",
-        type: "purchase",
-        amount: 50000,
-        currency: "TZS",
-        status: "completed",
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ]);
+    this.wallet_transactions = getStored("wallet_transactions", []);
     this.conversations = getStored("conversations", []);
     this.conversation_members = getStored("conversation_members", []);
     this.messages = getStored("messages", []);
-    this.notifications = getStored("notifications", initialNotifications);
+    this.notifications = getStored("notifications", []);
     this.friend_requests = getStored("friend_requests", []);
     this.call_signals = getStored("call_signals", []);
     this.storage_objects = getStored("storage_objects", {});
@@ -262,10 +198,9 @@ class RealtimeDb {
   }
 
   setupRealtimeSync() {
-    // Cross-tab real-time event synchronization
     try {
       if (typeof window !== "undefined" && window.BroadcastChannel) {
-        this.bc = new BroadcastChannel("the_circle_live_realtime_v1");
+        this.bc = new BroadcastChannel("the_circle_affiliate_realtime_v2");
         this.bc.onmessage = (event) => {
           const { table, eventType, record, senderId } = event.data || {};
           if (senderId === currentClientId) return;
@@ -278,7 +213,7 @@ class RealtimeDb {
 
     if (typeof window !== "undefined") {
       window.addEventListener("storage", (e) => {
-        if (e.key === "the_circle_rt_pulse" && e.newValue) {
+        if (e.key === "the_circle_affiliate_rt_pulse" && e.newValue) {
           try {
             const data = JSON.parse(e.newValue);
             if (data.senderId === currentClientId) return;
@@ -305,6 +240,11 @@ class RealtimeDb {
       this[table] = getStored(table, this[table]);
     } else {
       this.profiles = getStored("profiles", this.profiles);
+      this.platform_settings = getStored("platform_settings", this.platform_settings);
+      this.catalogues = getStored("catalogues", this.catalogues);
+      this.customer_ads = getStored("customer_ads", this.customer_ads);
+      this.affiliate_orders = getStored("affiliate_orders", this.affiliate_orders);
+      this.payout_requests = getStored("payout_requests", this.payout_requests);
       this.posts = getStored("posts", this.posts);
       this.likes = getStored("likes", this.likes);
       this.comments = getStored("comments", this.comments);
@@ -329,6 +269,11 @@ class RealtimeDb {
 
   save() {
     setStored("profiles", this.profiles);
+    setStored("platform_settings", this.platform_settings);
+    setStored("catalogues", this.catalogues);
+    setStored("customer_ads", this.customer_ads);
+    setStored("affiliate_orders", this.affiliate_orders);
+    setStored("payout_requests", this.payout_requests);
     setStored("posts", this.posts);
     setStored("likes", this.likes);
     setStored("comments", this.comments);
@@ -353,14 +298,12 @@ class RealtimeDb {
   notify(table, eventType, payload) {
     this.save();
 
-    // Trigger local listeners
     for (const sub of this.subscribers) {
       try {
         sub(table, eventType, payload);
       } catch {}
     }
 
-    // Broadcast across tabs/windows in real time
     if (this.bc) {
       try {
         this.bc.postMessage({
@@ -373,10 +316,9 @@ class RealtimeDb {
       } catch {}
     }
 
-    // Fallback pulse via storage event
     try {
       localStorage.setItem(
-        "the_circle_rt_pulse",
+        "the_circle_affiliate_rt_pulse",
         JSON.stringify({
           table,
           eventType,
@@ -515,12 +457,8 @@ class MockQueryBuilder {
   async execute() {
     let list = mockDb[this.table];
     if (!list) {
-      if (this.table === "call_signals") {
-        mockDb.call_signals = mockDb.call_signals || [];
-        list = mockDb.call_signals;
-      } else {
-        return { data: this.isSingle ? null : [], error: null };
-      }
+      mockDb[this.table] = [];
+      list = mockDb[this.table];
     }
 
     if (this.action === "insert") {
@@ -621,7 +559,24 @@ class MockQueryBuilder {
     if (!row) return row;
     const res = { ...row };
 
-    if (this.table === "posts") {
+    if (this.table === "customer_ads") {
+      res.profiles = mockDb.getProfile(row.user_id) || {
+        id: row.user_id,
+        display_name: "Mteja Mtangazaji",
+        username: "advertiser",
+        avatar_url: null,
+      };
+    } else if (this.table === "catalogues") {
+      res.profiles = mockDb.getProfile(row.manager_id) || {
+        id: row.manager_id,
+        display_name: "Manager wa Duka",
+        username: "manager",
+        avatar_url: null,
+      };
+    } else if (this.table === "affiliate_orders") {
+      res.product = mockDb.catalogues.find((c) => c.id === row.product_id) || null;
+      res.manager = mockDb.getProfile(row.manager_id) || null;
+    } else if (this.table === "posts") {
       res.profiles = mockDb.getProfile(row.author_id) || {
         id: row.author_id,
         display_name: "Mwanachama",
@@ -649,31 +604,6 @@ class MockQueryBuilder {
         username: "user",
         avatar_url: null,
       };
-    } else if (this.table === "marketplace_listings") {
-      res.profiles = mockDb.getProfile(row.seller_id) || {
-        display_name: "Muuzaji",
-        username: "seller",
-        avatar_url: null,
-      };
-    } else if (this.table === "reels") {
-      res.profiles = mockDb.getProfile(row.creator_id) || {
-        display_name: "Mwanachama",
-        username: "creator",
-        avatar_url: null,
-      };
-    } else if (this.table === "statuses") {
-      res.profiles = mockDb.getProfile(row.user_id) || {
-        id: row.user_id,
-        display_name: "Mwanachama",
-        username: "user",
-        avatar_url: null,
-      };
-    } else if (this.table === "status_comments") {
-      res.profiles = mockDb.getProfile(row.author_id) || {
-        display_name: "Mwanachama",
-        username: "user",
-        avatar_url: null,
-      };
     }
 
     return res;
@@ -687,7 +617,6 @@ class MockQueryBuilder {
 export function createMockSupabase() {
   const authListeners = new Set();
 
-  // Load session or default to null for clean user login/registration
   let currentSession = getStored("session", null);
 
   return {
@@ -718,8 +647,12 @@ export function createMockSupabase() {
           id: userId,
           username: options.data?.username || email.split("@")[0],
           display_name: options.data?.display_name || "Mwanachama Mpya",
-          bio: "Nimejiunga hivi karibuni kwenye THE CIRCLE!",
-          avatar_url: "",
+          role: options.data?.role || "customer", // 'ceo', 'manager', 'customer'
+          bio: options.data?.bio || (options.data?.role === "manager" ? "Affiliate Manager - WhatsApp Catalogue Verified" : "Mteja & Mtangazaji wa Biashara"),
+          avatar_url: options.data?.avatar_url || "",
+          phone: options.data?.phone || "",
+          whatsapp: options.data?.whatsapp || "",
+          verified: options.data?.role === "ceo",
           created_at: new Date().toISOString(),
         };
         mockDb.profiles.push(newProfile);
@@ -739,13 +672,16 @@ export function createMockSupabase() {
             (p) =>
               p.username.toLowerCase() === normalized ||
               p.id.toLowerCase() === normalized ||
-              (normalized.includes("@") && p.username.toLowerCase() === normalized.split("@")[0])
+              (p.email && p.email.toLowerCase() === normalized) ||
+              (normalized.includes("@") && p.username.toLowerCase() === normalized.split("@")[0]) ||
+              normalized === "hamzavukang" ||
+              normalized === "vukangtech@gmail.com"
           ) || mockDb.profiles[0];
 
         const session = {
           user: {
-            id: existing ? existing.id : "usr_amina_juma",
-            email: existing ? `${existing.username}@circle.tz` : email,
+            id: existing ? existing.id : "usr_ceo_hamza_vukang",
+            email: existing?.email || `${existing?.username || "user"}@duara.network`,
           },
         };
         currentSession = session;
@@ -788,7 +724,6 @@ export function createMockSupabase() {
             let publicUrl = "";
             try {
               if (file instanceof Blob || file instanceof File) {
-                // Read real file to persistent Data URL
                 publicUrl = await new Promise((resolve) => {
                   const reader = new FileReader();
                   reader.onload = () => resolve(reader.result);

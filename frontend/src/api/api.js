@@ -143,3 +143,176 @@ export async function addStatusComment(statusId, authorId, content) { const { da
 export async function kickPost(postId, userId, kicked = false) { if (kicked) { const { error } = await supabase.from("post_kicks").delete().match({ post_id: postId, user_id: userId }); if (error) throw error; return; } const { error } = await supabase.from("post_kicks").insert({ post_id: postId, user_id: userId }); if (error) throw error; }
 export async function markNotificationsRead(userId) { const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("recipient_id", userId).is("read_at", null); if (error) throw error; }
 export function subscribeToInteractions(userId, onChange, onCallSignal) { const channel = supabase.channel(`notifications-${userId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` }, onChange).on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `recipient_id=eq.${userId}` }, (payload) => { if (onCallSignal) onCallSignal(payload.new || payload); onChange(payload); }).on("postgres_changes", { event: "*", schema: "public", table: "status_reactions" }, onChange).on("postgres_changes", { event: "*", schema: "public", table: "status_comments" }, onChange).on("postgres_changes", { event: "*", schema: "public", table: "likes" }, onChange).on("postgres_changes", { event: "*", schema: "public", table: "comments" }, onChange).subscribe(); return () => supabase.removeChannel(channel); }
+
+// --- THE CIRCLE DUARA: AFFILIATE & COMMERCE NETWORK EXTENSIONS ---
+export async function getCustomerAds() {
+  const { data, error } = await supabase
+    .from("customer_ads")
+    .select("*, profiles(id, display_name, username, avatar_url, phone, whatsapp)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createCustomerAd(userId, adData) {
+  const { data, error } = await supabase
+    .from("customer_ads")
+    .insert({
+      user_id: userId,
+      ...adData,
+      status: adData.status || "active",
+      views_count: 0,
+      clicks_count: 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAdStatus(adId, status, paymentDetails = {}) {
+  const { data, error } = await supabase
+    .from("customer_ads")
+    .update({ status, ...paymentDetails })
+    .eq("id", adId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getManagerCatalogues(managerId = null) {
+  let query = supabase.from("catalogues").select("*, profiles(id, display_name, username, avatar_url, phone, whatsapp)");
+  if (managerId) {
+    query = query.eq("manager_id", managerId);
+  }
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createCatalogueProduct(managerId, productData) {
+  const code = productData.affiliate_code || `AFF-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+  const { data, error } = await supabase
+    .from("catalogues")
+    .insert({
+      manager_id: managerId,
+      ...productData,
+      affiliate_code: code,
+      in_stock: true,
+      views_count: 0,
+      orders_count: 0
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCatalogueProduct(productId, updates) {
+  const { data, error } = await supabase
+    .from("catalogues")
+    .update(updates)
+    .eq("id", productId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCatalogueProduct(productId) {
+  const { error } = await supabase
+    .from("catalogues")
+    .delete()
+    .eq("id", productId);
+  if (error) throw error;
+}
+
+export async function createAffiliateOrder(orderData) {
+  const { data, error } = await supabase
+    .from("affiliate_orders")
+    .insert({
+      ...orderData,
+      status: orderData.status || "completed",
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getAffiliateOrders(managerId = null) {
+  let query = supabase.from("affiliate_orders").select("*");
+  if (managerId) {
+    query = query.eq("manager_id", managerId);
+  }
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getPlatformSettings() {
+  const { data } = await supabase.from("platform_settings").select("*").maybeSingle();
+  return data || {
+    platform_name: "THE CIRCLE DUARA Affiliate Network",
+    ceo_name: "HAMZA VUKANG",
+    ceo_email: "vukangtech@gmail.com",
+    default_commission_rate: 10,
+    ad_posting_fee: 5000,
+    ad_boost_fee: 15000,
+    payment_numbers: {
+      mpesa: "554433 (THE CIRCLE LIPA)",
+      tigopesa: "778899 (DUARA AFFILIATE)",
+      airtel: "992211 (HAMZA VUKANG BUSINESS)",
+      halopesa: "332211 (DUARA COMMERCE)",
+      crdb_bank: "015299887700 (CRDB)",
+      nmb_bank: "201100998877 (NMB)"
+    }
+  };
+}
+
+export async function updatePlatformSettings(settings) {
+  const { data, error } = await supabase.from("platform_settings").update(settings).select().maybeSingle();
+  if (error) console.warn(error);
+  return data;
+}
+
+export async function getPayoutRequests(managerId = null) {
+  let query = supabase.from("payout_requests").select("*");
+  if (managerId) {
+    query = query.eq("manager_id", managerId);
+  }
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function requestPayout(managerId, amount, method, accountNumber) {
+  const { data, error } = await supabase
+    .from("payout_requests")
+    .insert({
+      manager_id: managerId,
+      amount,
+      method,
+      account_number: accountNumber,
+      status: "pending",
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePayoutStatus(requestId, status) {
+  const { data, error } = await supabase
+    .from("payout_requests")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", requestId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+

@@ -37,6 +37,9 @@ import {
 import { UserProfile } from "./UserProfile";
 import { MainFeed } from "./MainFeed";
 import { CallModal } from "./CallModal";
+import { CustomerAdsDashboard } from "./CustomerAdsDashboard";
+import { AffiliateManagerCatalogue } from "./AffiliateManagerCatalogue";
+import { CeoDashboard } from "./CeoDashboard";
 import { translations, useTranslation } from "./lib/translations";
 import "./App.css";
 
@@ -66,11 +69,12 @@ function Brand() {
       </div>
       <div className="brand-text">
         <span className="brand-title">THE CIRCLE</span>
-        <span className="brand-sub">DUARA</span>
+        <span className="brand-sub">AFFILIATE NETWORK</span>
       </div>
     </div>
   );
 }
+
 
 function ErrorBox({ message }) {
   return message ? <div className="form-message" style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)", borderRadius: 10, padding: "10px 14px", fontSize: 13, fontWeight: 600, border: "1px solid rgba(239,68,68,0.2)" }}>{message}</div> : null;
@@ -424,7 +428,8 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
 function AuthScreen({ lang, setLang, dark, setDark }) {
   const t = useTranslation(lang);
   const [mode, setMode] = useState("login");
-  const [form, setForm] = useState(blankAuth);
+  const [role, setRole] = useState("customer"); // 'customer' | 'manager'
+  const [form, setForm] = useState({ ...blankAuth, phone: "", whatsapp: "" });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -434,19 +439,31 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
     if (!form.email || !form.password || (mode === "register" && (!form.displayName || !form.username))) {
       return setMessage(t.fillAllFields);
     }
-    if (mode === "register" && form.password.length < 8) {
-      return setMessage(t.passwordLengthErr);
+    if (mode === "register" && form.password.length < 6) {
+      return setMessage("Nenosiri liwe na angalau herufi 6.");
     }
     setBusy(true);
     try {
       const result = mode === "login"
         ? await loginUser(form.email, form.password)
-        : await registerUser(form);
+        : await registerUser({ ...form, role });
       if (mode === "register" && !result.session) {
-        setMessage(t.accountCreatedVerify);
+        setMessage("Akaunti imeundwa kikamilifu!");
       }
     } catch (err) {
       setMessage(err.message || t.failedTryAgain);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCeoLogin = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      await loginUser("vukangtech@gmail.com", "hamza_ceo_secure");
+    } catch (err) {
+      setMessage("Hitilafu: " + err.message);
     } finally {
       setBusy(false);
     }
@@ -465,41 +482,133 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
         </div>
 
         <div style={{ position: "relative", zIndex: 2, margin: "auto 0" }}>
-          <p className="eyebrow" style={{ color: "#ffffff" }}>{t.welcomeEyebrow}</p>
-          <h1 style={{ fontSize: "clamp(38px, 4.5vw, 68px)", color: "#ffffff", lineHeight: 1.1, margin: "14px 0 20px" }}>
-            {t.welcomeTitle1}<br />
-            <em style={{ fontFamily: "'Playfair Display', serif", color: "#fbbf24" }}>{t.welcomeTitle2}</em><br />
-            {t.welcomeTitle3}
+          <p className="eyebrow" style={{ color: "#ffffff" }}>✦ THE CIRCLE DUARA</p>
+          <h1 style={{ fontSize: "clamp(34px, 4vw, 56px)", color: "#ffffff", lineHeight: 1.15, margin: "14px 0 16px" }}>
+            Mtandao Rasmi wa<br />
+            <em style={{ fontFamily: "'Playfair Display', serif", color: "#fbbf24" }}>Affiliate & Matangazo</em><br />
+            Tanzania & East Africa
           </h1>
-          <p style={{ maxWidth: 440, fontSize: 16, color: "rgba(255,255,255,0.9)", lineHeight: 1.7 }}>
-            {t.welcomeDesc}
+          <p style={{ maxWidth: 460, fontSize: 15, color: "rgba(255,255,255,0.9)", lineHeight: 1.6 }}>
+            Uongozi Mkuu wa <strong>CEO HAMZA VUKANG</strong>. Ungana kama <strong>Manager</strong> mwenye WhatsApp Catalogue ya bidhaa au kama <strong>Mteja Mtangazaji</strong> unayepost bidhaa na kulipia matangazo hewani kwa muda halisi.
           </p>
         </div>
 
         <div className="auth-art-glow" />
       </section>
 
-      <section style={{ display: "grid", placeItems: "center", padding: "30px", zIndex: 1 }}>
-        <div className="auth-form-card" id="auth-form-container">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <section style={{ display: "grid", placeItems: "center", padding: "24px", zIndex: 1 }}>
+        <div className="auth-form-card" id="auth-form-container" style={{ maxWidth: 460, width: "100%" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <Brand />
             <LanguageToggle lang={lang} setLang={setLang} />
           </div>
 
-          <p className="eyebrow">{mode === "login" ? t.welcomeBackEyebrow : t.joinUsEyebrow}</p>
-          <h2 style={{ fontSize: 28, margin: "0 0 6px" }}>{mode === "login" ? t.loginTitle : t.registerTitle}</h2>
-          <p className="muted" style={{ marginBottom: 24 }}>{mode === "login" ? t.loginSubtitle : t.registerSubtitle}</p>
+          <p className="eyebrow">{mode === "login" ? "INGIA KWENYE MFUMO" : "USAJILI WA AKAUNTI HALISI"}</p>
+          <h2 style={{ fontSize: 24, margin: "0 0 6px" }}>
+            {mode === "login" ? "Ingia kwenye Duara" : "Jiunge na Mtandao"}
+          </h2>
+          <p className="muted" style={{ marginBottom: 18, fontSize: 13 }}>
+            {mode === "login"
+              ? "Weka barua pepe au jina la mtumiaji kuendelea:"
+              : "Chagua jukumu lako na anza kufanya biashara halisi:"}
+          </p>
+
+          {/* Quick Access to CEO HAMZA VUKANG */}
+          <div
+            style={{
+              background: "linear-gradient(135deg, #1e293b, #0f172a)",
+              color: "#fff",
+              borderRadius: 12,
+              padding: "14px",
+              marginBottom: 16,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 11, color: "#fbbf24", fontWeight: 800, textTransform: "uppercase" }}>
+                👑 MLANGO WA CEO
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>HAMZA VUKANG (CEO)</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>Usimamizi Mkuu & Malipo</div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCeoLogin}
+              disabled={busy}
+              style={{
+                background: "#fbbf24",
+                color: "#000",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+              }}
+            >
+              Ingia kama CEO
+            </button>
+          </div>
 
           <form onSubmit={submit} id="auth-form">
             {mode === "register" && (
               <>
+                {/* Role selection */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    Chagua Aina ya Akaunti Yako:
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div
+                      onClick={() => setRole("customer")}
+                      style={{
+                        padding: "10px",
+                        borderRadius: 10,
+                        border: role === "customer" ? "2px solid #18a66a" : "1px solid var(--line)",
+                        background: role === "customer" ? "#18a66a15" : "transparent",
+                        cursor: "pointer",
+                        textAlign: "center"
+                      }}
+                    >
+                      <div style={{ fontSize: 18 }}>🛒</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: role === "customer" ? "#18a66a" : "inherit" }}>
+                        Mteja / Mtangazaji
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--muted)" }}>Post Ads & Bidhaa</div>
+                    </div>
+
+                    <div
+                      onClick={() => setRole("manager")}
+                      style={{
+                        padding: "10px",
+                        borderRadius: 10,
+                        border: role === "manager" ? "2px solid #075e54" : "1px solid var(--line)",
+                        background: role === "manager" ? "#075e5415" : "transparent",
+                        cursor: "pointer",
+                        textAlign: "center"
+                      }}
+                    >
+                      <div style={{ fontSize: 18 }}>💼</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: role === "manager" ? "#075e54" : "inherit" }}>
+                        Manager wa Duka
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--muted)" }}>WhatsApp Catalogue</div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label htmlFor="input-fullname">{t.displayName}</label>
                   <input
                     id="input-fullname"
                     value={form.displayName}
                     onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                    placeholder="Amina Juma"
+                    placeholder="Mfano: David Mwita"
+                    required
                   />
                 </div>
                 <div className="form-group">
@@ -508,7 +617,8 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
                     id="input-username"
                     value={form.username}
                     onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
-                    placeholder="amina_juma"
+                    placeholder="david_mwita"
+                    required
                   />
                 </div>
               </>
@@ -518,10 +628,11 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
               <label htmlFor="input-email">{t.email}</label>
               <input
                 id="input-email"
-                type="email"
+                type="text"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="wewe@example.com"
+                placeholder="barua_pepe@domain.com au username"
+                required
               />
             </div>
 
@@ -532,7 +643,8 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder={t.passwordMin}
+                placeholder="Weka nenosiri..."
+                required
               />
             </div>
 
@@ -544,56 +656,12 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
               disabled={busy}
               style={{ marginTop: 14 }}
             >
-              {busy ? t.waiting : mode === "login" ? t.loginBtn : t.registerBtn}
+              {busy ? t.waiting : mode === "login" ? "Ingia kwenye Akaunti" : "Kamilisha Usajili"}
             </button>
           </form>
 
-          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", textAlign: "center", marginBottom: 8 }}>
-              {lang === "sw" ? "⚡ Majaribio ya Moja kwa Moja (Akaunti zilizopo):" : "⚡ Real-Time Testing Accounts:"}
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <button
-                type="button"
-                className="button button-soft"
-                style={{ fontSize: 12, padding: "8px 10px", justifyContent: "center" }}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await loginUser("amina_juma", "password123");
-                  } catch (err) {
-                    setMessage(err.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                id="btn-quick-login-amina"
-              >
-                👩🏽 Amina Juma
-              </button>
-              <button
-                type="button"
-                className="button button-soft"
-                style={{ fontSize: 12, padding: "8px 10px", justifyContent: "center" }}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await loginUser("juma_h", "password123");
-                  } catch (err) {
-                    setMessage(err.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                id="btn-quick-login-juma"
-              >
-                👨🏾 Juma Hamisi
-              </button>
-            </div>
-          </div>
-
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--muted)" }}>
-            {mode === "login" ? t.noAccount : t.haveAccount}{" "}
+            {mode === "login" ? "Huna akaunti bado?" : "Tayari una akaunti?"}{" "}
             <button
               type="button"
               id="btn-toggle-auth-mode"
@@ -603,7 +671,7 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
                 setMessage("");
               }}
             >
-              {mode === "login" ? t.registerHere : t.loginHere}
+              {mode === "login" ? "Jisajili Hapa" : "Ingia Hapa"}
             </button>
           </p>
         </div>
@@ -615,20 +683,25 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
 /* Sidebar Navigation */
 function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, dark, setDark }) {
   const t = useTranslation(lang);
+  const isCeo = profile?.role === "ceo" || profile?.username === "hamzavukang";
 
   const mainLinks = [
+    ["ads", "📢", lang === "sw" ? "Matangazo ya Wateja" : "Customer Ads"],
+    ["catalogue", "📱", lang === "sw" ? "WhatsApp Catalogue" : "WhatsApp Catalog"],
     ["home", "⌂", t.home],
-    ["dashboard", "📊", t.dashboard],
     ["messages", "✉", t.messages, unread],
-    ["friends", "👥", t.friends],
-    ["discover", "✦", t.discover]
   ];
 
+  if (isCeo) {
+    mainLinks.unshift(["ceo", "👑", lang === "sw" ? "Ofisi ya CEO (Hamza)" : "CEO Office"]);
+  }
+
   const exploreLinks = [
+    ["dashboard", "📊", isCeo ? "CEO Dashboard" : profile?.role === "manager" ? "Manager Stats" : "Mteja Dashboard"],
     ["marketplace", "🛍️", t.marketplace],
     ["reels", "▶", t.reels],
-    ["saved", "🔖", t.savedDownloadsTab],
-    ["wallet", "💳", t.wallet]
+    ["wallet", "💳", t.wallet],
+    ["saved", "🔖", t.savedDownloadsTab]
   ];
 
   const systemLinks = [
@@ -643,7 +716,9 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
   return (
     <aside className="sidebar" id="app-sidebar">
       <nav>
-        <span className="nav-section-title">{t.home}</span>
+        <span className="nav-section-title">
+          {isCeo ? "👑 BIASHARA & UONGOZI" : "🛍️ AFFILIATE & BIASHARA"}
+        </span>
         {mainLinks.map(([id, icon, label, badge]) => (
           <button
             id={`nav-item-${id}`}
@@ -657,7 +732,7 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
           </button>
         ))}
 
-        <span className="nav-section-title">{t.marketplace} & {t.reels}</span>
+        <span className="nav-section-title">CHUNGUZA & SHUGHULI</span>
         {exploreLinks.map(([id, icon, label]) => (
           <button
             id={`nav-item-${id}`}
@@ -695,7 +770,9 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
           <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="sm" />
           <div className="profile-capsule-info">
             <span className="profile-capsule-name">{profile.display_name}</span>
-            <span className="profile-capsule-tag">@{profile.username}</span>
+            <span className="profile-capsule-tag" style={{ color: isCeo ? "#eab308" : profile?.role === "manager" ? "#10b981" : "var(--muted)", fontWeight: 700 }}>
+              {isCeo ? "👑 CEO HAMZA VUKANG" : profile?.role === "manager" ? "💼 AFFILIATE MANAGER" : "🛒 MTEJA MTANGAZAJI"}
+            </span>
           </div>
         </button>
 
@@ -717,15 +794,14 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
 }
 
 /* Mobile Bottom Navigation Dock */
-function MobileBottomNav({ active, setActive, lang, unread }) {
-  const t = useTranslation(lang);
+function MobileBottomNav({ active, setActive, lang, unread, profile }) {
+  const isCeo = profile?.role === "ceo" || profile?.username === "hamzavukang";
   const items = [
-    ["home", "⌂", t.home],
-    ["dashboard", "📊", t.dashboard],
-    ["messages", "✉", t.messages, unread],
-    ["reels", "▶", t.reels],
-    ["marketplace", "🛍️", t.marketplace],
-    ["settings", "⚙", t.settings]
+    ["ads", "📢", "Ads"],
+    ["catalogue", "📱", "Catalogue"],
+    ["home", "⌂", "Duara"],
+    ["messages", "✉", "Gumzo", unread],
+    isCeo ? ["ceo", "👑", "CEO"] : ["profile", "👤", "Wasifu"]
   ];
 
   return (
@@ -745,6 +821,7 @@ function MobileBottomNav({ active, setActive, lang, unread }) {
     </div>
   );
 }
+
 
 /* Stories / Status Rail */
 function StatusRail({ profile, lang }) {
@@ -3909,6 +3986,31 @@ export default function App() {
         />
 
         <main className="main-area" id="main-content-panel">
+          {/* Real-time Affiliate & Commerce Core Modules */}
+          {active === "ads" && (
+            <CustomerAdsDashboard
+              profile={profile}
+              onShowToast={showToast}
+              lang={lang}
+            />
+          )}
+
+          {active === "catalogue" && (
+            <AffiliateManagerCatalogue
+              profile={profile}
+              onShowToast={showToast}
+              lang={lang}
+            />
+          )}
+
+          {active === "ceo" && (
+            <CeoDashboard
+              profile={profile}
+              onShowToast={showToast}
+              lang={lang}
+            />
+          )}
+
           {(active === "home" || active === "feed") && (
             <MainFeed
               profile={profile}
@@ -3922,13 +4024,27 @@ export default function App() {
             />
           )}
           {active === "dashboard" && (
-            <Dashboard
-              profile={profile}
-              posts={posts}
-              lang={lang}
-              setActive={setActive}
-            />
+            profile?.role === "ceo" || profile?.username === "hamzavukang" ? (
+              <CeoDashboard
+                profile={profile}
+                onShowToast={showToast}
+                lang={lang}
+              />
+            ) : profile?.role === "manager" ? (
+              <AffiliateManagerCatalogue
+                profile={profile}
+                onShowToast={showToast}
+                lang={lang}
+              />
+            ) : (
+              <CustomerAdsDashboard
+                profile={profile}
+                onShowToast={showToast}
+                lang={lang}
+              />
+            )
           )}
+
           {active === "messages" && (
             <Messages
               profile={profile}
@@ -3993,6 +4109,7 @@ export default function App() {
         setActive={setActive}
         lang={lang}
         unread={unreadCount}
+        profile={profile}
       />
 
       {/* Telegram-style Passcode Lock Modal */}
