@@ -30,6 +30,8 @@ const initialProfiles = [
     id: "usr_ceo_hamza_vukang",
     username: "hamzavukang",
     display_name: "Hamza Vukang",
+    email: "vukangtech@gmail.com",
+    passcode: "151006",
     role: "ceo", // 'ceo' | 'manager' | 'customer'
     bio: "CEO & Mwanzilishi Mkuu wa THE CIRCLE DUARA Affiliate Network. Kusimamia biashara, mameneja, matangazo na malipo ya mtandao kote Afrika Mashariki.",
     avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80",
@@ -165,7 +167,28 @@ const currentClientId = `client_${Math.random().toString(36).slice(2, 9)}`;
 
 class RealtimeDb {
   constructor() {
-    this.profiles = getStored("profiles", initialProfiles);
+    // Purge fake mock users so only authentic registered accounts and CEO exist
+    const FAKE_USERNAMES = [
+      "amina_juma", "juma_h", "baraka_tech", "amina_art", "kilimobora",
+      "rashid_sound", "david_mwita", "mwanachama", "user", "advertiser", "manager"
+    ];
+    let loadedProfiles = getStored("profiles", initialProfiles) || [];
+    this.profiles = loadedProfiles.filter(
+      (p) => p && !FAKE_USERNAMES.includes(p.username) && !String(p.id).startsWith("creator_")
+    );
+    if (!this.profiles.some((p) => p.email === "vukangtech@gmail.com" || p.id === "usr_ceo_hamza_vukang")) {
+      this.profiles.unshift(initialProfiles[0]);
+    } else {
+      // Ensure CEO credentials are up to date
+      const ceo = this.profiles.find((p) => p.id === "usr_ceo_hamza_vukang" || p.email === "vukangtech@gmail.com");
+      if (ceo) {
+        ceo.email = "vukangtech@gmail.com";
+        ceo.passcode = "151006";
+        ceo.role = "ceo";
+      }
+    }
+    setStored("profiles", this.profiles);
+
     this.platform_settings = getStored("platform_settings", initialPlatformSettings);
     this.catalogues = getStored("catalogues", initialCatalogues);
     this.customer_ads = getStored("customer_ads", initialCustomerAds);
@@ -647,15 +670,32 @@ export function createMockSupabase() {
           id: userId,
           username: options.data?.username || email.split("@")[0],
           display_name: options.data?.display_name || "Mwanachama Mpya",
+          email: email,
           role: options.data?.role || "customer", // 'ceo', 'manager', 'customer'
-          bio: options.data?.bio || (options.data?.role === "manager" ? "Affiliate Manager - WhatsApp Catalogue Verified" : "Mteja & Mtangazaji wa Biashara"),
-          avatar_url: options.data?.avatar_url || "",
+          location: options.data?.location || "Dar es Salaam, Tanzania",
           phone: options.data?.phone || "",
-          whatsapp: options.data?.whatsapp || "",
+          whatsapp: options.data?.whatsapp || (options.data?.phone ? options.data?.phone.replace(/\D/g, "") : ""),
+          business_name: options.data?.business_name || "",
+          category: options.data?.category || "",
+          bio: options.data?.bio || (options.data?.role === "manager"
+            ? `Manager wa Duka (${options.data?.business_name || "Biashara"}) - WhatsApp Catalogue`
+            : "Mteja & Mtangazaji wa Biashara"),
+          avatar_url: options.data?.avatar_url || "",
           verified: options.data?.role === "ceo",
+          password: password,
           created_at: new Date().toISOString(),
         };
         mockDb.profiles.push(newProfile);
+
+        // Auto-initialize wallet account for real money operations
+        if (!mockDb.wallet_accounts.some((w) => w.user_id === userId)) {
+          mockDb.wallet_accounts.push({
+            user_id: userId,
+            currency: "TZS",
+            balance: 0,
+            created_at: new Date().toISOString()
+          });
+        }
         mockDb.save();
 
         for (const listener of authListeners) {
@@ -665,23 +705,57 @@ export function createMockSupabase() {
         }
         return { data: { user, session }, error: null };
       },
-      async signInWithPassword({ email }) {
+      async signInWithPassword({ email, password }) {
         const normalized = (email || "").toLowerCase().trim();
-        const existing =
-          mockDb.profiles.find(
-            (p) =>
-              p.username.toLowerCase() === normalized ||
-              p.id.toLowerCase() === normalized ||
-              (p.email && p.email.toLowerCase() === normalized) ||
-              (normalized.includes("@") && p.username.toLowerCase() === normalized.split("@")[0]) ||
-              normalized === "hamzavukang" ||
-              normalized === "vukangtech@gmail.com"
-          ) || mockDb.profiles[0];
+        const inputCode = String(password || "").trim();
+
+        // Dedicated CEO Account authentication: vukangtech@gmail.com with passcode 151006
+        const isCeo = normalized === "vukangtech@gmail.com" || normalized === "hamzavukang";
+        if (isCeo) {
+          if (inputCode !== "151006") {
+            const err = new Error("Passcode ya CEO si sahihi! Tafadhali weka passcode maalumu ya CEO (151006).");
+            return { data: { user: null, session: null }, error: err };
+          }
+          const ceo = mockDb.profiles.find((p) => p.role === "ceo" || p.id === "usr_ceo_hamza_vukang") || initialProfiles[0];
+          const session = {
+            user: {
+              id: ceo.id,
+              email: "vukangtech@gmail.com",
+              role: "ceo",
+            },
+          };
+          currentSession = session;
+          setStored("session", session);
+          for (const listener of authListeners) {
+            try {
+              listener("SIGNED_IN", session);
+            } catch {}
+          }
+          return { data: { user: session.user, session }, error: null };
+        }
+
+        // Regular user check
+        const existing = mockDb.profiles.find(
+          (p) =>
+            p.email?.toLowerCase() === normalized ||
+            p.username?.toLowerCase() === normalized ||
+            p.id?.toLowerCase() === normalized
+        );
+
+        if (!existing) {
+          const err = new Error("Akaunti haikupatikana kwa barua pepe au jina hili. Tafadhali bonyeza 'Jiunge na Mtandao' kujisajili.");
+          return { data: { user: null, session: null }, error: err };
+        }
+
+        if (existing.password && inputCode && existing.password !== inputCode) {
+          const err = new Error("Nenosiri uliloweka si sahihi. Tafadhali jaribu tena.");
+          return { data: { user: null, session: null }, error: err };
+        }
 
         const session = {
           user: {
-            id: existing ? existing.id : "usr_ceo_hamza_vukang",
-            email: existing?.email || `${existing?.username || "user"}@duara.network`,
+            id: existing.id,
+            email: existing.email || `${existing.username}@duara.network`,
           },
         };
         currentSession = session;

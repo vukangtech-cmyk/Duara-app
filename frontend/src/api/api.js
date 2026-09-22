@@ -1,7 +1,22 @@
 import { supabase } from "../lib/supabase";
 
-export async function registerUser({ email, password, displayName, username }) {
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName, username } } });
+export async function registerUser({ email, password, displayName, username, role = "customer", location = "Dar es Salaam, Tanzania", phone = "", whatsapp = "", businessName = "", category = "" }) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        display_name: displayName,
+        username,
+        role,
+        location,
+        phone,
+        whatsapp: whatsapp || (phone ? phone.replace(/\D/g, "") : ""),
+        business_name: businessName,
+        category
+      }
+    }
+  });
   if (error) throw error;
   return data;
 }
@@ -64,44 +79,17 @@ export async function getSuggestedUsers(currentUserId) {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url, bio")
+      .select("id, display_name, username, avatar_url, bio, role, location")
       .neq("id", currentUserId)
       .limit(10);
-    if (!error && data && data.length > 0) return data;
+    if (!error && data) {
+      // Filter out any leftover fake users
+      return data.filter((u) => !String(u.id).startsWith("creator_") && u.username !== "amina_art" && u.username !== "baraka_tech");
+    }
   } catch (err) {
     console.warn("getSuggestedUsers error:", err);
   }
-  // Return default suggested creators if profiles table has few users
-  return [
-    {
-      id: "creator_baraka",
-      display_name: "Baraka Msuya",
-      username: "baraka_tech",
-      avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-      bio: "Tech entrepreneur, Silicon Dar & AI developer 🇹🇿"
-    },
-    {
-      id: "creator_amina",
-      display_name: "Amina Juma",
-      username: "amina_art",
-      avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-      bio: "Visual storyteller, photographer & culture enthusiast."
-    },
-    {
-      id: "creator_kilimo",
-      display_name: "Kilimo Bora TZ",
-      username: "kilimobora",
-      avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-      bio: "Smart modern farming & agritech insights across East Africa."
-    },
-    {
-      id: "creator_zanzibar",
-      display_name: "Rashid Zenji",
-      username: "rashid_sound",
-      avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-      bio: "Music producer, Taarab fusion & live sound engineer 🎵"
-    }
-  ];
+  return [];
 }
 
 export async function searchProfiles(term) { const { data, error } = await supabase.from("profiles").select("id, display_name, username, avatar_url").or(`display_name.ilike.%${term}%,username.ilike.%${term}%`).limit(10); if (error) throw error; return data || []; }
@@ -314,5 +302,60 @@ export async function updatePayoutStatus(requestId, status) {
     .single();
   if (error) throw error;
   return data;
+}
+
+// --- MOBILE MONEY WALLET ENGINE ---
+export async function depositToWallet(userId, amount, method, phone, reference) {
+  const numAmount = Number(amount);
+  if (!numAmount || numAmount <= 0) throw new Error("Weka kiasi sahihi cha kuweka!");
+  
+  const { data: account } = await supabase.from("wallet_accounts").select("*").eq("user_id", userId).maybeSingle();
+  const currentBalance = account?.balance || 0;
+  const newBalance = Number(currentBalance) + numAmount;
+
+  if (account) {
+    await supabase.from("wallet_accounts").update({ balance: newBalance }).eq("user_id", userId);
+  } else {
+    await supabase.from("wallet_accounts").insert({ user_id: userId, balance: newBalance, currency: "TZS" });
+  }
+
+  const { data: tx, error: txError } = await supabase.from("wallet_transactions").insert({
+    user_id: userId,
+    type: "DEPOSIT",
+    amount: numAmount,
+    currency: "TZS",
+    status: "completed",
+    description: `Kuweka pesa kwa ${method} (${phone}) - Ref: ${reference.toUpperCase()}`,
+    created_at: new Date().toISOString()
+  }).select().single();
+  if (txError) throw txError;
+
+  return { balance: newBalance, transaction: tx };
+}
+
+export async function withdrawFromWallet(userId, amount, method, phone, accountName = "") {
+  const numAmount = Number(amount);
+  if (!numAmount || numAmount <= 0) throw new Error("Weka kiasi sahihi cha kutoa!");
+
+  const { data: account } = await supabase.from("wallet_accounts").select("*").eq("user_id", userId).maybeSingle();
+  const currentBalance = account?.balance || 0;
+  if (currentBalance < numAmount) {
+    throw new Error(`Salio halitoshi! Una TZS ${Number(currentBalance).toLocaleString()}, lakini unajaribu kutoa TZS ${numAmount.toLocaleString()}.`);
+  }
+  const newBalance = Number(currentBalance) - numAmount;
+  await supabase.from("wallet_accounts").update({ balance: newBalance }).eq("user_id", userId);
+
+  const { data: tx, error: txError } = await supabase.from("wallet_transactions").insert({
+    user_id: userId,
+    type: "WITHDRAW",
+    amount: numAmount,
+    currency: "TZS",
+    status: "completed",
+    description: `Kutoa pesa kwenda ${method} (${phone} - ${accountName || "Mtumiaji"})`,
+    created_at: new Date().toISOString()
+  }).select().single();
+  if (txError) throw txError;
+
+  return { balance: newBalance, transaction: tx };
 }
 

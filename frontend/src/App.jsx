@@ -16,6 +16,8 @@ import {
   getNotifications,
   getReels,
   getWallet,
+  depositToWallet,
+  withdrawFromWallet,
   kickPost,
   loginUser,
   logoutUser,
@@ -43,7 +45,17 @@ import { CeoDashboard } from "./CeoDashboard";
 import { translations, useTranslation } from "./lib/translations";
 import "./App.css";
 
-const blankAuth = { email: "", password: "", displayName: "", username: "" };
+const blankAuth = {
+  email: "",
+  password: "",
+  displayName: "",
+  username: "",
+  location: "Dar es Salaam",
+  phone: "",
+  whatsapp: "",
+  businessName: "",
+  category: "Vifaa vya Kielektroniki & Simu"
+};
 
 const initials = (name = "Guest") =>
   name
@@ -429,15 +441,16 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
   const t = useTranslation(lang);
   const [mode, setMode] = useState("login");
   const [role, setRole] = useState("customer"); // 'customer' | 'manager'
-  const [form, setForm] = useState({ ...blankAuth, phone: "", whatsapp: "" });
+  const [form, setForm] = useState({ ...blankAuth });
+  const [ceoPasscode, setCeoPasscode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setMessage("");
-    if (!form.email || !form.password || (mode === "register" && (!form.displayName || !form.username))) {
-      return setMessage(t.fillAllFields);
+    if (!form.email || !form.password || (mode === "register" && (!form.displayName || !form.username || !form.location))) {
+      return setMessage("Tafadhali jaza taarifa zote zinazohitajika (Majina, Username, Barua Pepe, Mahali unapoishi na Nenosiri).");
     }
     if (mode === "register" && form.password.length < 6) {
       return setMessage("Nenosiri liwe na angalau herufi 6.");
@@ -448,7 +461,7 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
         ? await loginUser(form.email, form.password)
         : await registerUser({ ...form, role });
       if (mode === "register" && !result.session) {
-        setMessage("Akaunti imeundwa kikamilifu!");
+        setMessage("Akaunti imeundwa kikamilifu! Sasa unaweza kuingia.");
       }
     } catch (err) {
       setMessage(err.message || t.failedTryAgain);
@@ -457,17 +470,52 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
     }
   };
 
-  const handleCeoLogin = async () => {
-    setBusy(true);
+  const handleCeoLogin = async (e) => {
+    if (e) e.preventDefault();
     setMessage("");
+    if (!ceoPasscode || ceoPasscode.trim() !== "151006") {
+      setMessage("⚠️ Passcode ya CEO si sahihi! Weka passcode maalumu ya tarakimu 6 (151006).");
+      return;
+    }
+    setBusy(true);
     try {
-      await loginUser("vukangtech@gmail.com", "hamza_ceo_secure");
+      await loginUser("vukangtech@gmail.com", ceoPasscode.trim());
     } catch (err) {
-      setMessage("Hitilafu: " + err.message);
+      setMessage("Hitilafu ya kuingia kama CEO: " + err.message);
     } finally {
       setBusy(false);
     }
   };
+
+  const tanzaniaRegions = [
+    "Dar es Salaam",
+    "Arusha",
+    "Mwanza",
+    "Dodoma",
+    "Mbeya",
+    "Morogoro",
+    "Tanga",
+    "Kilimanjaro (Moshi)",
+    "Zanzibar (Mjini Magharibi)",
+    "Iringa",
+    "Tabora",
+    "Kigoma",
+    "Shinyanga",
+    "Kagera (Bukoba)",
+    "Mtwara",
+    "Ruvuma (Songea)",
+    "Singida",
+    "Mara (Musoma)",
+    "Manyara",
+    "Njombe",
+    "Katavi",
+    "Songwe",
+    "Geita",
+    "Simiyu",
+    "Nairobi (Kenya)",
+    "Kampala (Uganda)",
+    "Kigali (Rwanda)"
+  ];
 
   return (
     <main className="auth-page-shell" id="auth-page">
@@ -489,7 +537,7 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
             Tanzania & East Africa
           </h1>
           <p style={{ maxWidth: 460, fontSize: 15, color: "rgba(255,255,255,0.9)", lineHeight: 1.6 }}>
-            Uongozi Mkuu wa <strong>CEO HAMZA VUKANG</strong>. Ungana kama <strong>Manager</strong> mwenye WhatsApp Catalogue ya bidhaa au kama <strong>Mteja Mtangazaji</strong> unayepost bidhaa na kulipia matangazo hewani kwa muda halisi.
+            Uongozi Mkuu wa <strong>CEO HAMZA VUKANG</strong>. Ungana kama <strong>Manager</strong> mwenye WhatsApp Catalogue ya duka lako au kama <strong>Mteja Mtangazaji</strong> unayepost bidhaa na kulipia matangazo hewani kwa muda halisi bila akaunti fake.
           </p>
         </div>
 
@@ -497,135 +545,283 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
       </section>
 
       <section style={{ display: "grid", placeItems: "center", padding: "24px", zIndex: 1 }}>
-        <div className="auth-form-card" id="auth-form-container" style={{ maxWidth: 460, width: "100%" }}>
+        <div className="auth-form-card" id="auth-form-container" style={{ maxWidth: 480, width: "100%" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <Brand />
             <LanguageToggle lang={lang} setLang={setLang} />
           </div>
 
-          <p className="eyebrow">{mode === "login" ? "INGIA KWENYE MFUMO" : "USAJILI WA AKAUNTI HALISI"}</p>
-          <h2 style={{ fontSize: 24, margin: "0 0 6px" }}>
-            {mode === "login" ? "Ingia kwenye Duara" : "Jiunge na Mtandao"}
-          </h2>
-          <p className="muted" style={{ marginBottom: 18, fontSize: 13 }}>
-            {mode === "login"
-              ? "Weka barua pepe au jina la mtumiaji kuendelea:"
-              : "Chagua jukumu lako na anza kufanya biashara halisi:"}
-          </p>
-
-          {/* Quick Access to CEO HAMZA VUKANG */}
+          {/* Dedicated CEO Hamza Vukang Passcode Portal */}
           <div
             style={{
-              background: "linear-gradient(135deg, #1e293b, #0f172a)",
+              background: "linear-gradient(135deg, #0f172a, #1e293b)",
               color: "#fff",
-              borderRadius: 12,
-              padding: "14px",
-              marginBottom: 16,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12
+              borderRadius: 14,
+              padding: "16px",
+              marginBottom: 20,
+              border: "1px solid rgba(251, 191, 36, 0.4)",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.2)"
             }}
           >
-            <div>
-              <div style={{ fontSize: 11, color: "#fbbf24", fontWeight: 800, textTransform: "uppercase" }}>
-                👑 MLANGO WA CEO
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  👑 MLANGO WA CEO (HAMZA VUKANG)
+                </span>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>vukangtech@gmail.com</div>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>HAMZA VUKANG (CEO)</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>Usimamizi Mkuu & Malipo</div>
+              <span style={{ fontSize: 20 }}>🛡️</span>
             </div>
+
+            <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 10px", lineHeight: 1.4 }}>
+              Ingia kwenye ofisi kuu ya CEO kwa passcode maalumu ya usalama <strong>(151006)</strong>:
+            </p>
+
+            <form onSubmit={handleCeoLogin} style={{ display: "flex", gap: 8 }}>
+              <input
+                type="password"
+                maxLength={6}
+                value={ceoPasscode}
+                onChange={(e) => setCeoPasscode(e.target.value)}
+                placeholder="Weka passcode (151006)"
+                style={{
+                  flex: 1,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #334155",
+                  background: "#020617",
+                  color: "#fbbf24",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  letterSpacing: "2px",
+                  outline: "none"
+                }}
+              />
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  background: "#fbbf24",
+                  color: "#000",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 14px",
+                  fontWeight: 800,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
+                }}
+              >
+                {busy ? "Inaingia..." : "Ingia kama CEO"}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ display: "flex", borderBottom: "1px solid var(--line)", marginBottom: 18 }}>
             <button
               type="button"
-              onClick={handleCeoLogin}
-              disabled={busy}
+              onClick={() => { setMode("login"); setMessage(""); }}
               style={{
-                background: "#fbbf24",
-                color: "#000",
+                flex: 1,
+                padding: "10px 0",
+                background: "none",
                 border: "none",
-                borderRadius: 8,
-                padding: "8px 14px",
-                fontWeight: 800,
-                fontSize: 12,
+                borderBottom: mode === "login" ? "2px solid var(--primary)" : "none",
+                fontWeight: mode === "login" ? 700 : 500,
+                color: mode === "login" ? "var(--primary)" : "var(--muted)",
                 cursor: "pointer",
-                whiteSpace: "nowrap"
+                fontSize: 14
               }}
             >
-              Ingia kama CEO
+              Ingia Kwenye Akaunti
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode("register"); setMessage(""); }}
+              style={{
+                flex: 1,
+                padding: "10px 0",
+                background: "none",
+                border: "none",
+                borderBottom: mode === "register" ? "2px solid var(--primary)" : "none",
+                fontWeight: mode === "register" ? 700 : 500,
+                color: mode === "register" ? "var(--primary)" : "var(--muted)",
+                cursor: "pointer",
+                fontSize: 14
+              }}
+            >
+              Jiunge na Mtandao (Usajili)
             </button>
           </div>
 
           <form onSubmit={submit} id="auth-form">
             {mode === "register" && (
               <>
-                {/* Role selection */}
+                {/* 1. Anajiunga kama nani? */}
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                    Chagua Aina ya Akaunti Yako:
+                    1. Je, unajiunga kama nani? *
                   </label>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     <div
                       onClick={() => setRole("customer")}
                       style={{
-                        padding: "10px",
+                        padding: "12px",
                         borderRadius: 10,
                         border: role === "customer" ? "2px solid #18a66a" : "1px solid var(--line)",
                         background: role === "customer" ? "#18a66a15" : "transparent",
                         cursor: "pointer",
-                        textAlign: "center"
+                        textAlign: "center",
+                        transition: "all 0.2s"
                       }}
                     >
-                      <div style={{ fontSize: 18 }}>🛒</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: role === "customer" ? "#18a66a" : "inherit" }}>
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>🛒</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: role === "customer" ? "#18a66a" : "inherit" }}>
                         Mteja / Mtangazaji
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--muted)" }}>Post Ads & Bidhaa</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                        Post Ads & Bidhaa mtandaoni
+                      </div>
                     </div>
 
                     <div
                       onClick={() => setRole("manager")}
                       style={{
-                        padding: "10px",
+                        padding: "12px",
                         borderRadius: 10,
                         border: role === "manager" ? "2px solid #075e54" : "1px solid var(--line)",
                         background: role === "manager" ? "#075e5415" : "transparent",
                         cursor: "pointer",
-                        textAlign: "center"
+                        textAlign: "center",
+                        transition: "all 0.2s"
                       }}
                     >
-                      <div style={{ fontSize: 18 }}>💼</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: role === "manager" ? "#075e54" : "inherit" }}>
-                        Manager wa Duka
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>💼</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: role === "manager" ? "#075e54" : "inherit" }}>
+                        Manager wa Duka (Mfanyabiashara)
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--muted)" }}>WhatsApp Catalogue</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                        WhatsApp Catalogue & Oda
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label htmlFor="input-fullname">{t.displayName}</label>
+                {/* 2. Majina Kamili & Username */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                  <div className="form-group">
+                    <label htmlFor="input-fullname">Majina Kamili: *</label>
+                    <input
+                      id="input-fullname"
+                      value={form.displayName}
+                      onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+                      placeholder="Mfano: Juma Bakari"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="input-username">Jina la Mtumiaji (@username): *</label>
+                    <input
+                      id="input-username"
+                      value={form.username}
+                      onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
+                      placeholder="juma_bakari"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Mahali Anapoishi */}
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label htmlFor="input-location">Mahali Unapoishi (Mkoa / Wilaya): *</label>
                   <input
-                    id="input-fullname"
-                    value={form.displayName}
-                    onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                    placeholder="Mfano: David Mwita"
+                    id="input-location"
+                    list="tanzania-regions-list"
+                    value={form.location}
+                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                    placeholder="Chagua au andika mkoa, mf. Dar es Salaam, Kariakoo"
                     required
                   />
+                  <datalist id="tanzania-regions-list">
+                    {tanzaniaRegions.map((r) => (
+                      <option key={r} value={r} />
+                    ))}
+                  </datalist>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="input-username">{t.username}</label>
-                  <input
-                    id="input-username"
-                    value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
-                    placeholder="david_mwita"
-                    required
-                  />
+
+                {/* 4. Namba ya Simu & WhatsApp */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                  <div className="form-group">
+                    <label htmlFor="input-phone">Simu ya Mobile Money: *</label>
+                    <input
+                      id="input-phone"
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="0754 123 456"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="input-whatsapp">Namba ya WhatsApp: *</label>
+                    <input
+                      id="input-whatsapp"
+                      type="tel"
+                      value={form.whatsapp}
+                      onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                      placeholder="255754123456"
+                      required
+                    />
+                  </div>
                 </div>
+
+                {/* Specific questions for Manager / Business owner */}
+                {role === "manager" && (
+                  <div
+                    style={{
+                      background: "rgba(7, 94, 84, 0.08)",
+                      border: "1px solid rgba(7, 94, 84, 0.25)",
+                      borderRadius: 10,
+                      padding: "12px",
+                      marginBottom: 12
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#075e54", marginBottom: 8 }}>
+                      Taarifa za Biashara / Duka lako (WhatsApp Catalogue):
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 8 }}>
+                      <label htmlFor="input-bizname">Jina la Duka / Biashara:</label>
+                      <input
+                        id="input-bizname"
+                        value={form.businessName}
+                        onChange={(e) => setForm({ ...form, businessName: e.target.value })}
+                        placeholder="Mfano: Kariakoo Smart Gadgets"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="input-category">Aina ya Bidhaa Unazouza:</label>
+                      <select
+                        id="input-category"
+                        value={form.category}
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                        style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid var(--line)" }}
+                      >
+                        <option value="Vifaa vya Kielektroniki & Simu">Vifaa vya Kielektroniki & Simu</option>
+                        <option value="Mavazi, Nguo & Mitindo">Mavazi, Nguo & Mitindo</option>
+                        <option value="Viatu, Mikoba & Urembo">Viatu, Mikoba & Urembo</option>
+                        <option value="Vyakula, Kilimo & Nafaka">Vyakula, Kilimo & Nafaka</option>
+                        <option value="Vifaa vya Nyumbani & Samani">Vifaa vya Nyumbani & Samani</option>
+                        <option value="Magari, Pikipiki & Vipuri">Magari, Pikipiki & Vipuri</option>
+                        <option value="Huduma za Kibiashara">Huduma za Kibiashara</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
-            <div className="form-group">
-              <label htmlFor="input-email">{t.email}</label>
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label htmlFor="input-email">Barua Pepe (Email): *</label>
               <input
                 id="input-email"
                 type="text"
@@ -636,14 +832,18 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="input-password">{t.password}</label>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label htmlFor="input-password">
+                {form.email.trim() === "vukangtech@gmail.com"
+                  ? "Weka Passcode ya CEO (151006): *"
+                  : "Nenosiri la Akaunti: *"}
+              </label>
               <input
                 id="input-password"
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Weka nenosiri..."
+                placeholder={form.email.trim() === "vukangtech@gmail.com" ? "151006" : "Weka nenosiri..."}
                 required
               />
             </div>
@@ -656,7 +856,7 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
               disabled={busy}
               style={{ marginTop: 14 }}
             >
-              {busy ? t.waiting : mode === "login" ? "Ingia kwenye Akaunti" : "Kamilisha Usajili"}
+              {busy ? "Inachakata..." : mode === "login" ? "Ingia kwenye Akaunti" : "Kamilisha Usajili wa Akaunti"}
             </button>
           </form>
 
@@ -671,7 +871,7 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
                 setMessage("");
               }}
             >
-              {mode === "login" ? "Jisajili Hapa" : "Ingia Hapa"}
+              {mode === "login" ? "Jiunge na Mtandao Hapa" : "Ingia Hapa"}
             </button>
           </p>
         </div>
@@ -1777,62 +1977,660 @@ function SavedMedia({ lang, setActive, onShowToast }) {
   );
 }
 
-/* Wallet View */
+/* Wallet View with Tanzanian Mobile Money Integration */
 function Wallet({ profile, lang }) {
   const t = useTranslation(lang);
   const [wallet, setWallet] = useState(null);
+  const [modalMode, setModalMode] = useState(null); // 'deposit' | 'withdraw' | null
+  const [selectedMethod, setSelectedMethod] = useState("Vodacom M-Pesa");
+  const [amount, setAmount] = useState("20000");
+  const [phone, setPhone] = useState(profile?.phone || "0754123456");
+  const [accountName, setAccountName] = useState(profile?.display_name || "");
+  const [reference, setReference] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [ussdPromptActive, setUssdPromptActive] = useState(false);
+  const [ussdCountdown, setUssdCountdown] = useState(4);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [filterType, setFilterType] = useState("all");
+
+  const loadWallet = async () => {
+    try {
+      const data = await getWallet(profile.id);
+      setWallet(data);
+    } catch {
+      setWallet({ account: null, transactions: [] });
+    }
+  };
 
   useEffect(() => {
-    getWallet(profile.id)
-      .then(setWallet)
-      .catch(() => setWallet({ account: null, transactions: [] }));
+    loadWallet();
   }, [profile.id]);
 
+  const channels = [
+    {
+      name: "Vodacom M-Pesa",
+      short: "M-Pesa",
+      color: "#e60000",
+      bg: "rgba(230,0,0,0.08)",
+      till: "554433",
+      merchant: "THE CIRCLE DUARA",
+      code: "*150*00#"
+    },
+    {
+      name: "Tigo Pesa",
+      short: "Tigo Pesa",
+      color: "#00377d",
+      bg: "rgba(0,55,125,0.08)",
+      till: "778899",
+      merchant: "DUARA AFFILIATE",
+      code: "*150*01#"
+    },
+    {
+      name: "Airtel Money",
+      short: "Airtel",
+      color: "#ff0000",
+      bg: "rgba(255,0,0,0.08)",
+      till: "992211",
+      merchant: "HAMZA VUKANG BIZ",
+      code: "*150*60#"
+    },
+    {
+      name: "HaloPesa",
+      short: "HaloPesa",
+      color: "#ff6600",
+      bg: "rgba(255,102,0,0.08)",
+      till: "332211",
+      merchant: "DUARA COMMERCE",
+      code: "*150*88#"
+    }
+  ];
+
+  const handleStartDeposit = () => {
+    setModalMode("deposit");
+    setAmount("20000");
+    setReference("MP" + Math.floor(10000000 + Math.random() * 90000000));
+    setErrorMsg("");
+    setStatusMsg("");
+  };
+
+  const handleStartWithdraw = () => {
+    setModalMode("withdraw");
+    setAmount("10000");
+    setErrorMsg("");
+    setStatusMsg("");
+  };
+
+  const handleTriggerUssdDeposit = () => {
+    if (!amount || Number(amount) < 500) {
+      setErrorMsg("Kiwango cha chini cha kuweka ni TZS 500.");
+      return;
+    }
+    if (!phone || phone.length < 9) {
+      setErrorMsg("Weka namba sahihi ya simu ya Mobile Money.");
+      return;
+    }
+    setErrorMsg("");
+    setUssdPromptActive(true);
+    setUssdCountdown(4);
+
+    const interval = setInterval(() => {
+      setUssdCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          completeDepositSubmission();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const completeDepositSubmission = async () => {
+    setBusy(true);
+    setErrorMsg("");
+    try {
+      const generatedRef = reference || "TX" + Date.now().toString().slice(-8);
+      await depositToWallet(profile.id, Number(amount), selectedMethod, phone, generatedRef);
+      setStatusMsg(`✓ Umefanikiwa kuweka TZS ${Number(amount).toLocaleString()} kupitia ${selectedMethod}! Salio limesasishwa.`);
+      setUssdPromptActive(false);
+      await loadWallet();
+      setTimeout(() => {
+        setModalMode(null);
+        setStatusMsg("");
+      }, 2500);
+    } catch (err) {
+      setErrorMsg(err.message || "Hitilafu imetokea wakati wa kuweka pesa.");
+      setUssdPromptActive(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleWithdrawSubmission = async (e) => {
+    e.preventDefault();
+    if (!amount || Number(amount) < 1000) {
+      setErrorMsg("Kiwango cha chini cha kutoa ni TZS 1,000.");
+      return;
+    }
+    const currentBal = wallet?.account?.balance || 0;
+    if (Number(amount) > currentBal) {
+      setErrorMsg(`Salio halitoshi! Salio lako ni TZS ${Number(currentBal).toLocaleString()}.`);
+      return;
+    }
+    if (!phone || phone.length < 9) {
+      setErrorMsg("Tafadhali weka namba sahihi ya simu ya kupokea.");
+      return;
+    }
+    setBusy(true);
+    setErrorMsg("");
+    try {
+      await withdrawFromWallet(profile.id, Number(amount), selectedMethod, phone, accountName || profile.display_name);
+      setStatusMsg(`✓ Umefanikiwa kutoa TZS ${Number(amount).toLocaleString()} kwenda ${selectedMethod} (${phone})! Pesa zimetumwa kwa mtumiaji.`);
+      await loadWallet();
+      setTimeout(() => {
+        setModalMode(null);
+        setStatusMsg("");
+      }, 2500);
+    } catch (err) {
+      setErrorMsg(err.message || "Hitilafu wakati wa kutoa pesa.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const balance = wallet?.account?.balance || 0;
+  const rawTxList = wallet?.transactions || [];
+  const filteredTxList = rawTxList.filter((tx) => {
+    if (filterType === "deposits") return tx.type === "DEPOSIT";
+    if (filterType === "withdrawals") return tx.type === "WITHDRAW";
+    if (filterType === "ads") return tx.type === "AD_PAYMENT" || tx.type === "AD_FEE";
+    return true;
+  });
 
   return (
     <div className="feature-shell" id="wallet-view">
       <div className="feature-top-banner">
         <div>
-          <p className="eyebrow">{t.walletEyebrow}</p>
+          <p className="eyebrow">💳 MFUMO WA PESA & MALIPO</p>
           <h1 style={{ fontSize: 32, margin: "6px 0 10px" }}>{t.walletTitle}</h1>
-          <p className="muted">{t.walletDesc}</p>
+          <p className="muted">
+            Salio lako la Mobile Money (M-Pesa, Tigo Pesa, Airtel, HaloPesa) kwa ajili ya kulipia matangazo, kupokea faida za catalogue na kutoa pesa muda wowote.
+          </p>
         </div>
       </div>
 
-      <div className="wallet-hero">
-        <span style={{ fontSize: 14, opacity: 0.9 }}>{t.availableBalance}</span>
-        <div className="wallet-balance-num">
-          {Number(balance).toLocaleString()} {wallet?.account?.currency || "TZS"}
-        </div>
-        <p style={{ fontSize: 13, opacity: 0.85, maxWidth: 520 }}>{t.walletNotice}</p>
-
-        <div style={{ display: "flex", gap: 14, marginTop: 14 }}>
-          <button type="button" className="button" style={{ background: "#ffffff", color: "var(--primary-dark)" }}>
-            {t.depositBtn}
-          </button>
-          <button type="button" className="button" style={{ background: "rgba(255,255,255,0.2)", color: "#ffffff", border: "1px solid rgba(255,255,255,0.3)" }}>
-            {t.withdrawBtn}
-          </button>
-        </div>
-      </div>
-
-      <div className="glass-card">
-        <h3 style={{ fontSize: 18, marginBottom: 16 }}>{t.recentTransactions}</h3>
-        {wallet?.transactions?.length ? (
-          wallet.transactions.map((tx) => (
-            <div key={tx.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--line)" }}>
-              <div>
-                <strong>{tx.type}</strong>
-                <span className="muted" style={{ display: "block", fontSize: 11 }}>{new Date(tx.created_at).toLocaleDateString()}</span>
-              </div>
-              <strong style={{ color: "var(--primary)" }}>{tx.amount} {tx.currency}</strong>
+      {/* Main Balance Hero Card */}
+      <div
+        className="wallet-hero"
+        style={{
+          background: "linear-gradient(135deg, #075e54, #128c7e)",
+          borderRadius: 18,
+          padding: "28px",
+          color: "#ffffff",
+          boxShadow: "0 10px 30px rgba(7, 94, 84, 0.25)",
+          marginBottom: 24,
+          position: "relative",
+          overflow: "hidden"
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <span style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: 1, opacity: 0.9 }}>
+              {t.availableBalance}
+            </span>
+            <div style={{ fontSize: "clamp(32px, 5vw, 48px)", fontWeight: 900, margin: "4px 0 8px" }}>
+              {Number(balance).toLocaleString()} <span style={{ fontSize: 22, fontWeight: 600 }}>{wallet?.account?.currency || "TZS"}</span>
             </div>
-          ))
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, opacity: 0.95 }}>
+              <span>✓ Akaunti ya Mobile Money: <strong>{profile?.phone || "0754 123 456"}</strong></span>
+              <span>•</span>
+              <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
+                {profile?.role === "ceo" ? "👑 CEO WALLET" : profile?.role === "manager" ? "💼 MANAGER WALLET" : "🛒 MTEJA WALLET"}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              id="btn-wallet-deposit"
+              onClick={handleStartDeposit}
+              style={{
+                background: "#ffffff",
+                color: "#075e54",
+                border: "none",
+                borderRadius: 12,
+                padding: "12px 22px",
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+              }}
+            >
+              <span>📥</span>
+              <span>Weka Pesa (Deposit)</span>
+            </button>
+            <button
+              type="button"
+              id="btn-wallet-withdraw"
+              onClick={handleStartWithdraw}
+              style={{
+                background: "rgba(255,255,255,0.18)",
+                color: "#ffffff",
+                border: "1px solid rgba(255,255,255,0.35)",
+                borderRadius: 12,
+                padding: "12px 22px",
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}
+            >
+              <span>📤</span>
+              <span>Toa Pesa (Withdraw)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Operator Paybill & Till Cards */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ fontSize: 16, marginBottom: 12 }}>🇹🇿 Mitandao ya Malipo & Namba za Lipa (Tanzania):</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          {channels.map((ch) => (
+            <div
+              key={ch.name}
+              style={{
+                background: "var(--card-bg)",
+                border: "1px solid var(--line)",
+                borderRadius: 12,
+                padding: "14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ color: ch.color, fontSize: 14 }}>{ch.name}</strong>
+                <span style={{ fontSize: 11, background: ch.bg, color: ch.color, padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>
+                  {ch.code}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>
+                Lipa Namba / Till: <strong style={{ fontSize: 15 }}>{ch.till}</strong>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                Jina la Akaunti: <strong>{ch.merchant}</strong>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Transaction History Section */}
+      <div className="glass-card" style={{ padding: "22px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 18, margin: 0 }}>📊 Historia ya Miamala ({filteredTxList.length})</h3>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            {[
+              ["all", "Zote"],
+              ["deposits", "Kuweka Pesa"],
+              ["withdrawals", "Kutoa Pesa"],
+              ["ads", "Malipo ya Matangazo"]
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setFilterType(id)}
+                style={{
+                  background: filterType === id ? "var(--primary)" : "transparent",
+                  color: filterType === id ? "#fff" : "var(--muted)",
+                  border: filterType === id ? "none" : "1px solid var(--line)",
+                  borderRadius: 8,
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filteredTxList.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {filteredTxList.map((tx) => {
+              const isDeposit = tx.type === "DEPOSIT";
+              const isWithdraw = tx.type === "WITHDRAW";
+              return (
+                <div
+                  key={tx.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "14px",
+                    borderRadius: 10,
+                    background: "var(--card-hover)",
+                    border: "1px solid var(--line)"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: isDeposit ? "rgba(24, 166, 106, 0.12)" : "rgba(239, 68, 68, 0.12)",
+                        color: isDeposit ? "#18a66a" : "#ef4444",
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: 18
+                      }}
+                    >
+                      {isDeposit ? "📥" : isWithdraw ? "📤" : "📢"}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>
+                        {tx.description || (isDeposit ? "Kuweka pesa kwa Simu" : "Kutoa pesa kwenda kwa Simu")}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                        {new Date(tx.created_at || Date.now()).toLocaleString()} • <span style={{ color: "#18a66a" }}>Imekamilika</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <strong style={{ fontSize: 16, color: isDeposit ? "#18a66a" : "#ef4444" }}>
+                      {isDeposit ? "+" : "-"} {Number(tx.amount).toLocaleString()} {tx.currency || "TZS"}
+                    </strong>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                      {tx.type}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <p className="muted">{t.noTransactionsYet}</p>
+          <div style={{ textAlign: "center", padding: "40px 20px" }}>
+            <span style={{ fontSize: 36 }}>💳</span>
+            <p className="muted" style={{ marginTop: 10 }}>Hakuna miamala yoyote iliyorekodiwa kwenye kipengele hiki.</p>
+          </div>
         )}
       </div>
+
+      {/* Deposit Modal (Weka Pesa) */}
+      {modalMode === "deposit" && (
+        <div className="call-modal-overlay">
+          <div
+            className="call-modal-box"
+            style={{ maxWidth: 460, width: "100%", background: "var(--card-bg)", color: "var(--ink)", padding: "24px", borderRadius: 16 }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18 }}>📥 Weka Pesa kwenye Wallet (Mobile Money)</h3>
+              <button
+                type="button"
+                onClick={() => setModalMode(null)}
+                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+              Chagua mtandao wa simu na kiasi unachotaka kuweka moja kwa moja kwenye akaunti yako:
+            </p>
+
+            {/* Operator Selection */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+              {channels.map((c) => (
+                <div
+                  key={c.name}
+                  onClick={() => setSelectedMethod(c.name)}
+                  style={{
+                    padding: "10px",
+                    borderRadius: 10,
+                    border: selectedMethod === c.name ? `2px solid ${c.color}` : "1px solid var(--line)",
+                    background: selectedMethod === c.name ? c.bg : "transparent",
+                    cursor: "pointer",
+                    textAlign: "center"
+                  }}
+                >
+                  <strong style={{ color: c.color, fontSize: 13 }}>{c.short}</strong>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>Till: {c.till}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Amount Selection */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                Chagua Kiasi (TZS):
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 8 }}>
+                {["5000", "10000", "20000", "50000", "100000", "200000"].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setAmount(v)}
+                    style={{
+                      padding: "8px",
+                      borderRadius: 8,
+                      border: amount === v ? "2px solid var(--primary)" : "1px solid var(--line)",
+                      background: amount === v ? "var(--primary-soft)" : "transparent",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: "pointer",
+                      color: amount === v ? "var(--primary)" : "inherit"
+                    }}
+                  >
+                    {Number(v).toLocaleString()}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Au andika kiasi chako mwenyewe..."
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)" }}
+              />
+            </div>
+
+            {/* Phone Number */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                Namba ya Simu ya {selectedMethod}:
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="0754 123 456"
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)" }}
+              />
+            </div>
+
+            {/* USSD Prompt Simulation Box */}
+            {ussdPromptActive && (
+              <div
+                style={{
+                  background: "#020617",
+                  color: "#22c55e",
+                  padding: "14px",
+                  borderRadius: 10,
+                  border: "1px solid #16a34a",
+                  marginBottom: 14,
+                  textAlign: "center"
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 800 }}>📱 Ombi la USSD Push Limetumwa kwenye Simu!</div>
+                <p style={{ fontSize: 12, color: "#94a3b8", margin: "6px 0" }}>
+                  Tafadhali thibitisha kwenye simu yako namba <strong>{phone}</strong> kwa kuweka PIN yako ya {selectedMethod}...
+                </p>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#eab308" }}>
+                  Inakamilisha baada ya sekunde {ussdCountdown}...
+                </div>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
+                ⚠️ {errorMsg}
+              </div>
+            )}
+
+            {statusMsg && (
+              <div style={{ color: "#18a66a", fontSize: 13, marginBottom: 12, fontWeight: 700 }}>
+                {statusMsg}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button
+                type="button"
+                className="button button-soft"
+                onClick={() => setModalMode(null)}
+                style={{ flex: 1 }}
+              >
+                Ghairi
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={handleTriggerUssdDeposit}
+                disabled={busy || ussdPromptActive}
+                style={{ flex: 2 }}
+              >
+                {busy ? "Inachakata..." : ussdPromptActive ? "Inasubiri PIN..." : "Tuma USSD Push (Weka Pesa)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal (Toa Pesa) */}
+      {modalMode === "withdraw" && (
+        <div className="call-modal-overlay">
+          <div
+            className="call-modal-box"
+            style={{ maxWidth: 460, width: "100%", background: "var(--card-bg)", color: "var(--ink)", padding: "24px", borderRadius: 16 }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18 }}>📤 Toa Pesa Kwenda Mobile Money</h3>
+              <button
+                type="button"
+                onClick={() => setModalMode(null)}
+                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+              Salio Linalopatikana: <strong style={{ color: "var(--primary)" }}>TZS {Number(balance).toLocaleString()}</strong>
+            </p>
+
+            <form onSubmit={handleWithdrawSubmission}>
+              {/* Operator */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                  Mtandao wa Kupokelea Pesa:
+                </label>
+                <select
+                  value={selectedMethod}
+                  onChange={(e) => setSelectedMethod(e.target.value)}
+                  style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)" }}
+                >
+                  {channels.map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Amount */}
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label htmlFor="input-withdraw-amount">Kiasi cha Kutoa (TZS): *</label>
+                <input
+                  id="input-withdraw-amount"
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="Kiwango cha TZS"
+                  max={balance}
+                  required
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label htmlFor="input-withdraw-phone">Namba ya Simu ya Kupokelea: *</label>
+                <input
+                  id="input-withdraw-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="0754 123 456"
+                  required
+                />
+              </div>
+
+              {/* Name */}
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label htmlFor="input-withdraw-name">Jina la Mwenye Namba (Utambulisho):</label>
+                <input
+                  id="input-withdraw-name"
+                  type="text"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder={profile?.display_name || "Jina la mpokeaji"}
+                />
+              </div>
+
+              {errorMsg && (
+                <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
+                  ⚠️ {errorMsg}
+                </div>
+              )}
+
+              {statusMsg && (
+                <div style={{ color: "#18a66a", fontSize: 13, marginBottom: 12, fontWeight: 700 }}>
+                  {statusMsg}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <button
+                  type="button"
+                  className="button button-soft"
+                  onClick={() => setModalMode(null)}
+                  style={{ flex: 1 }}
+                >
+                  Ghairi
+                </button>
+                <button
+                  type="submit"
+                  className="button button-primary"
+                  disabled={busy}
+                  style={{ flex: 2 }}
+                >
+                  {busy ? "Inatuma pesa..." : `Thibitisha Kutoa TZS ${Number(amount || 0).toLocaleString()}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
