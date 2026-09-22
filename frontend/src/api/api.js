@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 
 export async function registerUser({ email, password, displayName, username, role = "customer", location = "Dar es Salaam, Tanzania", phone = "", whatsapp = "", businessName = "", category = "" }) {
+  const safeRole = role === "manager" ? "manager" : "customer";
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -8,7 +9,7 @@ export async function registerUser({ email, password, displayName, username, rol
       data: {
         display_name: displayName,
         username,
-        role,
+        role: safeRole,
         location,
         phone,
         whatsapp: whatsapp || (phone ? phone.replace(/\D/g, "") : ""),
@@ -358,4 +359,3 @@ export async function withdrawFromWallet(userId, amount, method, phone, accountN
 
   return { balance: newBalance, transaction: tx };
 }
-

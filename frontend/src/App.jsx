@@ -442,7 +442,6 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
   const [mode, setMode] = useState("login");
   const [role, setRole] = useState("customer"); // 'customer' | 'manager'
   const [form, setForm] = useState({ ...blankAuth });
-  const [ceoPasscode, setCeoPasscode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -470,22 +469,6 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
     }
   };
 
-  const handleCeoLogin = async (e) => {
-    if (e) e.preventDefault();
-    setMessage("");
-    if (!ceoPasscode || ceoPasscode.trim() !== "151006") {
-      setMessage("⚠️ Passcode ya CEO si sahihi! Weka passcode maalumu ya tarakimu 6 (151006).");
-      return;
-    }
-    setBusy(true);
-    try {
-      await loginUser("vukangtech@gmail.com", ceoPasscode.trim());
-    } catch (err) {
-      setMessage("Hitilafu ya kuingia kama CEO: " + err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const tanzaniaRegions = [
     "Dar es Salaam",
@@ -550,73 +533,6 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
             <Brand />
             <LanguageToggle lang={lang} setLang={setLang} />
           </div>
-
-          {/* Dedicated CEO Hamza Vukang Passcode Portal */}
-          <div
-            style={{
-              background: "linear-gradient(135deg, #0f172a, #1e293b)",
-              color: "#fff",
-              borderRadius: 14,
-              padding: "16px",
-              marginBottom: 20,
-              border: "1px solid rgba(251, 191, 36, 0.4)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.2)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div>
-                <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  👑 MLANGO WA CEO (HAMZA VUKANG)
-                </span>
-                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>vukangtech@gmail.com</div>
-              </div>
-              <span style={{ fontSize: 20 }}>🛡️</span>
-            </div>
-
-            <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 10px", lineHeight: 1.4 }}>
-              Ingia kwenye ofisi kuu ya CEO kwa passcode maalumu ya usalama <strong>(151006)</strong>:
-            </p>
-
-            <form onSubmit={handleCeoLogin} style={{ display: "flex", gap: 8 }}>
-              <input
-                type="password"
-                maxLength={6}
-                value={ceoPasscode}
-                onChange={(e) => setCeoPasscode(e.target.value)}
-                placeholder="Weka passcode (151006)"
-                style={{
-                  flex: 1,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #334155",
-                  background: "#020617",
-                  color: "#fbbf24",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: "2px",
-                  outline: "none"
-                }}
-              />
-              <button
-                type="submit"
-                disabled={busy}
-                style={{
-                  background: "#fbbf24",
-                  color: "#000",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "0 14px",
-                  fontWeight: 800,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap"
-                }}
-              >
-                {busy ? "Inaingia..." : "Ingia kama CEO"}
-              </button>
-            </form>
-          </div>
-
           <div style={{ display: "flex", borderBottom: "1px solid var(--line)", marginBottom: 18 }}>
             <button
               type="button"
@@ -834,16 +750,14 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
 
             <div className="form-group" style={{ marginBottom: 14 }}>
               <label htmlFor="input-password">
-                {form.email.trim() === "vukangtech@gmail.com"
-                  ? "Weka Passcode ya CEO (151006): *"
-                  : "Nenosiri la Akaunti: *"}
+                Nenosiri la Akaunti: *
               </label>
               <input
                 id="input-password"
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder={form.email.trim() === "vukangtech@gmail.com" ? "151006" : "Weka nenosiri..."}
+                placeholder="Weka nenosiri..."
                 required
               />
             </div>
@@ -883,7 +797,7 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
 /* Sidebar Navigation */
 function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, dark, setDark }) {
   const t = useTranslation(lang);
-  const isCeo = profile?.role === "ceo" || profile?.username === "hamzavukang";
+  const isCeo = profile?.role === "ceo";
 
   const mainLinks = [
     ["ads", "📢", lang === "sw" ? "Matangazo ya Wateja" : "Customer Ads"],
@@ -995,7 +909,7 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
 
 /* Mobile Bottom Navigation Dock */
 function MobileBottomNav({ active, setActive, lang, unread, profile }) {
-  const isCeo = profile?.role === "ceo" || profile?.username === "hamzavukang";
+  const isCeo = profile?.role === "ceo";
   const items = [
     ["ads", "📢", "Ads"],
     ["catalogue", "📱", "Catalogue"],
@@ -4822,7 +4736,7 @@ export default function App() {
             />
           )}
           {active === "dashboard" && (
-            profile?.role === "ceo" || profile?.username === "hamzavukang" ? (
+            profile?.role === "ceo" ? (
               <CeoDashboard
                 profile={profile}
                 onShowToast={showToast}

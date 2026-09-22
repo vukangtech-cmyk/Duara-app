@@ -115,3 +115,10 @@ THE CIRCLE now uses a green-first visual system with persistent light/dark mode.
 The current navigation includes **Add Friend**, **Marketplace**, **Reels**, and **Wallet**. Supabase foundations and RLS are included for `friend_requests`, `marketplace_listings`, `reels`, `wallet_accounts`, and `wallet_transactions`. Marketplace and Reels read live data when available; Wallet currently displays the protected balance and transaction ledger foundation.
 
 Wallet deposits, withdrawals, and purchases are intentionally UI placeholders until a payment provider and server-side transaction verification are selected. Never credit balances directly from the browser.
+
+
+## CEO access security
+
+CEO access now uses the same Supabase Auth email/password flow as every other account. The login screen no longer exposes a CEO passcode, special email shortcut, or simulated credential. After authentication, the application reads `profiles.role` from Supabase; only a profile with `role = 'ceo'` receives CEO navigation and dashboard access. The role column and `is_ceo()` helper are protected by migration `20260922164500_secure_profile_roles.sql`, and browser registration is limited to `customer` or `manager`. CEO role assignment must be performed by an authorized server-side administrator in Supabase.
+
+The local mock authentication fallback has been removed. Production builds require `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; missing configuration now fails closed instead of silently simulating users or balances.

@@ -557,12 +557,12 @@ export function UserProfile({
           <span
             className="profile-meta-pill"
             style={{
-              background: (profile?.role === "ceo" || profile?.username === "hamzavukang")
+              background: (profile?.role === "ceo")
                 ? "linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.3))"
                 : profile?.role === "manager"
                 ? "rgba(16, 185, 129, 0.15)"
                 : "rgba(59, 130, 246, 0.15)",
-              color: (profile?.role === "ceo" || profile?.username === "hamzavukang")
+              color: (profile?.role === "ceo")
                 ? "#eab308"
                 : profile?.role === "manager"
                 ? "#10b981"
@@ -571,7 +571,7 @@ export function UserProfile({
               border: "1px solid currentColor"
             }}
           >
-            {(profile?.role === "ceo" || profile?.username === "hamzavukang")
+            {(profile?.role === "ceo")
               ? "👑 CEO & MWANZILISHI (HAMZA VUKANG)"
               : profile?.role === "manager"
               ? "💼 MANAGER WA DUKA (WHATSAPP CATALOGUE)"
