@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { supabase } from "./lib/supabase";
+import { supabase, supabaseConfigured } from "./lib/supabase";
 import {
   addComment,
   addStatusComment,
@@ -4566,6 +4566,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!supabaseConfigured || !supabase) {
+      setBooting(false);
+      return undefined;
+    }
     supabase.auth.getSession()
       .then(async (res) => {
         const nextSession = res?.data?.session || null;
@@ -4599,7 +4603,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!supabaseConfigured || !supabase || !session) return;
     const refreshNotifications = async () => setNotifications(await getNotifications(session.user.id));
     const stopFeed = subscribeToRealtime(
       async (payload) => {
@@ -4641,6 +4645,20 @@ export default function App() {
 
   const onPost = async (content, media, mediaType) => createPost(session.user.id, content, media, mediaType);
   const logout = async () => logoutUser();
+
+  if (!supabaseConfigured) {
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeContent: "center", padding: 24, background: "#f8fafc" }}>
+        <div className="auth-form-card" style={{ maxWidth: 560, width: "100%" }}>
+          <Brand />
+          <h2 style={{ marginTop: 24 }}>THE CIRCLE haijaunganishwa</h2>
+          <p className="muted">Vercel environment variables za Supabase hazijawekwa au zina majina yasiyo sahihi.</p>
+          <pre style={{ whiteSpace: "pre-wrap", background: "#0f172a", color: "#e2e8f0", padding: 16, borderRadius: 10, fontSize: 13 }}>VITE_SUPABASE_URL{"\n"}VITE_SUPABASE_PUBLISHABLE_KEY</pre>
+          <p className="muted" style={{ fontSize: 13 }}>Weka variables hizi kwenye Vercel kwa Production, Preview na Development, kisha ufanye Redeploy.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (booting) {
     return (
