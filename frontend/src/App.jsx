@@ -4529,18 +4529,6 @@ export default function App() {
       conversationId,
       status: isIncoming ? "ringing_incoming" : "ringing_outgoing"
     });
-
-    if (!isIncoming && conversationId && recipient?.id && profile?.id) {
-      await sendCallSignal(conversationId, profile.id, recipient.id, "offer", {
-        type,
-        caller: {
-          id: profile.id,
-          display_name: profile.display_name,
-          username: profile.username,
-          avatar_url: profile.avatar_url
-        }
-      }).catch(() => {});
-    }
   };
 
   useEffect(() => {
@@ -4630,7 +4618,8 @@ export default function App() {
             isIncoming: true,
             recipient: signal.payload?.caller || { display_name: "Mwanachama wa Duara", username: "circle_user" },
             conversationId: signal.conversation_id,
-            status: "ringing_incoming"
+            status: "ringing_incoming",
+            initialSignal: signal
           });
         } else if (signal.signal_type === "hangup") {
           setActiveCall(null);
