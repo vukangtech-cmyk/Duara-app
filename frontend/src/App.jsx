@@ -2565,6 +2565,7 @@ function Messages({ profile, lang, onStartCall }) {
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState("");
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [uploadingChatImg, setUploadingChatImg] = useState(false);
   const chatEndRef = useRef(null);
@@ -2580,6 +2581,9 @@ function Messages({ profile, lang, onStartCall }) {
 
   const open = async (nextPerson) => {
     setPerson(nextPerson);
+    setConversationId(null);
+    setMessages([]);
+    setMessage("");
     setPeople([]);
     setTerm("");
     setIsOtherTyping(false);
@@ -2625,8 +2629,17 @@ function Messages({ profile, lang, onStartCall }) {
 
   const send = async (e) => {
     e.preventDefault();
-    if (!body.trim() || !conversationId) return;
     const text = body.trim();
+    if (!text) {
+      setMessage(isSw ? "Andika ujumbe kwanza." : "Write a message first.");
+      return;
+    }
+    if (!conversationId || sending) {
+      setMessage(isSw ? "Subiri mazungumzo yafunguke kwanza." : "Wait for the conversation to finish opening.");
+      return;
+    }
+    setSending(true);
+    setMessage("");
     try {
       const sent = await sendMessage(conversationId, profile.id, text);
       setBody("");
@@ -2634,7 +2647,9 @@ function Messages({ profile, lang, onStartCall }) {
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     } catch (err) {
-      setMessage(err.message);
+      setMessage(err?.message || (isSw ? "Ujumbe haukutumwa." : "Message was not sent."));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -2784,10 +2799,15 @@ function Messages({ profile, lang, onStartCall }) {
                 placeholder={t.typePrivateMsg}
                 id="input-chat-message"
               />
-              <button type="submit" className="button button-primary" id="btn-send-message">
-                {t.send}
+              <button type="submit" className="button button-primary" id="btn-send-message" disabled={!conversationId || sending || !body.trim()} aria-busy={sending}>
+                {sending ? (isSw ? "Inatuma…" : "Sending…") : t.send}
               </button>
             </form>
+          )}
+          {message && (
+            <p role="alert" style={{ margin: "0 16px 12px", color: "#dc2626", fontSize: 12, fontWeight: 600 }} id="chat-send-status">
+              ⚠️ {message}
+            </p>
           )}
         </section>
       </div>
