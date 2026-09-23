@@ -78,6 +78,10 @@ function FeedPostCard({
   const [busy, setBusy] = useState(false);
 
   const authorName = post.profiles?.display_name || "Mwanachama";
+  useEffect(() => {
+    const liked = (post.likes || []).some((like) => like.user_id === user.id);
+    setActiveReaction((current) => (liked ? current || "love" : null));
+  }, [post.likes, user.id]);
   const authorUsername = post.profiles?.username || "circle";
   const isAuthor = post.author_id === user.id;
 

@@ -1148,6 +1148,11 @@ function PostCard({ post, user, onRefresh, lang, onShowToast }) {
 
   const author = post.profiles?.display_name || "Member";
 
+  useEffect(() => {
+    const liked = (post.likes || []).some((like) => like.user_id === user.id);
+    setActiveReaction((current) => (liked ? current || "love" : null));
+  }, [post.likes, user.id]);
+
   const handleSelectReaction = async (reactionId) => {
     setShowReactionsBar(false);
     const newReaction = activeReaction === reactionId ? null : reactionId;
@@ -2622,9 +2627,10 @@ function Messages({ profile, lang, onStartCall }) {
     e.preventDefault();
     if (!body.trim() || !conversationId) return;
     const text = body.trim();
-    setBody("");
     try {
       const sent = await sendMessage(conversationId, profile.id, text);
+      setBody("");
+      setMessage("");
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     } catch (err) {
@@ -2639,6 +2645,7 @@ function Messages({ profile, lang, onStartCall }) {
     try {
       const url = await uploadImage(profile.id, file, "post-media");
       const sent = await sendMessage(conversationId, profile.id, "", url);
+      setMessage("");
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     } catch (err) {
@@ -4610,7 +4617,8 @@ export default function App() {
         if (payload.eventType === "INSERT") setPosts(await getFeed());
       },
       async () => setPosts(await getFeed()),
-      refreshNotifications
+      refreshNotifications,
+      async () => setPosts(await getFeed())
     );
     const stopInteractions = subscribeToInteractions(
       session.user.id,
