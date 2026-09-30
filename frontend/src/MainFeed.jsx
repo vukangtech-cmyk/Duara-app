@@ -635,64 +635,6 @@ export function MainFeed({
   return (
     <div className="feed-container" id="main-feed-container">
       <div className="feed-column">
-        {/* Modern Duara Scenic Header & Quick Mobile Hub */}
-        <section className="duara-modern-hero" id="duara-modern-hero">
-          <div className="duara-hero-overlay" />
-          <div className="duara-hero-content">
-            <div className="duara-hero-top">
-              <div
-                className="duara-hero-user"
-                onClick={() => setActive && setActive("profile")}
-                style={{ cursor: "pointer" }}
-              >
-                <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="md" />
-                <div className="duara-hero-text">
-                  <span className="duara-eyebrow">@{profile.username}</span>
-                  <h2 className="duara-welcome-title">{profile.display_name}</h2>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="duara-refresh-pill"
-                onClick={refreshFeed}
-                title={t.refresh}
-              >
-                🔄
-              </button>
-            </div>
-
-            {/* Compact Stats & Quick Navigation Pills */}
-            <div className="duara-stats-bar">
-              <div className="duara-stat-chip">
-                <strong>{posts.length}</strong>
-                <span>{lang === "sw" ? "Machapisho" : "Posts"}</span>
-              </div>
-              <div className="duara-stat-chip">
-                <strong>{followedIds.length}</strong>
-                <span>{lang === "sw" ? "Unaowafuata" : "Following"}</span>
-              </div>
-              <button
-                type="button"
-                className="duara-stat-chip clickable"
-                onClick={() => setActive && setActive("saved")}
-              >
-                <strong>🔖 {savedCount}</strong>
-                <span>Saved</span>
-              </button>
-              {setActive && (
-                <button
-                  type="button"
-                  className="duara-stat-chip clickable accent"
-                  onClick={() => setActive("catalogue")}
-                >
-                  <strong>🛍️ Shop</strong>
-                  <span>{lang === "sw" ? "Duka" : "Shop"}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
-
         {/* Status / Stories Rail */}
         {StatusRail && <StatusRail profile={profile} lang={lang} />}
 
@@ -771,54 +713,6 @@ export function MainFeed({
 
           <ErrorBox message={message} />
         </section>
-
-        {/* Mobile & Tablet Swipeable Trending Tags & Quick Creators Strip */}
-        <div className="duara-mobile-discovery-strip">
-          <div className="duara-tags-scroll">
-            {["#SwahiliTech", "#SimuMpya", "#KilimoBora", "#BongoFlava", "#KaribuDuara", "#EastAfrica"].map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className="duara-trend-pill"
-                onClick={() => {
-                  setContent((prev) => (prev ? `${prev} ${tag}` : tag));
-                  if (onShowToast) onShowToast(`${tag} ${lang === "sw" ? "imeongezwa" : "added"}`);
-                }}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-
-          {suggestedCreators.length > 0 && (
-            <div className="duara-creators-mini-rail">
-              <span className="duara-mini-rail-label">
-                {lang === "sw" ? "👥 Akaunti:" : "👥 Accounts:"}
-              </span>
-              {suggestedCreators.slice(0, 8).map((person) => {
-                const isFollowing = followedIds.includes(person.id);
-                return (
-                  <div key={person.id} className="duara-mini-creator-pill">
-                    <div
-                      onClick={() => onViewUserProfile && onViewUserProfile(person)}
-                      style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}
-                    >
-                      <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
-                      <span className="duara-mini-creator-name">@{person.username || person.display_name.split(" ")[0]}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className={`duara-mini-follow-btn ${isFollowing ? "following" : ""}`}
-                      onClick={() => handleToggleFollow(person.id, person.display_name, isFollowing)}
-                    >
-                      {isFollowing ? "✓" : "+"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
         {/* Followed Creators Story / Quick Filter Rail */}
         {followedProfiles.length > 0 && (
@@ -1023,58 +917,14 @@ export function MainFeed({
         )}
       </div>
 
-      {/* Right Rail with Following Overview, Quick Bookmarks & Suggestions */}
+      {/* Right Rail with Suggestions */}
       <aside className="right-rail" id="feed-right-rail">
-        {/* User Identity Snapshot Card */}
-        <div className="rail-hero-card">
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="md" />
-            <div>
-              <h3 style={{ fontSize: 16, margin: 0 }}>{profile.display_name}</h3>
-              <p className="muted" style={{ fontSize: 12, margin: 0 }}>@{profile.username}</p>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-around", padding: "10px 0", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
-            <div style={{ textAlign: "center" }}>
-              <strong style={{ fontSize: 16, color: "var(--primary)" }}>{followedIds.length}</strong>
-              <span className="muted" style={{ display: "block", fontSize: 11 }}>
-                {lang === "sw" ? "Unaowafuata" : "Following"}
-              </span>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <strong style={{ fontSize: 16, color: "var(--primary)" }}>{posts.filter((p) => p.author_id === profile.id).length}</strong>
-              <span className="muted" style={{ display: "block", fontSize: 11 }}>
-                {lang === "sw" ? "Machapisho" : "Posts"}
-              </span>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <strong style={{ fontSize: 16, color: "var(--primary)" }}>{savedCount}</strong>
-              <span className="muted" style={{ display: "block", fontSize: 11 }}>
-                {lang === "sw" ? "Iliyohifadhiwa" : "Saved"}
-              </span>
-            </div>
-          </div>
-
-          {setActive && (
-            <button
-              type="button"
-              className="button button-outline"
-              style={{ width: "100%", marginTop: 12, fontSize: 13 }}
-              onClick={() => setActive("saved")}
-            >
-              🔖 {lang === "sw" ? "Tazama Mikusanyiko Yangu" : "View Saved Bookmarks"}
-            </button>
-          )}
-        </div>
-
-        {/* Suggested People to Follow Widget */}
         <div className="glass-card" style={{ padding: 16 }}>
           <h4 style={{ fontSize: 15, marginBottom: 12 }}>
-            {lang === "sw" ? "Watayarishi wa Kuwafuata" : "Creators to Follow"}
+            {lang === "sw" ? "Akaunti za Kufuata" : "Accounts to Follow"}
           </h4>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {suggestedCreators.slice(0, 4).map((person) => {
+            {suggestedCreators.slice(0, 6).map((person) => {
               const isFollowing = followedIds.includes(person.id);
               return (
                 <div key={person.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1101,35 +951,6 @@ export function MainFeed({
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Trending Circle Tags */}
-        <div className="glass-card" style={{ padding: 16 }}>
-          <h4 style={{ fontSize: 15, marginBottom: 12 }}>
-            {lang === "sw" ? "Mada Zinazovuma" : "Trending in Duara"}
-          </h4>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {["#SwahiliTech", "#KilimoBora", "#BongoFlava", "#KaribuDuara", "#EastAfrica"].map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  background: "var(--line)",
-                  color: "var(--ink)",
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer"
-                }}
-                onClick={() => {
-                  setContent((prev) => (prev ? `${prev} ${tag}` : tag));
-                  if (onShowToast) onShowToast(`${tag} ${lang === "sw" ? "imeongezwa" : "added"}`);
-                }}
-              >
-                {tag}
-              </span>
-            ))}
           </div>
         </div>
       </aside>

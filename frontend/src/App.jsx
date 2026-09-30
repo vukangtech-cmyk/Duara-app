@@ -18,6 +18,12 @@ import {
   getReels,
   getUserConversations,
   getAllProfiles,
+  getSavedAccounts,
+  saveAccountToHistory,
+  removeSavedAccount,
+  getActiveAccountOverride,
+  setActiveAccountOverride,
+  clearActiveAccountOverride,
   getWallet,
   depositToWallet,
   withdrawFromWallet,
@@ -472,6 +478,18 @@ function TopHeader({
   return (
     <header className="top-header" id="app-top-header">
       <div className="header-left">
+        {onOpenMobileMenu && (
+          <button
+            type="button"
+            id="btn-open-side-menu"
+            className="theme-pill-btn"
+            onClick={onOpenMobileMenu}
+            title={isSw ? "Menyu" : "Menu"}
+            style={{ fontWeight: 800, flexShrink: 0 }}
+          >
+            ☰
+          </button>
+        )}
         <Brand />
         <div className="header-search">
           <span className="header-search-icon">🔍</span>
@@ -594,90 +612,298 @@ function TopHeader({
           type="button"
           id="btn-header-profile"
           onClick={() => setActive("profile")}
-          style={{ border: "none", background: "none", padding: 0 }}
+          style={{ border: "none", background: "none", padding: 0, cursor: "pointer" }}
+          title={profile?.display_name || "Profile"}
         >
           <Avatar name={profile?.display_name || "User"} avatarUrl={profile?.avatar_url} size="sm" />
         </button>
-        {isMobileLayout && onOpenMobileMenu && (
-          <button
-            type="button"
-            className="theme-pill-btn"
-            onClick={onOpenMobileMenu}
-            title="Menyu"
-            style={{ fontWeight: 800 }}
-          >
-            ☰
-          </button>
-        )}
       </div>
     </header>
   );
 }
 
-/* Mobile Horizontal Quick Feature Ribbon */
-function MobileFeatureRibbon({ active, setActive, profile, unread, lang }) {
-  const isCeo = profile?.role === "ceo";
+/* Account Switcher Modal - Login or Switch to Any Account Anytime */
+function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogoutToAuth, lang }) {
   const isSw = lang === "sw";
-  const pills = [
-    ["home", "⌂", "Duara"],
-    ["catalogue", "🛍️", "Shop"],
-    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
-    ["messages", "💬", "Messages", unread],
-    ["dashboard", "📊", "Dashboard"],
-    ["wallet", "💳", "Wallet"],
-    ["reels", "▶", "Reels"],
-    ["marketplace", "🏪", isSw ? "Soko" : "Market"],
-    ["saved", "🔖", isSw ? "Hifadhi" : "Saved"],
-    ["profile", "👤", isSw ? "Wasifu" : "Profile"],
-    ["settings", "⚙️", isSw ? "Mipangilio" : "Settings"]
-  ];
-  if (isCeo) {
-    pills.unshift(["ceo", "👑", "CEO"]);
-  }
+  const [savedAccounts, setSavedAccounts] = useState(() => getSavedAccounts());
+  const [platformAccounts, setPlatformAccounts] = useState([]);
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getAllProfiles(25)
+      .then((list) => setPlatformAccounts(list || []))
+      .catch(() => {});
+  }, []);
+
+  const combinedAccounts = useMemo(() => {
+    const map = new Map();
+    savedAccounts.forEach((acc) => {
+      if (acc?.id) map.set(acc.id, acc);
+    });
+    platformAccounts.forEach((acc) => {
+      if (acc?.id && !map.has(acc.id)) map.set(acc.id, acc);
+    });
+    return Array.from(map.values()).filter((a) => a.id !== currentProfile?.id);
+  }, [savedAccounts, platformAccounts, currentProfile?.id]);
+
+  const handleQuickLogin = async (acc) => {
+    setBusy(true);
+    setError("");
+    try {
+      setActiveAccountOverride(acc);
+      const sessionObj = {
+        user: { id: acc.id, email: acc.email || `${acc.username}@thecircle.app` }
+      };
+      onSelectAccount(sessionObj, acc);
+    } catch (err) {
+      setError(err.message || "Imeshindikana kubadilisha akaunti.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleFormLogin = async (e) => {
+    e.preventDefault();
+    if (!identifier.trim() || !password.trim()) {
+      setError(isSw ? "Weka username au email na nenosiri." : "Enter username or email and password.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await loginUser(identifier, password);
+      const prof = res.profile || (res.session?.user ? await getCurrentProfile(res.session.user.id, identifier) : null);
+      if (prof) {
+        onSelectAccount(res.session, prof);
+      }
+    } catch (err) {
+      setError(err.message || (isSw ? "Imeshindikana kuingia." : "Login failed."));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <div className="mobile-feature-ribbon" id="mobile-feature-ribbon">
-      {pills.map(([id, icon, label, badge]) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => setActive(id)}
-          className={`mobile-ribbon-pill ${active === id ? "active" : ""}`}
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10050 }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 18 }}>
+            🔄 {isSw ? "Badilisha au Ingia Akaunti" : "Switch or Login Account"}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ border: "1px solid var(--line)", background: "var(--bg-base)", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", color: "var(--ink)" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Current Active Account */}
+        {currentProfile && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: "var(--primary-soft)",
+              border: "1px solid var(--primary-border)",
+              marginBottom: 16
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <Avatar name={currentProfile.display_name} avatarUrl={currentProfile.avatar_url} size="sm" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {currentProfile.display_name}
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                  @{currentProfile.username} · <span style={{ color: "var(--primary)", fontWeight: 700 }}>{isSw ? "Ipo Hewani" : "Active"}</span>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button button-soft"
+              style={{ color: "#ef4444", padding: "6px 12px", fontSize: 12, flexShrink: 0 }}
+              onClick={onLogoutToAuth}
+            >
+              🚪 {isSw ? "Ondoka" : "Logout"}
+            </button>
+          </div>
+        )}
+
+        {/* Login Form for Any Account */}
+        <form
+          onSubmit={handleFormLogin}
+          style={{
+            padding: 14,
+            borderRadius: 14,
+            background: "var(--bg-base)",
+            border: "1px solid var(--line)",
+            marginBottom: 16
+          }}
         >
-          <span>{icon}</span>
-          <span>{label}</span>
-          {Boolean(badge) && <span className="mobile-ribbon-badge">{badge}</span>}
-        </button>
-      ))}
+          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 10, color: "var(--ink-heading)" }}>
+            🔑 {isSw ? "Ingia Kwenye Akaunti Yoyote (@username au Email)" : "Login to Any Account (@username or Email)"}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder={isSw ? "Andika @username au barua pepe..." : "Enter @username or email..."}
+              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={isSw ? "Nenosiri..." : "Password..."}
+              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+            />
+            {error && <div style={{ color: "#ef4444", fontSize: 12, fontWeight: 600 }}>{error}</div>}
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <button type="submit" className="button button-primary" disabled={busy} style={{ flex: 1, padding: "9px 14px", fontSize: 13 }}>
+                {busy ? "..." : isSw ? "Ingia Sasa" : "Login Now"}
+              </button>
+              <button
+                type="button"
+                className="button button-soft"
+                onClick={onLogoutToAuth}
+                style={{ padding: "9px 12px", fontSize: 12.5 }}
+              >
+                + {isSw ? "Sajili Mpya" : "New Account"}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Quick Switch List */}
+        {combinedAccounts.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
+              {isSw ? "Akaunti Zilizopo (Bonyeza Kuingia)" : "Available Accounts (Tap to Switch)"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto" }}>
+              {combinedAccounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    background: "var(--bg-base)",
+                    border: "1px solid var(--line)"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                    <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {acc.display_name}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--muted)" }}>@{acc.username}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
+                      onClick={() => handleQuickLogin(acc)}
+                      disabled={busy}
+                    >
+                      {isSw ? "Ingia" : "Login"}
+                    </button>
+                    {savedAccounts.some((s) => s.id === acc.id) && (
+                      <button
+                        type="button"
+                        className="button button-soft"
+                        style={{ padding: "6px 8px", fontSize: 11, color: "var(--muted)" }}
+                        onClick={() => {
+                          removeSavedAccount(acc.id);
+                          setSavedAccounts(getSavedAccounts());
+                        }}
+                        title={isSw ? "Ondoa kwenye orodha" : "Remove"}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 /* Authentication Screen */
-function AuthScreen({ lang, setLang, dark, setDark }) {
+function AuthScreen({ lang, setLang, dark, setDark, onAuthSuccess }) {
   const t = useTranslation(lang);
   const [mode, setMode] = useState("login");
   const [role, setRole] = useState("customer"); // 'customer' | 'manager'
   const [form, setForm] = useState({ ...blankAuth });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState(() => getSavedAccounts());
+  const [platformAccounts, setPlatformAccounts] = useState([]);
+
+  useEffect(() => {
+    getAllProfiles(15)
+      .then((list) => setPlatformAccounts(list || []))
+      .catch(() => {});
+  }, []);
+
+  const quickAccounts = useMemo(() => {
+    const map = new Map();
+    savedAccounts.forEach((a) => {
+      if (a?.id) map.set(a.id, a);
+    });
+    platformAccounts.forEach((a) => {
+      if (a?.id && !map.has(a.id)) map.set(a.id, a);
+    });
+    return Array.from(map.values()).slice(0, 8);
+  }, [savedAccounts, platformAccounts]);
+
+  const handleQuickAccountSelect = (acc) => {
+    setActiveAccountOverride(acc);
+    const sessionObj = {
+      user: { id: acc.id, email: acc.email || `${acc.username}@thecircle.app` }
+    };
+    if (onAuthSuccess) {
+      onAuthSuccess(sessionObj, acc);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setMessage("");
     if (!form.email || !form.password || (mode === "register" && (!form.displayName || !form.username || !form.location))) {
-      return setMessage("Tafadhali jaza taarifa zote zinazohitajika (Majina, Username, Barua Pepe, Mahali unapoishi na Nenosiri).");
+      return setMessage("Tafadhali jaza taarifa zote zinazohitajika.");
     }
-    if (mode === "register" && form.password.length < 6) {
-      return setMessage("Nenosiri liwe na angalau herufi 6.");
+    if (mode === "register" && form.password.length < 4) {
+      return setMessage("Nenosiri liwe na angalau herufi 4.");
     }
     setBusy(true);
     try {
       const result = mode === "login"
         ? await loginUser(form.email, form.password)
         : await registerUser({ ...form, role });
-      if (mode === "register" && !result.session) {
-        setMessage("Akaunti imeundwa kikamilifu! Sasa unaweza kuingia.");
+      if (result?.session && onAuthSuccess) {
+        onAuthSuccess(result.session, result.profile || null);
       }
     } catch (err) {
       setMessage(err.message || t.failedTryAgain);
@@ -991,6 +1217,49 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
             </button>
           </form>
 
+          {mode === "login" && quickAccounts.length > 0 && (
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
+                {lang === "sw" ? "Akaunti Zilizopo (Bonyeza Kuingia Moja kwa Moja)" : "Quick Login Accounts"}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 190, overflowY: "auto" }}>
+                {quickAccounts.map((acc) => (
+                  <div
+                    key={acc.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "7px 10px",
+                      borderRadius: 10,
+                      background: "var(--bg-base)",
+                      border: "1px solid var(--line)"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+                      <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {acc.display_name}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted)" }}>@{acc.username}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ padding: "5px 12px", fontSize: 11.5, borderRadius: 8 }}
+                      onClick={() => handleQuickAccountSelect(acc)}
+                    >
+                      {lang === "sw" ? "Ingia" : "Login"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--muted)" }}>
             {mode === "login" ? "Huna akaunti bado?" : "Tayari una akaunti?"}{" "}
             <button
@@ -1011,46 +1280,87 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
   );
 }
 
-/* Sidebar Navigation */
-function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, dark, setDark }) {
-  const t = useTranslation(lang);
+/* Sidebar Navigation (Desktop) & Slide-out Side Menu Drawer (Kutoka Pembeni) */
+function getMenuSections(profile, lang, unread) {
   const isCeo = profile?.role === "ceo";
+  const isSw = lang === "sw";
 
-  const mainLinks = [
+  const coreLinks = [
     ["home", "⌂", "Duara"],
     ["catalogue", "🛍️", "Shop"],
-    ["ads", "📢", lang === "sw" ? "Matangazo" : "Ads"],
-    ["messages", "✉", t.messages, unread]
+    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
+    ["messages", "💬", "Messages", unread],
+    ["reels", "▶", "Reels"],
+    ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread]
   ];
-
   if (isCeo) {
-    mainLinks.unshift(["ceo", "👑", "CEO Dashboard"]);
+    coreLinks.unshift(["ceo", "👑", "CEO Dashboard"]);
   }
 
-  const exploreLinks = [
+  const savedAndMoreLinks = [
+    ["saved", "🔖", isSw ? "Saved (Hifadhi)" : "Saved"],
+    ["wallet", "💳", "Wallet"],
     ["dashboard", "📊", "Dashboard"],
-    ["marketplace", "🏪", t.marketplace],
-    ["reels", "▶", t.reels],
-    ["wallet", "💳", t.wallet],
-    ["saved", "🔖", t.savedDownloadsTab]
+    ["marketplace", "🏪", isSw ? "Soko" : "Marketplace"],
+    ["discover", "👥", isSw ? "Watu & Marafiki" : "Discover People"]
   ];
 
-  const systemLinks = [
-    ["profile", "👤", t.profile],
-    ["notifications", "🔔", t.notifications, unread],
-    ["settings", "⚙", t.settings],
-    ["about", "ℹ️", t.about],
-    ["terms", "🛡️", t.terms],
-    ["help", "❓", t.help]
+  const accountAndSystemLinks = [
+    ["profile", "👤", isSw ? "Wasifu Wangu" : "My Profile"],
+    ["settings", "⚙️", isSw ? "Mipangilio" : "Settings"],
+    ["about", "ℹ️", isSw ? "Kuhusu" : "About"],
+    ["terms", "🛡️", isSw ? "Masharti" : "Terms"],
+    ["help", "❓", isSw ? "Msaada" : "Help"]
   ];
+
+  return { coreLinks, savedAndMoreLinks, accountAndSystemLinks };
+}
+
+function Sidebar({ profile, active, setActive, onLogout, onSwitchAccount, unread, lang, setLang, dark, setDark }) {
+  const isCeo = profile?.role === "ceo";
+  const isSw = lang === "sw";
+  const { coreLinks, savedAndMoreLinks, accountAndSystemLinks } = getMenuSections(profile, lang, unread);
 
   return (
     <aside className="sidebar" id="app-sidebar">
+      <div className="sidebar-bottom" style={{ marginTop: 0, paddingTop: 0, paddingBottom: 14, borderTop: "none", borderBottom: "1px solid var(--line)", marginBottom: 10 }}>
+        <button
+          type="button"
+          id="sidebar-profile-capsule"
+          className="profile-capsule"
+          onClick={() => setActive("profile")}
+        >
+          <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="sm" />
+          <div className="profile-capsule-info">
+            <span className="profile-capsule-name">{profile.display_name}</span>
+            <span className="profile-capsule-tag" style={{ color: "var(--muted)", fontWeight: 600 }}>
+              @{profile.username}
+            </span>
+          </div>
+        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            className="button button-soft"
+            style={{ flex: 1, padding: "7px 8px", fontSize: 11.5, borderRadius: 9 }}
+            onClick={onSwitchAccount}
+          >
+            🔄 {isSw ? "Akaunti Nyingine" : "Switch Account"}
+          </button>
+          <button
+            type="button"
+            className="button button-soft"
+            style={{ padding: "7px 10px", fontSize: 11.5, borderRadius: 9, color: "#ef4444" }}
+            onClick={onLogout}
+          >
+            🚪 {isSw ? "Ondoka" : "Logout"}
+          </button>
+        </div>
+      </div>
+
       <nav>
-        <span className="nav-section-title">
-          {isCeo ? "👑 BIASHARA & UONGOZI" : "🛍️ AFFILIATE & BIASHARA"}
-        </span>
-        {mainLinks.map(([id, icon, label, badge]) => (
+        <span className="nav-section-title">{isSw ? "MSINGI" : "MAIN"}</span>
+        {coreLinks.map(([id, icon, label, badge]) => (
           <button
             id={`nav-item-${id}`}
             className={`nav-item ${active === id ? "active" : ""}`}
@@ -1063,8 +1373,8 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
           </button>
         ))}
 
-        <span className="nav-section-title">CHUNGUZA & SHUGHULI</span>
-        {exploreLinks.map(([id, icon, label]) => (
+        <span className="nav-section-title">{isSw ? "HIFADHI & ZAIDI" : "SAVED & MORE"}</span>
+        {savedAndMoreLinks.map(([id, icon, label]) => (
           <button
             id={`nav-item-${id}`}
             className={`nav-item ${active === id ? "active" : ""}`}
@@ -1076,8 +1386,8 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
           </button>
         ))}
 
-        <span className="nav-section-title">{t.settings}</span>
-        {systemLinks.map(([id, icon, label, badge]) => (
+        <span className="nav-section-title">{isSw ? "AKAUNTI & MIPANGILIO" : "ACCOUNT & SETTINGS"}</span>
+        {accountAndSystemLinks.map(([id, icon, label, badge]) => (
           <button
             id={`nav-item-${id}`}
             className={`nav-item ${active === id ? "active" : ""}`}
@@ -1092,40 +1402,31 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
       </nav>
 
       <div className="sidebar-bottom">
-        <button
-          type="button"
-          id="sidebar-profile-capsule"
-          className="profile-capsule"
-          onClick={() => setActive("profile")}
-        >
-          <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="sm" />
-          <div className="profile-capsule-info">
-            <span className="profile-capsule-name">{profile.display_name}</span>
-            <span className="profile-capsule-tag" style={{ color: isCeo ? "#eab308" : profile?.role === "manager" ? "#10b981" : "var(--muted)", fontWeight: 700 }}>
-              {isCeo ? "👑 CEO HAMZA VUKANG" : profile?.role === "manager" ? "💼 AFFILIATE MANAGER" : "🛒 MTEJA MTANGAZAJI"}
-            </span>
-          </div>
-        </button>
-
         <div className="sidebar-action-row">
           <LanguageToggle lang={lang} setLang={setLang} />
-          <button
-            type="button"
-            id="btn-sidebar-logout"
-            className="text-button"
-            onClick={onLogout}
-            style={{ color: "#ef4444" }}
-          >
-            <span className="logout-text">{t.logout}</span> 🚪
-          </button>
+          <ThemeToggle dark={dark} setDark={setDark} />
         </div>
       </div>
     </aside>
   );
 }
 
-/* Mobile Bottom Navigation Dock + Full Feature Launcher Drawer */
-function MobileBottomNav({ active, setActive, lang, unread, profile, onLogout, dark, setDark, setLang, menuOpen, setMenuOpen }) {
+/* Slide-Out Side Menu Drawer (Menyu Kutoka Pembeni) + Mobile Bottom Dock */
+function MobileBottomNav({
+  active,
+  setActive,
+  lang,
+  unread,
+  profile,
+  onLogout,
+  onSwitchAccount,
+  dark,
+  setDark,
+  setLang,
+  menuOpen,
+  setMenuOpen,
+  isMobileLayout
+}) {
   const isCeo = profile?.role === "ceo";
   const isSw = lang === "sw";
   const items = [
@@ -1135,138 +1436,185 @@ function MobileBottomNav({ active, setActive, lang, unread, profile, onLogout, d
     ["messages", "💬", "Chat", unread]
   ];
 
-  const allFeatures = [
-    ["home", "⌂", "Duara"],
-    ["catalogue", "🛍️", "Shop"],
-    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
-    ["messages", "💬", "Messages", unread],
-    ["wallet", "💳", "Wallet"],
-    ["dashboard", "📊", "Dashboard"],
-    ["reels", "▶", "Reels"],
-    ["marketplace", "🏪", isSw ? "Soko" : "Marketplace"],
-    ["saved", "🔖", isSw ? "Hifadhi" : "Saved"],
-    ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread],
-    ["profile", "👤", isSw ? "Wasifu" : "Profile"],
-    ["settings", "⚙️", isSw ? "Mipangilio" : "Settings"],
-    ["about", "ℹ️", isSw ? "Kuhusu" : "About"],
-    ["terms", "🛡️", isSw ? "Masharti" : "Terms"],
-    ["help", "❓", isSw ? "Msaada" : "Help"]
-  ];
-  if (isCeo) {
-    allFeatures.unshift(["ceo", "👑", "CEO Dashboard"]);
-  }
+  const { coreLinks, savedAndMoreLinks, accountAndSystemLinks } = getMenuSections(profile, lang, unread);
 
   return (
     <>
-      <div className="mobile-bottom-nav" id="mobile-bottom-nav">
-        {items.map(([id, icon, label, badge]) => (
+      {isMobileLayout && (
+        <div className="mobile-bottom-nav" id="mobile-bottom-nav">
+          {items.map(([id, icon, label, badge]) => (
+            <button
+              key={id}
+              id={`mobile-nav-${id}`}
+              className={`mobile-nav-btn ${active === id && !menuOpen ? "active" : ""}`}
+              onClick={() => {
+                setMenuOpen(false);
+                setActive(id);
+              }}
+            >
+              <span className="icon">{icon}</span>
+              <span>{label}</span>
+              {Boolean(badge) && <span className="mobile-nav-dot" />}
+            </button>
+          ))}
           <button
-            key={id}
-            id={`mobile-nav-${id}`}
-            className={`mobile-nav-btn ${active === id && !menuOpen ? "active" : ""}`}
-            onClick={() => {
-              setMenuOpen(false);
-              setActive(id);
-            }}
+            type="button"
+            id="mobile-nav-more-menu"
+            className={`mobile-nav-btn ${menuOpen ? "active" : ""}`}
+            onClick={() => setMenuOpen(!menuOpen)}
           >
-            <span className="icon">{icon}</span>
-            <span>{label}</span>
-            {Boolean(badge) && <span className="mobile-nav-dot" />}
+            <span className="icon">☰</span>
+            <span>{isSw ? "Menyu" : "Menu"}</span>
           </button>
-        ))}
-        <button
-          type="button"
-          id="mobile-nav-more-menu"
-          className={`mobile-nav-btn ${menuOpen ? "active" : ""}`}
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          <span className="icon">☰</span>
-          <span>{isSw ? "Menyu" : "Menu"}</span>
-        </button>
-      </div>
+        </div>
+      )}
 
       {menuOpen && (
-        <div className="mobile-drawer-backdrop" onClick={() => setMenuOpen(false)}>
-          <div className="mobile-drawer-sheet" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Avatar name={profile?.display_name} avatarUrl={profile?.avatar_url} size="sm" />
-                <div>
-                  <strong style={{ fontSize: 14, display: "block" }}>{profile?.display_name}</strong>
-                  <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700 }}>
-                    {isCeo ? "👑 CEO HAMZA VUKANG" : profile?.role === "manager" ? "💼 AFFILIATE MANAGER" : "🛒 MTEJA"}
+        <div className="side-menu-backdrop" onClick={() => setMenuOpen(false)}>
+          <aside className="side-menu-drawer" onClick={(e) => e.stopPropagation()}>
+            {/* Side Menu Top Account Card */}
+            <div className="side-menu-header">
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1, cursor: "pointer" }}
+                onClick={() => {
+                  setActive("profile");
+                  setMenuOpen(false);
+                }}
+              >
+                <Avatar name={profile?.display_name} avatarUrl={profile?.avatar_url} size="md" />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <strong style={{ fontSize: 14.5, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {profile?.display_name}
+                  </strong>
+                  <span style={{ fontSize: 12, color: "var(--muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    @{profile?.username}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: "var(--primary)", fontWeight: 800 }}>
+                    {isCeo ? "👑 CEO" : profile?.role === "manager" ? "💼 Manager" : "✓ Mwanachama"}
                   </span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
-                style={{
-                  border: "1px solid var(--line)",
-                  background: "var(--bg-base)",
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  fontSize: 16,
-                  cursor: "pointer",
-                  color: "var(--ink)"
-                }}
+                className="side-menu-close-btn"
+                title={isSw ? "Funga" : "Close"}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
-              {isSw ? "Menyu" : "Menu"}
+            {/* Quick Account Switch & Logout Row at Top of Menu */}
+            <div style={{ display: "flex", gap: 8, padding: "0 14px 12px", borderBottom: "1px solid var(--line)" }}>
+              <button
+                type="button"
+                className="button button-soft"
+                style={{ flex: 1, padding: "8px 10px", fontSize: 12, borderRadius: 10 }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (onSwitchAccount) onSwitchAccount();
+                }}
+              >
+                🔄 {isSw ? "Badilisha Akaunti" : "Switch Account"}
+              </button>
+              <button
+                type="button"
+                className="button button-soft"
+                style={{ padding: "8px 12px", fontSize: 12, borderRadius: 10, color: "#ef4444" }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (onLogout) onLogout();
+                }}
+              >
+                🚪 {isSw ? "Ondoka" : "Logout"}
+              </button>
             </div>
 
-            <div className="mobile-drawer-grid">
-              {allFeatures.map(([id, icon, label, badge]) => (
+            {/* Scrollable Side Menu Sections */}
+            <div className="side-menu-scroll">
+              <div className="side-menu-section-label">{isSw ? "VITU VYA MSINGI" : "MAIN MENU"}</div>
+              {coreLinks.map(([id, icon, label, badge]) => (
                 <button
                   key={id}
                   type="button"
-                  className={`mobile-drawer-item ${active === id ? "active" : ""}`}
+                  className={`side-menu-link ${active === id ? "active" : ""}`}
                   onClick={() => {
                     setActive(id);
                     setMenuOpen(false);
                   }}
                 >
-                  <span style={{ fontSize: 22 }}>{icon}</span>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{label}</span>
-                  {Boolean(badge) && <span className="mobile-ribbon-badge">{badge}</span>}
+                  <span className="side-menu-link-icon">{icon}</span>
+                  <span className="side-menu-link-text">{label}</span>
+                  {Boolean(badge) && <span className="nav-badge">{badge}</span>}
+                </button>
+              ))}
+
+              <div className="side-menu-section-label">{isSw ? "HIFADHI & HUDUMA NYINGINE" : "SAVED & MORE"}</div>
+              {savedAndMoreLinks.map(([id, icon, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`side-menu-link ${active === id ? "active" : ""}`}
+                  onClick={() => {
+                    setActive(id);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="side-menu-link-icon">{icon}</span>
+                  <span className="side-menu-link-text">{label}</span>
+                </button>
+              ))}
+
+              <div className="side-menu-section-label">{isSw ? "AKAUNTI & MIPANGILIO" : "ACCOUNT & SETTINGS"}</div>
+              {accountAndSystemLinks.map(([id, icon, label, badge]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`side-menu-link ${active === id ? "active" : ""}`}
+                  onClick={() => {
+                    setActive(id);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="side-menu-link-icon">{icon}</span>
+                  <span className="side-menu-link-text">{label}</span>
+                  {Boolean(badge) && <span className="nav-badge">{badge}</span>}
                 </button>
               ))}
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginTop: 16,
-                paddingTop: 14,
-                borderTop: "1px solid var(--line)",
-                flexWrap: "wrap",
-                gap: 10
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Side Menu Bottom Footer */}
+            <div className="side-menu-footer">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: 8 }}>
                 <LanguageToggle lang={lang} setLang={setLang} />
                 <ThemeToggle dark={dark} setDark={setDark} />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  if (onLogout) onLogout();
-                }}
-                className="button button-soft"
-                style={{ color: "#ef4444", padding: "8px 14px", fontSize: 12 }}
-              >
-                🚪 {isSw ? "Ondoka (Logout)" : "Logout"}
-              </button>
+              <div style={{ display: "flex", gap: 8, width: "100%" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (onSwitchAccount) onSwitchAccount();
+                  }}
+                  className="button button-primary"
+                  style={{ flex: 1, padding: "9px 10px", fontSize: 12, borderRadius: 10 }}
+                >
+                  🔄 {isSw ? "Ingia Akaunti Nyingine" : "Login Another Account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (onLogout) onLogout();
+                  }}
+                  className="button button-soft"
+                  style={{ color: "#ef4444", padding: "9px 12px", fontSize: 12, borderRadius: 10 }}
+                >
+                  🚪 {isSw ? "Ondoka" : "Logout"}
+                </button>
+              </div>
             </div>
-          </div>
+          </aside>
         </div>
       )}
     </>
@@ -5323,6 +5671,7 @@ export default function App() {
   const [initialChatTarget, setInitialChatTarget] = useState(null);
   const [viewingUserProfile, setViewingUserProfile] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
   const [layoutPreference, setLayoutPreference] = useState("auto"); // 'auto' | 'mobile' | 'desktop'
   const [windowWidth, setWindowWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1200));
 
@@ -5401,13 +5750,40 @@ export default function App() {
 
   const load = async (user) => {
     const [p, f, n] = await Promise.all([
-      getCurrentProfile(user.id),
-      getFeed(),
-      getNotifications(user.id)
+      getCurrentProfile(user.id, user.email).catch(() => getActiveAccountOverride()),
+      getFeed().catch(() => []),
+      getNotifications(user.id).catch(() => [])
     ]);
-    setProfile(p);
-    setPosts(f);
-    setNotifications(n);
+    if (p) setProfile(p);
+    setPosts(f || []);
+    setNotifications(n || []);
+  };
+
+  const handleAuthSuccess = async (nextSession, nextProfile) => {
+    setViewingUserProfile(null);
+    setMobileMenuOpen(false);
+    setAccountSwitcherOpen(false);
+    setActive("home");
+    if (nextProfile) {
+      setProfile(nextProfile);
+      saveAccountToHistory(nextProfile);
+    }
+    if (nextSession) {
+      setSession(nextSession);
+      if (!nextProfile && nextSession.user) {
+        await load(nextSession.user).catch(() => {});
+      } else {
+        getFeed().then((f) => setPosts(f || [])).catch(() => {});
+        if (nextProfile?.id) {
+          getNotifications(nextProfile.id).then((n) => setNotifications(n || [])).catch(() => {});
+        }
+      }
+    }
+    showToast(
+      lang === "sw"
+        ? `✓ Umeingia kama ${nextProfile?.display_name || "Mwanachama"}`
+        : `✓ Logged in as ${nextProfile?.display_name || "Member"}`
+    );
   };
 
   useEffect(() => {
@@ -5415,22 +5791,38 @@ export default function App() {
       setBooting(false);
       return undefined;
     }
-    supabase.auth.getSession()
-      .then(async (res) => {
-        const nextSession = res?.data?.session || null;
-        setSession(nextSession);
-        if (nextSession?.user) {
-          try {
-            await load(nextSession.user);
-          } catch (err) {
-            console.warn("Initial load failed:", err);
+    const override = getActiveAccountOverride();
+    if (override && override.id) {
+      const overrideSession = {
+        user: { id: override.id, email: override.email || `${override.username}@thecircle.app` }
+      };
+      setSession(overrideSession);
+      setProfile(override);
+      getFeed().then((f) => setPosts(f || [])).catch(() => {});
+      getNotifications(override.id).then((n) => setNotifications(n || [])).catch(() => {});
+      setBooting(false);
+    } else {
+      supabase.auth.getSession()
+        .then(async (res) => {
+          const nextSession = res?.data?.session || null;
+          setSession(nextSession);
+          if (nextSession?.user) {
+            try {
+              await load(nextSession.user);
+            } catch (err) {
+              console.warn("Initial load failed:", err);
+            }
           }
-        }
-      })
-      .catch((err) => console.warn("Session check error:", err))
-      .finally(() => setBooting(false));
+        })
+        .catch((err) => console.warn("Session check error:", err))
+        .finally(() => setBooting(false));
+    }
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, next) => {
+      const activeOverride = getActiveAccountOverride();
+      if (activeOverride && activeOverride.id) {
+        return;
+      }
       setSession(next);
       if (next?.user) {
         try {
@@ -5489,7 +5881,15 @@ export default function App() {
   };
 
   const onPost = async (content, media, mediaType) => createPost(session.user.id, content, media, mediaType);
-  const logout = async () => logoutUser();
+  const logout = async () => {
+    setMobileMenuOpen(false);
+    setAccountSwitcherOpen(false);
+    setViewingUserProfile(null);
+    setSession(null);
+    setProfile(null);
+    setActive("home");
+    await logoutUser().catch(() => {});
+  };
 
   if (!supabaseConfigured) {
     return (
@@ -5516,7 +5916,15 @@ export default function App() {
   }
 
   if (!session || !profile) {
-    return <AuthScreen lang={lang} setLang={setLang} dark={dark} setDark={setDark} />;
+    return (
+      <AuthScreen
+        lang={lang}
+        setLang={setLang}
+        dark={dark}
+        setDark={setDark}
+        onAuthSuccess={handleAuthSuccess}
+      />
+    );
   }
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
@@ -5540,19 +5948,6 @@ export default function App() {
         onOpenMobileMenu={() => setMobileMenuOpen(true)}
       />
 
-      {isMobileLayout && (
-        <MobileFeatureRibbon
-          active={active}
-          setActive={(page) => {
-            setViewingUserProfile(null);
-            setActive(page);
-          }}
-          profile={profile}
-          unread={unreadCount}
-          lang={lang}
-        />
-      )}
-
       <div className="app-shell">
         {!isMobileLayout && (
           <Sidebar
@@ -5563,6 +5958,7 @@ export default function App() {
               setActive(page);
             }}
             onLogout={logout}
+            onSwitchAccount={() => setAccountSwitcherOpen(true)}
             unread={unreadCount}
             lang={lang}
             setLang={setLang}
@@ -5683,6 +6079,8 @@ export default function App() {
                   onShowToast={showToast}
                   setActive={setActive}
                   PostCard={PostCard}
+                  onLogout={logout}
+                  onSwitchAccount={() => setAccountSwitcherOpen(true)}
                 />
               )}
               {active === "settings" && (
@@ -5723,22 +6121,32 @@ export default function App() {
         </main>
       </div>
 
-      {isMobileLayout && (
-        <MobileBottomNav
-          active={active}
-          setActive={(page) => {
-            setViewingUserProfile(null);
-            setActive(page);
-          }}
+      <MobileBottomNav
+        active={active}
+        setActive={(page) => {
+          setViewingUserProfile(null);
+          setActive(page);
+        }}
+        lang={lang}
+        unread={unreadCount}
+        profile={profile}
+        onLogout={logout}
+        onSwitchAccount={() => setAccountSwitcherOpen(true)}
+        dark={dark}
+        setDark={setDark}
+        setLang={setLang}
+        menuOpen={mobileMenuOpen}
+        setMenuOpen={setMobileMenuOpen}
+        isMobileLayout={isMobileLayout}
+      />
+
+      {accountSwitcherOpen && (
+        <AccountSwitcherModal
+          currentProfile={profile}
+          onClose={() => setAccountSwitcherOpen(false)}
+          onSelectAccount={handleAuthSuccess}
+          onLogoutToAuth={logout}
           lang={lang}
-          unread={unreadCount}
-          profile={profile}
-          onLogout={logout}
-          dark={dark}
-          setDark={setDark}
-          setLang={setLang}
-          menuOpen={mobileMenuOpen}
-          setMenuOpen={setMobileMenuOpen}
         />
       )}
 

@@ -3715,102 +3715,132 @@ button {
   line-height: 1;
 }
 
-/* Mobile All-Features Drawer Sheet */
-.mobile-drawer-overlay {
+/* Slide-Out Side Menu Drawer (Menyu Kutoka Pembeni) */
+.side-menu-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9998;
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: fadeIn 0.2s ease;
+  justify-content: flex-start;
+  align-items: stretch;
+  animation: fadeIn 0.18s ease;
 }
 
-.mobile-drawer-sheet {
-  width: 100%;
-  max-width: 560px;
-  max-height: 85vh;
-  background: var(--bg-surface);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  border: 1px solid var(--line);
-  padding: 18px 16px 28px;
-  overflow-y: auto;
-  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.35);
+.side-menu-drawer {
+  width: min(310px, 86vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 16px 0 48px rgba(0, 0, 0, 0.35);
+  animation: slideInFromLeft 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
 }
 
-.mobile-drawer-header {
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.side-menu-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 14px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--line);
-}
-
-.mobile-drawer-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  padding: 16px 14px 12px;
 }
 
-.mobile-drawer-card {
+.side-menu-close-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--bg-base);
+  color: var(--ink);
+  font-size: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.side-menu-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.side-menu-section-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 12px 10px 4px;
+}
+
+.side-menu-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
   color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
-  position: relative;
   transition: all 0.15s ease;
 }
 
-.mobile-drawer-card.active {
-  border-color: var(--primary);
+.side-menu-link:hover {
   background: var(--primary-soft);
   color: var(--primary);
 }
 
-.mobile-drawer-icon {
-  font-size: 20px;
+.side-menu-link.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 800;
+  border-left: 3px solid var(--primary);
+}
+
+.side-menu-link-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
   flex-shrink: 0;
 }
 
-.mobile-drawer-label {
-  line-height: 1.25;
-  word-break: break-word;
+.side-menu-link-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mobile-drawer-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 999px;
-}
-
-.mobile-drawer-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 18px;
-  padding-top: 14px;
+.side-menu-footer {
+  padding: 12px 14px 18px;
   border-top: 1px solid var(--line);
+  background: var(--bg-base);
 }
 
 /* ==========================================================================

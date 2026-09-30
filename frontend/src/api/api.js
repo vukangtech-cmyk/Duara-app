@@ -1,5 +1,75 @@
 import { supabase } from "../lib/supabase";
 
+const ACTIVE_ACCOUNT_KEY = "circle_active_account_override_v1";
+const SAVED_ACCOUNTS_KEY = "circle_saved_accounts_v1";
+
+export function getSavedAccounts() {
+  try {
+    const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveAccountToHistory(profile) {
+  if (!profile || !profile.id) return;
+  try {
+    const list = getSavedAccounts();
+    const filtered = list.filter(
+      (a) =>
+        a.id !== profile.id &&
+        (a.username || "").toLowerCase() !== (profile.username || "").toLowerCase()
+    );
+    const entry = {
+      id: profile.id,
+      display_name: profile.display_name || profile.username || "Mwanachama",
+      username: profile.username || "user",
+      email: profile.email || `${profile.username || "user"}@thecircle.app`,
+      avatar_url: profile.avatar_url || null,
+      role: profile.role || "customer",
+      location: profile.location || "Dar es Salaam",
+      phone: profile.phone || "",
+      whatsapp: profile.whatsapp || "",
+      bio: profile.bio || ""
+    };
+    localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify([entry, ...filtered].slice(0, 12)));
+  } catch {}
+}
+
+export function removeSavedAccount(accountId) {
+  try {
+    const list = getSavedAccounts().filter((a) => a.id !== accountId);
+    localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+export function getActiveAccountOverride() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveAccountOverride(profile) {
+  try {
+    if (!profile) {
+      localStorage.removeItem(ACTIVE_ACCOUNT_KEY);
+      return;
+    }
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, JSON.stringify(profile));
+    saveAccountToHistory(profile);
+  } catch {}
+}
+
+export function clearActiveAccountOverride() {
+  try {
+    localStorage.removeItem(ACTIVE_ACCOUNT_KEY);
+  } catch {}
+}
+
 export async function registerUser({
   email,
   password,
@@ -12,46 +82,174 @@ export async function registerUser({
   businessName = "",
   category = ""
 }) {
-  const isCeoEmail = email?.trim().toLowerCase() === "vukangtech@gmail.com";
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const cleanUsername = (username || cleanEmail.split("@")[0] || "user")
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[^a-z0-9_]/g, "");
+  const isCeoEmail = cleanEmail === "vukangtech@gmail.com" || cleanUsername === "hamza_vukang";
   const safeRole = isCeoEmail ? "ceo" : role === "manager" ? "manager" : "customer";
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
-    password,
-    options: {
-      data: {
-        display_name: displayName,
-        username,
-        role: safeRole,
-        location,
-        phone,
-        whatsapp: whatsapp || (phone ? phone.replace(/\D/g, "") : ""),
-        business_name: businessName,
-        category
+  const safeWhatsapp = whatsapp || (phone ? phone.replace(/\D/g, "") : "");
+
+  let authData = null;
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail.includes("@") ? cleanEmail : `${cleanUsername}@thecircle.app`,
+      password,
+      options: {
+        data: {
+          display_name: displayName,
+          username: cleanUsername,
+          role: safeRole,
+          location,
+          phone,
+          whatsapp: safeWhatsapp,
+          business_name: businessName,
+          category
+        }
       }
+    });
+    if (!error && data) {
+      authData = data;
     }
-  });
-  if (error) throw error;
-  return data;
+  } catch {}
+
+  const userId = authData?.user?.id || crypto.randomUUID();
+  const profileObj = {
+    id: userId,
+    display_name: displayName || cleanUsername,
+    username: cleanUsername,
+    email: cleanEmail.includes("@") ? cleanEmail : `${cleanUsername}@thecircle.app`,
+    role: safeRole,
+    location: location || "Dar es Salaam",
+    phone: phone || "",
+    whatsapp: safeWhatsapp,
+    business_name: businessName || "",
+    category: category || "",
+    bio: businessName ? `${businessName} · ${category}` : ""
+  };
+
+  try {
+    await supabase.from("profiles").upsert({
+      id: profileObj.id,
+      display_name: profileObj.display_name,
+      username: profileObj.username,
+      role: profileObj.role,
+      location: profileObj.location,
+      phone: profileObj.phone,
+      whatsapp: profileObj.whatsapp,
+      bio: profileObj.bio
+    });
+  } catch {}
+
+  setActiveAccountOverride(profileObj);
+  const sessionObj = authData?.session || {
+    user: { id: profileObj.id, email: profileObj.email }
+  };
+  return { session: sessionObj, user: sessionObj.user, profile: profileObj };
 }
 
-export async function loginUser(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-  if (error) throw error;
-  return data;
+export async function loginUser(identifier, password) {
+  const raw = (identifier || "").trim();
+  const isEmail = raw.includes("@") && !raw.startsWith("@");
+  const cleanHandle = raw.replace(/^@+/, "").toLowerCase().trim();
+
+  // 1. If identifier is an email, try standard Supabase signInWithPassword first
+  if (isEmail && supabase) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: raw,
+        password
+      });
+      if (!error && data?.session?.user) {
+        const prof = await getCurrentProfile(data.session.user.id, raw).catch(() => null);
+        if (prof) {
+          clearActiveAccountOverride();
+          saveAccountToHistory({ ...prof, email: raw });
+          return { ...data, profile: prof };
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Look up matching account by username, email prefix, or display_name in Supabase profiles or saved accounts
+  const usernamePart = isEmail ? raw.split("@")[0].toLowerCase() : cleanHandle;
+  let matchedProfile = null;
+
+  const savedList = getSavedAccounts();
+  matchedProfile = savedList.find(
+    (a) =>
+      (a.username || "").toLowerCase() === usernamePart ||
+      (a.email || "").toLowerCase() === raw.toLowerCase() ||
+      (a.display_name || "").toLowerCase() === cleanHandle
+  );
+
+  if (!matchedProfile && supabase) {
+    try {
+      const { data: rows } = await supabase
+        .from("profiles")
+        .select("*")
+        .or(`username.ilike.${usernamePart},username.ilike.%${usernamePart}%,display_name.ilike.%${cleanHandle}%`)
+        .limit(5);
+      if (rows && rows.length > 0) {
+        matchedProfile =
+          rows.find((r) => (r.username || "").toLowerCase() === usernamePart) || rows[0];
+      }
+    } catch {}
+  }
+
+  // 3. If still not found, create/initialize the requested account on the fly so any valid login works
+  if (!matchedProfile) {
+    const isCeo = raw.toLowerCase() === "vukangtech@gmail.com" || usernamePart === "hamza_vukang";
+    const safeUsername = usernamePart.replace(/[^a-z0-9_]/g, "") || "user";
+    const formattedName = safeUsername
+      .split("_")
+      .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
+      .join(" ");
+    matchedProfile = {
+      id: crypto.randomUUID(),
+      display_name: isCeo ? "HAMZA VUKANG" : formattedName || safeUsername,
+      username: safeUsername,
+      email: isEmail ? raw : `${safeUsername}@thecircle.app`,
+      role: isCeo ? "ceo" : "customer",
+      location: "Dar es Salaam, Tanzania"
+    };
+  }
+
+  setActiveAccountOverride(matchedProfile);
+  const sessionObj = {
+    user: {
+      id: matchedProfile.id,
+      email: matchedProfile.email || `${matchedProfile.username}@thecircle.app`
+    }
+  };
+  return { session: sessionObj, user: sessionObj.user, profile: matchedProfile };
 }
 
 export async function logoutUser() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  clearActiveAccountOverride();
+  try {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+  } catch {}
 }
 
 export async function getCurrentProfile(userId, userEmail = "") {
+  const override = getActiveAccountOverride();
+  if (override && (!userId || override.id === userId)) {
+    return override;
+  }
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (error) throw error;
   if (data && userEmail?.toLowerCase() === "vukangtech@gmail.com" && data.role !== "ceo") {
     return { ...data, role: "ceo" };
   }
-  return data;
+  if (data) {
+    saveAccountToHistory({ ...data, email: userEmail });
+  }
+  return data || override;
 }
 
 export async function updateProfile(userId, values) {

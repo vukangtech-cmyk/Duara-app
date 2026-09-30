@@ -54,7 +54,9 @@ export function UserProfile({
   lang = "sw",
   onShowToast,
   setActive,
-  PostCard
+  PostCard,
+  onLogout,
+  onSwitchAccount
 }) {
   const t = useTranslation(lang);
   const fileInputRef = useRef(null);
@@ -508,34 +510,34 @@ export function UserProfile({
           <div className="profile-action-buttons">
             <button
               type="button"
-              className="button button-soft"
-              id="btn-open-avatar-presets"
-              onClick={() => setShowAvatarPresets(true)}
-              style={{ fontSize: 13, gap: 6 }}
-            >
-              <span>🎭</span>
-              <span>{lang === "sw" ? "Mifano ya Avatar" : "Avatar Presets"}</span>
-            </button>
-            <button
-              type="button"
               className="button button-primary"
               id="btn-edit-full-profile"
               onClick={() => setIsEditingInfo(true)}
               style={{ fontSize: 13, gap: 6 }}
             >
               <span>✏️</span>
-              <span>{lang === "sw" ? "Hariri Wasifu Kamili" : "Edit Profile"}</span>
+              <span>{lang === "sw" ? "Hariri Wasifu" : "Edit Profile"}</span>
             </button>
-            {setActive && (
+            {onSwitchAccount && (
               <button
                 type="button"
                 className="button button-soft"
-                id="btn-goto-privacy-settings"
-                onClick={() => setActive("settings")}
+                onClick={onSwitchAccount}
                 style={{ fontSize: 13, gap: 6 }}
               >
-                <span>🛡️</span>
-                <span>{lang === "sw" ? "Ulinzi na Faragha" : "Privacy & Security"}</span>
+                <span>🔄</span>
+                <span>{lang === "sw" ? "Badilisha Akaunti" : "Switch Account"}</span>
+              </button>
+            )}
+            {onLogout && (
+              <button
+                type="button"
+                className="button button-soft"
+                onClick={onLogout}
+                style={{ fontSize: 13, gap: 6, color: "#ef4444" }}
+              >
+                <span>🚪</span>
+                <span>{lang === "sw" ? "Ondoka" : "Logout"}</span>
               </button>
             )}
           </div>
