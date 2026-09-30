@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getPlatformSettings } from "./api/api";
 
 export function PaymentModal({
   isOpen,
   onClose,
   title = "Fanya Malipo",
   amount = 5000,
-  purpose = "Tangazo la Biashara (Ad)",
+  purpose = "Malipo ya Huduma / Bidhaa",
   onPaymentSuccess,
-  lang = "sw"
+  customPaymentInfo = null
 }) {
   const [method, setMethod] = useState("mpesa");
   const [phone, setPhone] = useState("");
@@ -15,86 +16,77 @@ export function PaymentModal({
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [settings, setSettings] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      getPlatformSettings()
+        .then((data) => setSettings(data))
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const nums = {
+    ...(settings?.payment_numbers || {}),
+    ...(customPaymentInfo || {})
+  };
 
   const paymentChannels = {
     mpesa: {
       name: "Vodacom M-Pesa",
-      type: "Lipa Namba (Till)",
-      number: "554433",
-      merchant: "THE CIRCLE DUARA",
-      ussd: "*150*00# > Lipa kwa Simu > Weka Namba 554433",
+      type: "Lipa Namba / Namba ya Malipo",
+      number: nums.mpesa || "",
+      merchant: nums.mpesa_name || settings?.ceo_name || "CEO HAMZA VUKANG",
+      ussd: nums.mpesa ? `*150*00# > Lipa kwa M-Pesa > Namba: ${nums.mpesa}` : "*150*00#",
       color: "#e60000"
     },
     tigopesa: {
-      name: "Tigo Pesa",
-      type: "Lipa Namba",
-      number: "778899",
-      merchant: "DUARA AFFILIATE",
-      ussd: "*150*01# > Lipa kwa Simu > Weka Namba 778899",
+      name: "Mixx by Yas (Tigo Pesa)",
+      type: "Lipa Namba / Namba ya Malipo",
+      number: nums.tigopesa || "",
+      merchant: nums.tigopesa_name || settings?.ceo_name || "CEO HAMZA VUKANG",
+      ussd: nums.tigopesa ? `*150*01# > Lipa kwa Simu > Namba: ${nums.tigopesa}` : "*150*01#",
       color: "#00377b"
     },
     airtel: {
       name: "Airtel Money",
-      type: "Merchant Number",
-      number: "992211",
-      merchant: "HAMZA VUKANG BIZ",
-      ussd: "*150*60# > Lipa kwa Simu > Namba 992211",
-      color: "#ff0000"
+      type: "Lipa Namba / Namba ya Malipo",
+      number: nums.airtel || "",
+      merchant: nums.airtel_name || settings?.ceo_name || "CEO HAMZA VUKANG",
+      ussd: nums.airtel ? `*150*60# > Lipa kwa Simu > Namba: ${nums.airtel}` : "*150*60#",
+      color: "#dc2626"
     },
     halopesa: {
       name: "HaloPesa",
-      type: "Lipa Namba",
-      number: "332211",
-      merchant: "DUARA COMMERCE",
-      ussd: "*150*88# > Lipa kwa HaloPesa > Namba 332211",
-      color: "#f37021"
+      type: "Lipa Namba / Namba ya Malipo",
+      number: nums.halopesa || "",
+      merchant: nums.halopesa_name || settings?.ceo_name || "CEO HAMZA VUKANG",
+      ussd: nums.halopesa ? `*150*88# > Lipa kwa HaloPesa > Namba: ${nums.halopesa}` : "*150*88#",
+      color: "#ea580c"
     },
     bank: {
       name: "Benki (CRDB / NMB)",
       type: "Akaunti ya Benki",
-      number: "015299887700 (CRDB) / 201100998877 (NMB)",
-      merchant: "DUARA NETWORK LTD",
-      ussd: "Tumia SimBanking au NMB Mkononi kutuma fedha moja kwa moja",
+      number: nums.bank || "",
+      merchant: nums.bank_name || settings?.ceo_name || "CEO HAMZA VUKANG",
+      ussd: "Tuma kupitia SimBanking / NMB Mkononi au Tawi la Benki",
       color: "#059669"
     }
   };
 
-  const [pushStatus, setPushStatus] = useState("");
-  const [pushLoading, setPushLoading] = useState(false);
-
   const currentChannel = paymentChannels[method];
 
-  const handleRequestPush = () => {
-    if (!phone || phone.trim().length < 9) {
-      setErrorMsg("Tafadhali weka namba sahihi ya simu ya Mobile Money!");
-      return;
-    }
-    setErrorMsg("");
-    setPushLoading(true);
-    setPushStatus(`Inatuma ombi la USSD kwenda ${phone}...`);
-
-    setTimeout(() => {
-      setPushLoading(false);
-      setPushStatus(`📲 Ujumbe umetumwa kwenye simu yako: "Ingiza PIN ya ${currentChannel.name} kuthibitisha TZS ${Number(amount).toLocaleString()} kwa ${currentChannel.merchant}".`);
-      
-      // Auto-generate genuine network reference after simulated authorization
-      const prefix = method === "mpesa" ? "MP" : method === "tigopesa" ? "TP" : method === "airtel" ? "AM" : "HP";
-      const generatedRef = `${prefix}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      setTransactionRef(generatedRef);
-    }, 1400);
-  };
-
-  const handleConfirm = () => {
+  const handleConfirm = (e) => {
+    if (e) e.preventDefault();
     if (!transactionRef.trim()) {
-      setErrorMsg("Tafadhali weka namba ya kumbukumbu ya muamala (Transaction Ref/ID) au bonyeza 'Tuma Ombi la USSD'");
+      setErrorMsg("Tafadhali weka Kumbukumbu ya Muamala (Transaction ID / Jina la Meseji ya Malipo).");
       return;
     }
     setBusy(true);
     setErrorMsg("");
 
-    // Simulate real transaction verification against network ledger
     setTimeout(() => {
       setBusy(false);
       setSuccess(true);
@@ -109,73 +101,97 @@ export function PaymentModal({
       setTimeout(() => {
         setSuccess(false);
         onClose();
-      }, 1500);
-    }, 1200);
+      }, 1200);
+    }, 600);
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999, padding: 12 }}>
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 480, width: "95%", borderRadius: 16, padding: "24px", background: "var(--card-bg, #ffffff)" }}
+        style={{
+          maxWidth: 480,
+          width: "100%",
+          maxHeight: "92vh",
+          overflowY: "auto",
+          borderRadius: 18,
+          padding: "20px",
+          background: "var(--card-bg, #ffffff)",
+          border: "1px solid var(--line)"
+        }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>💳 {title}</h3>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted, #64748b)" }}>
-              Kusudi: <strong>{purpose}</strong>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>💳 {title}</h3>
+            <p style={{ margin: "3px 0 0", fontSize: 13, color: "var(--muted)" }}>
+              Huduma/Bidhaa: <strong>{purpose}</strong>
             </p>
           </div>
           <button
             type="button"
-            className="button-icon"
             onClick={onClose}
-            style={{ fontSize: 18, border: "none", background: "transparent", cursor: "pointer" }}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              border: "1px solid var(--line)",
+              background: "var(--input-bg)",
+              color: "var(--ink)",
+              fontSize: 16,
+              cursor: "pointer"
+            }}
           >
             ✕
           </button>
         </div>
 
         {success ? (
-          <div style={{ textAlign: "center", padding: "30px 10px" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-            <h4 style={{ margin: 0, fontSize: 18, color: "#16a34a" }}>Malipo Yamethibitishwa!</h4>
+          <div style={{ textAlign: "center", padding: "28px 12px" }}>
+            <div style={{ fontSize: 44, marginBottom: 10 }}>✅</div>
+            <h4 style={{ margin: 0, fontSize: 18, color: "#16a34a" }}>Taarifa za Malipo Zimepokelewa!</h4>
             <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 6 }}>
-              Kumbukumbu: <strong>{transactionRef.toUpperCase()}</strong>. Huduma imeamilishwa mara moja.
+              Kumbukumbu: <strong>{transactionRef.toUpperCase()}</strong>
             </p>
           </div>
         ) : (
-          <div>
+          <form onSubmit={handleConfirm}>
             {/* Amount Banner */}
             <div
               style={{
-                background: "linear-gradient(135deg, #18a66a15, #0f766e20)",
-                border: "1px solid #18a66a40",
+                background: "var(--primary-soft)",
+                border: "1px solid var(--primary-border)",
                 borderRadius: 12,
-                padding: "14px 18px",
+                padding: "12px 16px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 18
+                marginBottom: 16
               }}
             >
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#0f766e" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--primary)" }}>
                   Kiasi cha Kulipia
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#0f766e" }}>
-                  TZS {Number(amount).toLocaleString()}
+                <div style={{ fontSize: 21, fontWeight: 800, color: "var(--ink-heading)" }}>
+                  {Number(amount) > 0 ? `TZS ${Number(amount).toLocaleString()}` : "Weka Kiasi Kulingana na Makubaliano"}
                 </div>
               </div>
-              <span style={{ fontSize: 24 }}>🇹🇿</span>
+              <span style={{ fontSize: 22 }}>🇹🇿</span>
             </div>
 
             {/* Payment Method Selector */}
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text)" }}>
-              Chagua Njia ya Malipo:
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              Chagua Mtandao wa Malipo:
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                gap: 8,
+                marginBottom: 14
+              }}
+            >
               {Object.entries(paymentChannels).map(([k, ch]) => (
                 <button
                   key={k}
@@ -183,133 +199,119 @@ export function PaymentModal({
                   onClick={() => setMethod(k)}
                   style={{
                     padding: "10px 8px",
-                    borderRadius: 8,
-                    border: method === k ? `2px solid ${ch.color}` : "1px solid var(--line, #e2e8f0)",
-                    background: method === k ? `${ch.color}15` : "transparent",
+                    borderRadius: 10,
+                    border: method === k ? `2px solid ${ch.color}` : "1px solid var(--line)",
+                    background: method === k ? `${ch.color}12` : "var(--input-bg)",
                     cursor: "pointer",
                     fontSize: 12,
-                    fontWeight: 600,
+                    fontWeight: 700,
+                    color: method === k ? ch.color : "var(--ink)",
                     textAlign: "center"
                   }}
                 >
-                  <div style={{ fontWeight: 700, color: method === k ? ch.color : "inherit" }}>{ch.name}</div>
+                  <div>{ch.name}</div>
+                  {ch.number && (
+                    <div style={{ fontSize: 10, opacity: 0.85, marginTop: 2 }}>{ch.number}</div>
+                  )}
                 </button>
               ))}
             </div>
 
-            {/* Channel Instructions */}
+            {/* Channel Instructions (Manual CEO Numbers Only) */}
             <div
               style={{
-                background: "var(--bg-hover, #f8fafc)",
-                border: "1px solid var(--line, #e2e8f0)",
-                borderRadius: 10,
-                padding: "12px 16px",
-                marginBottom: 16,
+                background: "var(--input-bg)",
+                border: "1px solid var(--line)",
+                borderRadius: 12,
+                padding: "14px",
+                marginBottom: 14,
                 fontSize: 13
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "var(--muted)" }}>Aina ya Malipo:</span>
-                <strong>{currentChannel.type}</strong>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--muted)" }}>Mtandao:</span>
+                <strong>{currentChannel.name}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "var(--muted)" }}>Namba ya Kampuni / Till:</span>
-                <strong style={{ fontSize: 15, color: currentChannel.color }}>{currentChannel.number}</strong>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--muted)" }}>Lipa Namba / Akaunti:</span>
+                {currentChannel.number ? (
+                  <strong style={{ fontSize: 16, color: currentChannel.color, letterSpacing: 0.5 }}>
+                    {currentChannel.number}
+                  </strong>
+                ) : (
+                  <span style={{ color: "#d97706", fontWeight: 700, fontSize: 12 }}>
+                    Bado haijawekwa (CEO ataweka kwenye Mipangilio)
+                  </span>
+                )}
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "var(--muted)" }}>Jina la Akaunti:</span>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--muted)" }}>Jina la Mpokeaji:</span>
                 <strong>{currentChannel.merchant}</strong>
               </div>
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)", fontSize: 11, color: "var(--muted)" }}>
-                💡 <em>{currentChannel.ussd}</em>
-              </div>
+              {currentChannel.number && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: "1px dashed var(--line)",
+                    fontSize: 12,
+                    color: "var(--muted)"
+                  }}
+                >
+                  💡 <em>{currentChannel.ussd}</em>
+                </div>
+              )}
             </div>
 
             {/* Verification Inputs */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Namba ya Simu ya Mobile Money ({currentChannel.name}):
-                </label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    type="text"
-                    placeholder="0754XXXXXX au 0713XXXXXX"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      border: "1px solid var(--line, #cbd5e1)",
-                      fontSize: 14,
-                      background: "var(--input-bg, #fff)"
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRequestPush}
-                    disabled={pushLoading || !phone}
-                    style={{
-                      background: currentChannel.color,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 8,
-                      padding: "0 14px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    {pushLoading ? "Inatuma..." : "📲 Tuma USSD Push"}
-                  </button>
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                  Au piga <strong>{currentChannel.ussd.split(">")[0].trim()}</strong> na tumia Namba ya Kampuni <strong>{currentChannel.number}</strong>
-                </div>
-              </div>
-
-              {pushStatus && (
-                <div
-                  style={{
-                    background: "#ecfdf5",
-                    border: "1px solid #10b981",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    fontSize: 12,
-                    color: "#065f46"
-                  }}
-                >
-                  {pushStatus}
-                </div>
-              )}
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Namba ya Kumbukumbu ya Muamala (Transaction ID / Reference): *
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                  Namba Yako Uliyotumia Kulipia:
                 </label>
                 <input
-                  type="text"
-                  placeholder="Mfano: 8NK99120Z au MP2609..."
-                  value={transactionRef}
-                  onChange={(e) => setTransactionRef(e.target.value)}
+                  type="tel"
+                  placeholder="Andika namba yako ya simu..."
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   style={{
                     width: "100%",
                     padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
+                    borderRadius: 10,
+                    border: "1px solid var(--line)",
                     fontSize: 14,
-                    background: "var(--input-bg, #fff)",
-                    fontFamily: "monospace",
-                    fontWeight: 700
+                    background: "var(--input-bg)",
+                    color: "var(--ink)"
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                  Kumbukumbu ya Muamala (Transaction ID / Jina la Mlipaji): *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Weka kumbukumbu ya malipo au jina lako..."
+                  value={transactionRef}
+                  onChange={(e) => setTransactionRef(e.target.value)}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid var(--line)",
+                    fontSize: 14,
+                    background: "var(--input-bg)",
+                    color: "var(--ink)",
+                    fontWeight: 600
                   }}
                 />
               </div>
             </div>
 
             {errorMsg && (
-              <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 12, fontWeight: 500 }}>
+              <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>
                 ⚠️ {errorMsg}
               </div>
             )}
@@ -320,28 +322,18 @@ export function PaymentModal({
                 className="button button-soft"
                 onClick={onClose}
                 disabled={busy}
-                style={{ padding: "10px 16px", borderRadius: 8, fontSize: 13 }}
               >
-                Ghairi
+                Funga
               </button>
               <button
-                type="button"
+                type="submit"
                 className="button button-primary"
-                onClick={handleConfirm}
                 disabled={busy}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  background: "#18a66a",
-                  color: "#fff"
-                }}
               >
-                {busy ? "Inathibitisha..." : "Thibitisha Malipo"}
+                {busy ? "Inatuma..." : "Thibitisha Malipo"}
               </button>
             </div>
-          </div>
+          </form>
         )}
       </div>
     </div>

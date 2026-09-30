@@ -3552,6 +3552,92 @@ input:checked + .toggle-slider:before {
   cursor: pointer;
 }
 
+/* ==========================================================================
+   Universal Responsive Layout (Phone View & Desktop View)
+   ========================================================================== */
+.mobile-back-to-contacts-btn {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .feed-container {
+    grid-template-columns: 1fr !important;
+    gap: 20px;
+  }
+  .right-rail {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-header {
+    padding: 0 12px !important;
+    height: 60px !important;
+  }
+  .brand-sub {
+    display: none;
+  }
+  .header-search {
+    max-width: 150px;
+  }
+  .main-area {
+    padding: 14px 12px 92px !important;
+    width: 100%;
+    overflow-x: hidden;
+  }
+  .feature-shell {
+    padding: 0 !important;
+  }
+  .feature-top-banner {
+    padding: 16px !important;
+    border-radius: 14px !important;
+  }
+  .glass-card,
+  .composer-card,
+  .post-card {
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+  .auth-page-shell {
+    grid-template-columns: 1fr !important;
+  }
+  .auth-hero-art {
+    padding: 24px 18px !important;
+    min-height: auto !important;
+  }
+
+  /* Responsive 1-to-1 Messages Split View on Mobile */
+  .mobile-back-to-contacts-btn {
+    display: inline-flex;
+    align-items: center;
+  }
+  .messages-box {
+    display: flex !important;
+    flex-direction: column !important;
+    height: calc(100vh - 175px) !important;
+    min-height: 460px !important;
+  }
+  .messages-contacts-pane {
+    width: 100% !important;
+    height: 100% !important;
+    border-right: none !important;
+    overflow-y: auto;
+  }
+  .conversation-chat-pane {
+    display: none !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .messages-box.mobile-chat-active .messages-contacts-pane {
+    display: none !important;
+  }
+  .messages-box.mobile-chat-active .conversation-chat-pane {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+}
+
+
 
 
 

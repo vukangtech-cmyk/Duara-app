@@ -14,7 +14,10 @@ import {
   getMarketplaceListings,
   getMessages,
   getNotifications,
+  getPlatformSettings,
   getReels,
+  getUserConversations,
+  getAllProfiles,
   getWallet,
   depositToWallet,
   withdrawFromWallet,
@@ -333,7 +336,7 @@ function AmbientBackground() {
 }
 
 /* Top Navigation Bar */
-function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, unreadCount, passcodeEnabled, onLockApp }) {
+function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, unreadCount, passcodeEnabled, onLockApp, onOpenDirectMessage }) {
   const t = useTranslation(lang);
   const [term, setTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -371,9 +374,22 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
             placeholder={t.searchPersonPlaceholder}
           />
           {searchResults.length > 0 && (
-            <div className="emoji-popover" style={{ position: "absolute", top: "44px", left: 0, width: "320px", display: "flex", flexDirection: "column", gap: 8, zIndex: 100 }}>
+            <div className="emoji-popover" style={{ position: "absolute", top: "44px", left: 0, width: "300px", maxWidth: "88vw", display: "flex", flexDirection: "column", gap: 8, zIndex: 100 }}>
               {searchResults.map((p) => (
-                <div key={p.id} className="suggestion-row" style={{ padding: "6px", cursor: "pointer" }} onClick={() => { setActive("messages"); setTerm(""); setSearchResults([]); }}>
+                <div
+                  key={p.id}
+                  className="suggestion-row"
+                  style={{ padding: "6px", cursor: "pointer" }}
+                  onClick={() => {
+                    if (onOpenDirectMessage) {
+                      onOpenDirectMessage(p.id, p.display_name, "");
+                    } else {
+                      setActive("messages");
+                    }
+                    setTerm("");
+                    setSearchResults([]);
+                  }}
+                >
                   <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
                   <div className="suggestion-info">
                     <span className="suggestion-name">{p.display_name}</span>
@@ -800,8 +816,8 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
   const isCeo = profile?.role === "ceo";
 
   const mainLinks = [
+    ["catalogue", "🛍️", lang === "sw" ? "Duka la Simu & Vifaa (Shop)" : "Phone & Appliance Shop"],
     ["ads", "📢", lang === "sw" ? "Matangazo ya Wateja" : "Customer Ads"],
-    ["catalogue", "📱", lang === "sw" ? "WhatsApp Catalogue" : "WhatsApp Catalog"],
     ["home", "⌂", t.home],
     ["messages", "✉", t.messages, unread],
   ];
@@ -911,10 +927,10 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
 function MobileBottomNav({ active, setActive, lang, unread, profile }) {
   const isCeo = profile?.role === "ceo";
   const items = [
+    ["catalogue", "🛍️", "Shop"],
     ["ads", "📢", "Ads"],
-    ["catalogue", "📱", "Catalogue"],
     ["home", "⌂", "Duara"],
-    ["messages", "✉", "Gumzo", unread],
+    ["messages", "✉", "Messages", unread],
     isCeo ? ["ceo", "👑", "CEO"] : ["profile", "👤", "Wasifu"]
   ];
 
@@ -1147,11 +1163,6 @@ function PostCard({ post, user, onRefresh, lang, onShowToast }) {
   const [busy, setBusy] = useState(false);
 
   const author = post.profiles?.display_name || "Member";
-
-  useEffect(() => {
-    const liked = (post.likes || []).some((like) => like.user_id === user.id);
-    setActiveReaction((current) => (liked ? current || "love" : null));
-  }, [post.likes, user.id]);
 
   const handleSelectReaction = async (reactionId) => {
     setShowReactionsBar(false);
@@ -1903,7 +1914,7 @@ function Wallet({ profile, lang }) {
   const [modalMode, setModalMode] = useState(null); // 'deposit' | 'withdraw' | null
   const [selectedMethod, setSelectedMethod] = useState("Vodacom M-Pesa");
   const [amount, setAmount] = useState("20000");
-  const [phone, setPhone] = useState(profile?.phone || "0754123456");
+  const [phone, setPhone] = useState(profile?.phone || "");
   const [accountName, setAccountName] = useState(profile?.display_name || "");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1912,11 +1923,18 @@ function Wallet({ profile, lang }) {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [paymentNumbers, setPaymentNumbers] = useState({});
 
   const loadWallet = async () => {
     try {
-      const data = await getWallet(profile.id);
+      const [data, settings] = await Promise.all([
+        getWallet(profile.id),
+        getPlatformSettings().catch(() => null)
+      ]);
       setWallet(data);
+      if (settings?.payment_numbers) {
+        setPaymentNumbers(settings.payment_numbers);
+      }
     } catch {
       setWallet({ account: null, transactions: [] });
     }
@@ -1932,17 +1950,17 @@ function Wallet({ profile, lang }) {
       short: "M-Pesa",
       color: "#e60000",
       bg: "rgba(230,0,0,0.08)",
-      till: "554433",
-      merchant: "THE CIRCLE DUARA",
+      till: paymentNumbers?.mpesa?.lipa_namba || paymentNumbers?.mpesa?.phone || "Inawekwa na CEO",
+      merchant: paymentNumbers?.mpesa?.name || "THE CIRCLE DUARA",
       code: "*150*00#"
     },
     {
-      name: "Tigo Pesa",
-      short: "Tigo Pesa",
+      name: "Mixx by Yas (Tigo Pesa)",
+      short: "Mixx / Tigo",
       color: "#00377d",
       bg: "rgba(0,55,125,0.08)",
-      till: "778899",
-      merchant: "DUARA AFFILIATE",
+      till: paymentNumbers?.tigopesa?.lipa_namba || paymentNumbers?.tigopesa?.phone || "Inawekwa na CEO",
+      merchant: paymentNumbers?.tigopesa?.name || "THE CIRCLE DUARA",
       code: "*150*01#"
     },
     {
@@ -1950,8 +1968,8 @@ function Wallet({ profile, lang }) {
       short: "Airtel",
       color: "#ff0000",
       bg: "rgba(255,0,0,0.08)",
-      till: "992211",
-      merchant: "HAMZA VUKANG BIZ",
+      till: paymentNumbers?.airtel?.lipa_namba || paymentNumbers?.airtel?.phone || "Inawekwa na CEO",
+      merchant: paymentNumbers?.airtel?.name || "THE CIRCLE DUARA",
       code: "*150*60#"
     },
     {
@@ -1959,8 +1977,8 @@ function Wallet({ profile, lang }) {
       short: "HaloPesa",
       color: "#ff6600",
       bg: "rgba(255,102,0,0.08)",
-      till: "332211",
-      merchant: "DUARA COMMERCE",
+      till: paymentNumbers?.halopesa?.lipa_namba || paymentNumbers?.halopesa?.phone || "Inawekwa na CEO",
+      merchant: paymentNumbers?.halopesa?.name || "THE CIRCLE DUARA",
       code: "*150*88#"
     }
   ];
@@ -2101,8 +2119,8 @@ function Wallet({ profile, lang }) {
             <div style={{ fontSize: "clamp(32px, 5vw, 48px)", fontWeight: 900, margin: "4px 0 8px" }}>
               {Number(balance).toLocaleString()} <span style={{ fontSize: 22, fontWeight: 600 }}>{wallet?.account?.currency || "TZS"}</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, opacity: 0.95 }}>
-              <span>✓ Akaunti ya Mobile Money: <strong>{profile?.phone || "0754 123 456"}</strong></span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, opacity: 0.95, flexWrap: "wrap" }}>
+              <span>✓ Namba ya Simu: <strong>{profile?.phone || "Haijawekwa"}</strong></span>
               <span>•</span>
               <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
                 {profile?.role === "ceo" ? "👑 CEO WALLET" : profile?.role === "manager" ? "💼 MANAGER WALLET" : "🛒 MTEJA WALLET"}
@@ -2555,46 +2573,135 @@ function Wallet({ profile, lang }) {
 }
 
 /* Direct Messages View with Live Realtime Chat, Typing Indicators, Media & Calling */
-function Messages({ profile, lang, onStartCall }) {
+function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitialChatTarget }) {
   const t = useTranslation(lang);
   const isSw = lang === "sw";
   const [term, setTerm] = useState("");
   const [people, setPeople] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
+  const [conversations, setConversations] = useState([]);
   const [person, setPerson] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState("");
   const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [uploadingChatImg, setUploadingChatImg] = useState(false);
+  const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatEndRef = useRef(null);
   const chatFileInputRef = useRef(null);
   const typingTimerRef = useRef(null);
 
-  const search = async (e) => {
-    const value = e.target.value;
-    setTerm(value);
-    if (value.length > 1) setPeople(await searchProfiles(value));
-    else setPeople([]);
+  const loadDirectoryAndConversations = async () => {
+    try {
+      const [convList, memberList] = await Promise.all([
+        getUserConversations(profile.id).catch(() => []),
+        getAllProfiles(50).catch(() => [])
+      ]);
+      setConversations(convList || []);
+      const filtered = (memberList || []).filter((m) => m.id !== profile.id);
+      // Sort CEO first
+      filtered.sort((a, b) => (a.role === "ceo" ? -1 : b.role === "ceo" ? 1 : 0));
+      setAllMembers(filtered);
+    } catch (err) {
+      console.warn("Load directory error:", err);
+    }
   };
 
-  const open = async (nextPerson) => {
+  useEffect(() => {
+    loadDirectoryAndConversations();
+  }, [profile.id]);
+
+  const open = async (nextPerson, prefillText = "") => {
+    if (!nextPerson || !nextPerson.id) return;
     setPerson(nextPerson);
-    setConversationId(null);
-    setMessages([]);
-    setMessage("");
+    setMobileShowChat(true);
     setPeople([]);
     setTerm("");
+    setMessage("");
     setIsOtherTyping(false);
+    setLoadingChat(true);
+    if (prefillText) {
+      setBody(prefillText);
+    }
     try {
       const id = await findOrCreateDirectConversation(profile.id, nextPerson.id);
       setConversationId(id);
       const msgs = await getMessages(id);
-      setMessages(msgs);
+      setMessages(msgs || []);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      loadDirectoryAndConversations();
     } catch (err) {
-      setMessage(err.message);
+      setMessage(err.message || "Imeshindikana kufungua mazungumzo.");
+    } finally {
+      setLoadingChat(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialChatTarget) {
+      const handleInitialTarget = async () => {
+        let targetProfile = null;
+        if (initialChatTarget.userId) {
+          const found = allMembers.find((m) => m.id === initialChatTarget.userId);
+          if (found) {
+            targetProfile = found;
+          } else {
+            try {
+              const { data } = await supabase
+                .from("profiles")
+                .select("id, username, display_name, avatar_url, role, verified")
+                .eq("id", initialChatTarget.userId)
+                .maybeSingle();
+              if (data) targetProfile = data;
+            } catch {
+              // ignore
+            }
+          }
+        }
+        if (!targetProfile) {
+          // Find CEO profile if messaging CEO from Shop
+          const ceoProfile = allMembers.find((m) => m.role === "ceo");
+          if (ceoProfile) {
+            targetProfile = ceoProfile;
+          } else {
+            try {
+              const { data } = await supabase
+                .from("profiles")
+                .select("id, username, display_name, avatar_url, role, verified")
+                .eq("role", "ceo")
+                .limit(1)
+                .maybeSingle();
+              if (data) targetProfile = data;
+            } catch {
+              // ignore
+            }
+          }
+        }
+        if (targetProfile && targetProfile.id !== profile.id) {
+          await open(targetProfile, initialChatTarget.prefillText || "");
+        } else if (initialChatTarget.prefillText) {
+          setBody(initialChatTarget.prefillText);
+        }
+        if (onClearInitialChatTarget) onClearInitialChatTarget();
+      };
+      handleInitialTarget();
+    }
+  }, [initialChatTarget, allMembers.length]);
+
+  const search = async (e) => {
+    const value = e.target.value;
+    setTerm(value);
+    if (value.trim().length > 0) {
+      try {
+        const res = await searchProfiles(value.trim());
+        setPeople((res || []).filter((p) => p.id !== profile.id));
+      } catch {
+        setPeople([]);
+      }
+    } else {
+      setPeople([]);
     }
   };
 
@@ -2629,27 +2736,17 @@ function Messages({ profile, lang, onStartCall }) {
 
   const send = async (e) => {
     e.preventDefault();
+    if (!body.trim() || !conversationId) return;
     const text = body.trim();
-    if (!text) {
-      setMessage(isSw ? "Andika ujumbe kwanza." : "Write a message first.");
-      return;
-    }
-    if (!conversationId || sending) {
-      setMessage(isSw ? "Subiri mazungumzo yafunguke kwanza." : "Wait for the conversation to finish opening.");
-      return;
-    }
-    setSending(true);
+    setBody("");
     setMessage("");
     try {
       const sent = await sendMessage(conversationId, profile.id, text);
-      setBody("");
-      setMessage("");
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      loadDirectoryAndConversations();
     } catch (err) {
-      setMessage(err?.message || (isSw ? "Ujumbe haukutumwa." : "Message was not sent."));
-    } finally {
-      setSending(false);
+      setMessage(err.message || "Ujumbe haujatuma.");
     }
   };
 
@@ -2657,12 +2754,13 @@ function Messages({ profile, lang, onStartCall }) {
     const file = e.target.files?.[0];
     if (!file || !conversationId) return;
     setUploadingChatImg(true);
+    setMessage("");
     try {
       const url = await uploadImage(profile.id, file, "post-media");
       const sent = await sendMessage(conversationId, profile.id, "", url);
-      setMessage("");
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      loadDirectoryAndConversations();
     } catch (err) {
       setMessage(err.message);
     } finally {
@@ -2671,52 +2769,190 @@ function Messages({ profile, lang, onStartCall }) {
     }
   };
 
+  const displayedContacts = term.trim().length > 0 ? people : allMembers;
+
   return (
     <div className="feature-shell" id="messages-view">
-      <div className="feature-top-banner">
+      <div className="feature-top-banner" style={{ marginBottom: 16 }}>
         <div>
-          <p className="eyebrow">{t.messagesEyebrow}</p>
-          <h1 style={{ fontSize: 32, margin: "6px 0 10px" }}>{t.messagesTitle}</h1>
+          <p className="eyebrow">💬 MAWASILIANO YA MOJA KWA MOJA (SUPABASE REALTIME)</p>
+          <h1 style={{ fontSize: "clamp(22px, 3vw, 30px)", margin: "4px 0 6px" }}>
+            {isSw ? "Ukurasa wa Messages (Wasiliana Moja kwa Moja)" : "Direct Realtime Messages"}
+          </h1>
+          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+            {isSw
+              ? "Chagua CEO au mwanachama yeyote hapa chini kuanza mazungumzo ya papo kwa hapo, kutuma picha au kupiga simu."
+              : "Select the CEO or any member below to start a real-time 1-to-1 conversation, send photos, or call."}
+          </p>
         </div>
       </div>
 
-      <div className="messages-box">
+      <ErrorBox message={message} />
+
+      <div className={`messages-box ${mobileShowChat && person ? "mobile-chat-active" : ""}`}>
         <aside className="messages-contacts-pane">
-          <input
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", outline: "none", fontSize: 13 }}
-            value={term}
-            onChange={search}
-            placeholder={t.searchChatPlaceholder}
-            id="input-search-chats"
-          />
-          {people.map((p) => (
-            <button
-              key={p.id}
-              className="suggestion-row"
-              style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "8px 4px", borderRadius: 10 }}
-              onClick={() => open(p)}
-              id={`contact-item-${p.id}`}
-            >
-              <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
-              <div className="suggestion-info">
-                <span className="suggestion-name">{p.display_name}</span>
-                <span className="suggestion-handle">@{p.username}</span>
+          <div style={{ marginBottom: 10 }}>
+            <input
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid var(--line)",
+                background: "var(--input-bg)",
+                color: "var(--ink)",
+                outline: "none",
+                fontSize: 13
+              }}
+              value={term}
+              onChange={search}
+              placeholder={isSw ? "🔍 Tafuta jina au @username..." : "🔍 Search name or @username..."}
+              id="input-search-chats"
+            />
+          </div>
+
+          {/* Active Conversations */}
+          {conversations.length > 0 && !term.trim() && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6, padding: "0 4px" }}>
+                {isSw ? "Mazungumzo Yanayoendelea" : "Active Chats"} ({conversations.length})
               </div>
-            </button>
-          ))}
-          {!people.length && <p className="muted" style={{ fontSize: 12, padding: "8px 4px" }}>{t.chatHint}</p>}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {conversations.map((conv) => {
+                  const p = conv.otherUser;
+                  if (!p) return null;
+                  const isSelected = person?.id === p.id;
+                  return (
+                    <button
+                      key={conv.conversationId}
+                      type="button"
+                      className="suggestion-row"
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        background: isSelected ? "var(--primary-soft)" : "var(--card-hover)",
+                        border: isSelected ? "1px solid var(--primary)" : "1px solid transparent",
+                        cursor: "pointer",
+                        padding: "10px",
+                        borderRadius: 10,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10
+                      }}
+                      onClick={() => open(p)}
+                    >
+                      <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <strong style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {p.display_name}
+                          </strong>
+                          {p.role === "ceo" && (
+                            <span style={{ fontSize: 10, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 800 }}>
+                              CEO
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {conv.lastMessage?.body || (conv.lastMessage?.media_url ? "📷 Picha" : `@${p.username}`)}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* All Members Directory */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6, padding: "0 4px" }}>
+              {term.trim()
+                ? (isSw ? "Matokeo ya Utafutaji" : "Search Results")
+                : (isSw ? "Watu Wote & Uongozi (Bofya Kuchat)" : "All Members & CEO (Click to Chat)")}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {displayedContacts.map((p) => {
+                const isSelected = person?.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="suggestion-row"
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      background: isSelected ? "var(--primary-soft)" : "none",
+                      border: isSelected ? "1px solid var(--primary)" : "1px solid transparent",
+                      cursor: "pointer",
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10
+                    }}
+                    onClick={() => open(p)}
+                    id={`contact-item-${p.id}`}
+                  >
+                    <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
+                    <div className="suggestion-info" style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className="suggestion-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.display_name}
+                        </span>
+                        {p.role === "ceo" && (
+                          <span style={{ fontSize: 10, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 800 }}>
+                            👑 CEO
+                          </span>
+                        )}
+                      </div>
+                      <span className="suggestion-handle">@{p.username}</span>
+                    </div>
+                  </button>
+                );
+              })}
+              {displayedContacts.length === 0 && (
+                <p className="muted" style={{ fontSize: 12, padding: "12px 6px", margin: 0 }}>
+                  {isSw ? "Hakuna mtumiaji aliyeonekana. Andika jina kumtafuta." : "No users found."}
+                </p>
+              )}
+            </div>
+          </div>
         </aside>
 
         <section className="conversation-chat-pane">
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             {person ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    type="button"
+                    className="mobile-back-to-contacts-btn"
+                    onClick={() => setMobileShowChat(false)}
+                    style={{
+                      background: "var(--card-hover)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      color: "var(--ink)"
+                    }}
+                  >
+                    ← {isSw ? "Orodha" : "Back"}
+                  </button>
                   <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
                   <div>
-                    <strong>{person.display_name}</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <strong>{person.display_name}</strong>
+                      {person.role === "ceo" && (
+                        <span style={{ fontSize: 10, background: "#fef3c7", color: "#b45309", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
+                          👑 CEO
+                        </span>
+                      )}
+                    </div>
                     <small className="muted" style={{ display: "block" }}>
-                      @{person.username} • <span style={{ color: "#10b981", fontWeight: 600 }}>● {isSw ? "Mtandaoni" : "Online"}</span>
+                      @{person.username} • <span style={{ color: "#10b981", fontWeight: 600 }}>● {isSw ? "Moja kwa Moja" : "Realtime"}</span>
                     </small>
                   </div>
                 </div>
@@ -2724,7 +2960,7 @@ function Messages({ profile, lang, onStartCall }) {
                   <button
                     type="button"
                     className="button button-soft"
-                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 12px" }}
                     onClick={() => onStartCall && onStartCall(person, "audio", false, conversationId)}
                     id="btn-voice-call"
                   >
@@ -2733,7 +2969,7 @@ function Messages({ profile, lang, onStartCall }) {
                   <button
                     type="button"
                     className="button button-primary"
-                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 12px" }}
                     onClick={() => onStartCall && onStartCall(person, "video", false, conversationId)}
                     id="btn-video-call"
                   >
@@ -2742,25 +2978,54 @@ function Messages({ profile, lang, onStartCall }) {
                 </div>
               </>
             ) : (
-              <p className="muted">{t.choosePersonHint}</p>
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                {isSw ? "👈 Chagua mtu upande wa kushoto kuanza kuchat moja kwa moja" : "👈 Choose a person on the left to start chatting"}
+              </p>
             )}
           </div>
 
           <div className="chat-messages-container">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`msg-bubble ${m.sender_id === profile.id ? "outgoing" : "incoming"}`}
-              >
-                {m.media_url && (
-                  <img src={m.media_url} alt="Attachment" className="msg-bubble-media" />
-                )}
-                {m.body && <div>{m.body}</div>}
-                <small style={{ display: "block", fontSize: 10, opacity: 0.7, marginTop: 4 }}>
-                  {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </small>
+            {loadingChat ? (
+              <div style={{ margin: "auto", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+                {isSw ? "Inafungua mazungumzo..." : "Loading conversation..."}
               </div>
-            ))}
+            ) : !person ? (
+              <div style={{ margin: "auto", textAlign: "center", padding: 24, color: "var(--muted)" }}>
+                <div style={{ fontSize: 42, marginBottom: 8 }}>💬</div>
+                <strong style={{ display: "block", color: "var(--ink)", marginBottom: 4 }}>
+                  {isSw ? "Ukurasa wa Mawasiliano ya Moja kwa Moja" : "Direct Realtime Messenger"}
+                </strong>
+                <span style={{ fontSize: 13 }}>
+                  {isSw
+                    ? "Bofya jina la CEO au mwanachama yeyote kuanza mazungumzo ya kweli (Real-time Supabase Chat)."
+                    : "Click on the CEO or any member to start a real-time conversation."}
+                </span>
+              </div>
+            ) : messages.length === 0 ? (
+              <div style={{ margin: "auto", textAlign: "center", padding: 24, color: "var(--muted)" }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>👋</div>
+                <p style={{ margin: 0, fontSize: 13 }}>
+                  {isSw
+                    ? `Anza mazungumzo na ${person.display_name} kwa kuandika ujumbe hapa chini.`
+                    : `Say hello to ${person.display_name} below.`}
+                </p>
+              </div>
+            ) : (
+              messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`msg-bubble ${m.sender_id === profile.id ? "outgoing" : "incoming"}`}
+                >
+                  {m.media_url && (
+                    <img src={m.media_url} alt="Attachment" className="msg-bubble-media" />
+                  )}
+                  {m.body && <div>{m.body}</div>}
+                  <small style={{ display: "block", fontSize: 10, opacity: 0.7, marginTop: 4 }}>
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </small>
+                </div>
+              ))
+            )}
             {isOtherTyping && (
               <div className="chat-typing-indicator" id="chat-typing-indicator">
                 <span>✍️ {person?.display_name} {isSw ? "anaandika..." : "is typing..."}</span>
@@ -2773,7 +3038,7 @@ function Messages({ profile, lang, onStartCall }) {
           </div>
 
           {person && (
-            <form onSubmit={send} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderTop: "1px solid var(--line)" }} id="form-chat-send">
+            <form onSubmit={send} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderTop: "1px solid var(--line)" }} id="form-chat-send">
               <input
                 type="file"
                 accept="image/*"
@@ -2784,7 +3049,7 @@ function Messages({ profile, lang, onStartCall }) {
               <button
                 type="button"
                 className="button button-soft"
-                style={{ padding: "10px 14px", borderRadius: 12 }}
+                style={{ padding: "10px 12px", borderRadius: 10 }}
                 onClick={() => chatFileInputRef.current?.click()}
                 disabled={uploadingChatImg}
                 title={isSw ? "Ambatisha picha" : "Attach photo"}
@@ -2793,21 +3058,16 @@ function Messages({ profile, lang, onStartCall }) {
                 {uploadingChatImg ? "⏳" : "📷"}
               </button>
               <input
-                style={{ flex: 1, padding: "12px 16px", borderRadius: 12, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", outline: "none" }}
+                style={{ flex: 1, minWidth: 0, padding: "11px 14px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", outline: "none", fontSize: 14 }}
                 value={body}
                 onChange={handleInputChange}
-                placeholder={t.typePrivateMsg}
+                placeholder={isSw ? `Andika ujumbe kwa ${person.display_name}...` : t.typePrivateMsg}
                 id="input-chat-message"
               />
-              <button type="submit" className="button button-primary" id="btn-send-message" disabled={!conversationId || sending || !body.trim()} aria-busy={sending}>
-                {sending ? (isSw ? "Inatuma…" : "Sending…") : t.send}
+              <button type="submit" className="button button-primary" id="btn-send-message" style={{ padding: "11px 16px" }}>
+                {t.send}
               </button>
             </form>
-          )}
-          {message && (
-            <p role="alert" style={{ margin: "0 16px 12px", color: "#dc2626", fontSize: 12, fontWeight: 600 }} id="chat-send-status">
-              ⚠️ {message}
-            </p>
           )}
         </section>
       </div>
@@ -2881,7 +3141,7 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang, passcodeE
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [bio, setBio] = useState(profile?.bio || "");
-  const [phone, setPhone] = useState("+255 754 000 111");
+  const [phone, setPhone] = useState(profile?.phone || "");
 
   // Telegram Privacy & Security states
   const [pinChangeOpen, setPinChangeOpen] = useState(false);
@@ -4536,9 +4796,15 @@ export default function App() {
   const [isLocked, setIsLocked] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [activeCall, setActiveCall] = useState(null);
+  const [initialChatTarget, setInitialChatTarget] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
+  };
+
+  const handleOpenDirectMessage = (userId, name = "", prefillText = "") => {
+    setInitialChatTarget({ userId, name, prefillText });
+    setActive("messages");
   };
 
   const handleStartCall = async (recipient, type = "audio", isIncoming = false, conversationId = null) => {
@@ -4549,6 +4815,18 @@ export default function App() {
       conversationId,
       status: isIncoming ? "ringing_incoming" : "ringing_outgoing"
     });
+
+    if (!isIncoming && conversationId && recipient?.id && profile?.id) {
+      await sendCallSignal(conversationId, profile.id, recipient.id, "offer", {
+        type,
+        caller: {
+          id: profile.id,
+          display_name: profile.display_name,
+          username: profile.username,
+          avatar_url: profile.avatar_url
+        }
+      }).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -4625,8 +4903,7 @@ export default function App() {
         if (payload.eventType === "INSERT") setPosts(await getFeed());
       },
       async () => setPosts(await getFeed()),
-      refreshNotifications,
-      async () => setPosts(await getFeed())
+      refreshNotifications
     );
     const stopInteractions = subscribeToInteractions(
       session.user.id,
@@ -4638,8 +4915,7 @@ export default function App() {
             isIncoming: true,
             recipient: signal.payload?.caller || { display_name: "Mwanachama wa Duara", username: "circle_user" },
             conversationId: signal.conversation_id,
-            status: "ringing_incoming",
-            initialSignal: signal
+            status: "ringing_incoming"
           });
         } else if (signal.signal_type === "hangup") {
           setActiveCall(null);
@@ -4670,8 +4946,8 @@ export default function App() {
           <Brand />
           <h2 style={{ marginTop: 24 }}>THE CIRCLE haijaunganishwa</h2>
           <p className="muted">Vercel environment variables za Supabase hazijawekwa au zina majina yasiyo sahihi.</p>
-          <pre style={{ whiteSpace: "pre-wrap", background: "#0f172a", color: "#e2e8f0", padding: 16, borderRadius: 10, fontSize: 13 }}>VITE_SUPABASE_URL{"\n"}VITE_SUPABASE_PUBLISHABLE_KEY</pre>
-          <p className="muted" style={{ fontSize: 13 }}>Weka variables hizi kwenye Vercel kwa Production, Preview na Development, kisha ufanye Redeploy.</p>
+          <pre style={{ whiteSpace: "pre-wrap", background: "#0f172a", color: "#e2e8f0", padding: 16, borderRadius: 10, fontSize: 13 }}>VITE_SUPABASE_URL=https://xyz.supabase.co{"\n"}VITE_SUPABASE_PUBLISHABLE_KEY (au VITE_SUPABASE_ANON_KEY)=eyJhbGciOi...</pre>
+          <p className="muted" style={{ fontSize: 13 }}>Weka variables hizi kwenye Vercel (Project Settings &gt; Environment Variables) kwa ajili ya Production, Preview na Development, kisha ufanye Redeploy.</p>
         </div>
       </div>
     );
@@ -4712,6 +4988,7 @@ export default function App() {
           showToast(lang === "sw" ? "🔒 Programu imefungwa salama na Telegram Passcode!" : "🔒 App locked securely with Telegram Passcode!");
         }}
         onShowToast={showToast}
+        onOpenDirectMessage={handleOpenDirectMessage}
       />
 
       <div className="app-shell">
@@ -4738,6 +5015,7 @@ export default function App() {
             <CustomerAdsDashboard
               profile={profile}
               onShowToast={showToast}
+              onOpenDirectMessage={handleOpenDirectMessage}
               lang={lang}
             />
           )}
@@ -4746,6 +5024,7 @@ export default function App() {
             <AffiliateManagerCatalogue
               profile={profile}
               onShowToast={showToast}
+              onOpenDirectMessage={handleOpenDirectMessage}
               lang={lang}
             />
           )}
@@ -4781,12 +5060,14 @@ export default function App() {
               <AffiliateManagerCatalogue
                 profile={profile}
                 onShowToast={showToast}
+                onOpenDirectMessage={handleOpenDirectMessage}
                 lang={lang}
               />
             ) : (
               <CustomerAdsDashboard
                 profile={profile}
                 onShowToast={showToast}
+                onOpenDirectMessage={handleOpenDirectMessage}
                 lang={lang}
               />
             )
@@ -4797,6 +5078,8 @@ export default function App() {
               profile={profile}
               lang={lang}
               onStartCall={handleStartCall}
+              initialChatTarget={initialChatTarget}
+              onClearInitialChatTarget={() => setInitialChatTarget(null)}
             />
           )}
           {active === "friends" && <Friends profile={profile} lang={lang} />}

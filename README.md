@@ -2,6 +2,39 @@
 
 THE CIRCLE ni social network ya Kiswahili iliyojengwa kwa React/Vite na Supabase. Toleo hili lina Supabase Auth, Postgres, Row Level Security, Storage, Realtime, profiles, posts, likes, comments, follows, search, notifications, media uploads na profile editing.
 
+## 🚀 Mwongozo wa Haraka: Deployment Vercel & Kuunganisha Supabase
+
+### Hatua ya 1: Kuweka Database kwenye Supabase
+1. Ingia kwenye [Supabase Dashboard](https://supabase.com/dashboard) kwenye project yako.
+2. Nenda kwenye **SQL Editor** (alama ya SQL upande wa kushoto).
+3. Bonyeza **New query**, kisha nakili na ubandike (copy & paste) maudhui yote ya faili la:
+   `/supabase/full_schema_setup.sql`
+4. Bonyeza **Run** (Kitufe cha kijani). Hii itatengeneza majedwali yote, triggers, usalama wa RLS, storage buckets, na mifumo ya wallet na matangazo.
+
+### Hatua ya 2: Kuunganisha Vercel (Environment Variables)
+1. Kwenye Supabase Dashboard, nenda **Project Settings** > **API**.
+2. Chukua:
+   - **Project URL** (mfano: `https://xyzcompany.supabase.co`)
+   - **anon / public key** (mfano: `eyJhbGciOi...`)
+3. Kwenye Vercel Dashboard, nenda kwenye mradi wako > **Settings** > **Environment Variables**.
+4. Weka variables hizi (chagua Production, Preview, na Development zote):
+   - `VITE_SUPABASE_URL` = (Weka Project URL yako)
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` = (Weka anon/public key yako)
+   *(Kumbuka: Unaweza pia kutumia `VITE_SUPABASE_ANON_KEY` badala yake, zote zinakubaliwa).*
+5. Baada ya kuhifadhi, nenda kwenye **Deployments** na ubonyeze **Redeploy**.
+
+### Hatua ya 3: Kumpa CEO HAMZA VUKANG Mamlaka (CEO Role)
+1. Mtumiaji anajisajili kawaida kupitia app kwa barua pepe: `vukangtech@gmail.com`.
+2. Kwenye Supabase Dashboard > **SQL Editor**, endesha amri hii fupi:
+   ```sql
+   UPDATE public.profiles
+   SET role = 'ceo'
+   WHERE id IN (SELECT id FROM auth.users WHERE email = 'vukangtech@gmail.com');
+   ```
+3. Mara tu baada ya amri hii, akilogin ataona Ofisi Kuu ya **👑 CEO DASHBOARD** na uwezo wote wa kusimamia matangazo, catalogue, na miamala.
+
+---
+
 ## Architecture
 
 - `frontend/` — React + Vite UI.

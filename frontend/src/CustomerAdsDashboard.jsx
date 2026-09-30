@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { getCustomerAds, createCustomerAd, updateAdStatus, uploadImage } from "./api/api";
 import { PaymentModal } from "./PaymentModal";
 
-export function CustomerAdsDashboard({ profile, onShowToast, lang = "sw" }) {
+export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage, lang = "sw" }) {
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("all"); // 'all' | 'my_ads' | 'create'
@@ -85,8 +85,8 @@ export function CustomerAdsDashboard({ profile, onShowToast, lang = "sw" }) {
         description: description.trim(),
         image_url: imageUrl,
         location: location.trim(),
-        phone: phone.trim() || "+255 700 000 000",
-        whatsapp: whatsapp.trim().replace("+", "") || "255700000000",
+        phone: phone.trim(),
+        whatsapp: (whatsapp.trim() || phone.trim()).replace(/[^0-9]/g, ""),
         status: isBoosted ? "boosted" : "active",
         paid_amount: fee,
         payment_status: "pending_verification"
@@ -380,42 +380,77 @@ export function CustomerAdsDashboard({ profile, onShowToast, lang = "sw" }) {
                       📍 <strong>{ad.location}</strong>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <a
-                        href={`https://wa.me/${ad.whatsapp || "255754000111"}?text=${encodeURIComponent(
-                          `Habari, nimeona tangazo lako la "${ad.title}" lenye bei TZS ${Number(ad.price).toLocaleString()} kwenye THE CIRCLE DUARA.`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          background: "#25D366",
-                          color: "#fff",
-                          padding: "8px",
-                          borderRadius: 8,
-                          textAlign: "center",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          textDecoration: "none"
-                        }}
-                      >
-                        💬 WhatsApp
-                      </a>
-                      <a
-                        href={`tel:${ad.phone || "+255754000111"}`}
-                        style={{
-                          background: "var(--bg-hover, #f1f5f9)",
-                          color: "var(--text, #1e293b)",
-                          border: "1px solid var(--line, #cbd5e1)",
-                          padding: "8px",
-                          borderRadius: 8,
-                          textAlign: "center",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          textDecoration: "none"
-                        }}
-                      >
-                        📞 Piga Simu
-                      </a>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {ad.whatsapp && (
+                        <a
+                          href={`https://wa.me/${ad.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                            `Habari, nimeona tangazo lako la "${ad.title}" lenye bei TZS ${Number(ad.price).toLocaleString()} kwenye THE CIRCLE DUARA.`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            flex: 1,
+                            minWidth: 100,
+                            background: "#25D366",
+                            color: "#fff",
+                            padding: "8px",
+                            borderRadius: 8,
+                            textAlign: "center",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textDecoration: "none"
+                          }}
+                        >
+                          💬 WhatsApp
+                        </a>
+                      )}
+                      {ad.phone && (
+                        <a
+                          href={`tel:${ad.phone}`}
+                          style={{
+                            flex: 1,
+                            minWidth: 95,
+                            background: "var(--bg-hover, #f1f5f9)",
+                            color: "var(--text, #1e293b)",
+                            border: "1px solid var(--line, #cbd5e1)",
+                            padding: "8px",
+                            borderRadius: 8,
+                            textAlign: "center",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textDecoration: "none"
+                          }}
+                        >
+                          📞 Piga Simu
+                        </a>
+                      )}
+                      {onOpenDirectMessage && ad.user_id && ad.user_id !== profile?.id && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenDirectMessage(
+                              ad.user_id,
+                              ad.profiles?.display_name || "Muuzaji",
+                              `Habari! Nimevutiwa na tangazo lako la "${ad.title}" (TZS ${Number(ad.price || 0).toLocaleString()}).`
+                            )
+                          }
+                          style={{
+                            flex: 1,
+                            minWidth: 105,
+                            background: "#eff6ff",
+                            color: "#1d4ed8",
+                            border: "1px solid #bfdbfe",
+                            padding: "8px",
+                            borderRadius: 8,
+                            textAlign: "center",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "pointer"
+                          }}
+                        >
+                          ✉️ Tuma Message
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -559,7 +594,7 @@ export function CustomerAdsDashboard({ profile, onShowToast, lang = "sw" }) {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
               <div>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                   Bei ya Bidhaa (TZS): *
@@ -644,7 +679,7 @@ export function CustomerAdsDashboard({ profile, onShowToast, lang = "sw" }) {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
                   Eneo / Mji:
@@ -708,7 +743,7 @@ export function CustomerAdsDashboard({ profile, onShowToast, lang = "sw" }) {
               <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
                 Chagua Kifurushi cha Tangazo:
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
                 <div
                   onClick={() => setPlan("standard")}
                   style={{

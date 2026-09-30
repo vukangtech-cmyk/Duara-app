@@ -8,63 +8,384 @@ import {
   getAffiliateOrders,
   requestPayout,
   getPayoutRequests,
+  getPlatformSettings,
+  updatePlatformSettings,
   uploadImage
 } from "./api/api";
 import { PaymentModal } from "./PaymentModal";
 
-export function AffiliateManagerCatalogue({ profile, onShowToast, lang = "sw" }) {
+// Curated gallery of Smartphones & Phone Appliances photos for the Shop
+// Note: Price & descriptions are NOT fabricated; CEO sets/edits them manually!
+export const SHOP_PHONE_GALLERY = [
+  // --- SIMU (SMARTPHONES) ---
+  {
+    key: "iphone-15-pro-max",
+    name: "Apple iPhone 15 Pro Max",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "iphone-14-pro",
+    name: "Apple iPhone 14 Pro Max",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "iphone-13-pro",
+    name: "Apple iPhone 13 Pro / 13",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "iphone-12-pro",
+    name: "Apple iPhone 12 Pro Max",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1605236453806-6ff36851218e?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "iphone-11",
+    name: "Apple iPhone 11 / 11 Pro",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1574755393849-623942496936?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "samsung-s24-ultra",
+    name: "Samsung Galaxy S24 Ultra 5G",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "samsung-s23-ultra",
+    name: "Samsung Galaxy S23 Ultra",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1678911820864-e2c567c655d7?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "samsung-a55",
+    name: "Samsung Galaxy A55 / A54 5G",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "samsung-a15",
+    name: "Samsung Galaxy A15 / A25",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "google-pixel-8-pro",
+    name: "Google Pixel 8 Pro / Pixel 7",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "redmi-note-13-pro",
+    name: "Xiaomi Redmi Note 13 Pro+",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1567581935884-3349723552ca?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "tecno-camon-30",
+    name: "Tecno Camon 30 Premier / Spark 20",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "infinix-note-40",
+    name: "Infinix Note 40 Pro / Zero 30",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "oppo-reno-11",
+    name: "Oppo Reno 11 5G / Find X",
+    category: "Simu (Smartphones)",
+    image_url: "https://images.unsplash.com/photo-1546054454-aa26e2b734c7?w=700&auto=format&fit=crop&q=80"
+  },
+
+  // --- VIFAA VYA SIMU (OTHER PHONE APPLIANCES & ACCESSORIES) ---
+  {
+    key: "airpods-pro-2",
+    name: "Apple AirPods Pro (2nd Gen) / Earbuds",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "wireless-headphones",
+    name: "Bluetooth Wireless Headphones (ANC)",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "smartwatch-ultra",
+    name: "Smart Watch Ultra / Series 9",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "fast-charger-type-c",
+    name: "Fast Charger 45W / 65W Type-C & USB Cable",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "power-bank-20000",
+    name: "Power Bank 20,000mAh Fast Charge",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "magsafe-wireless-charger",
+    name: "MagSafe Wireless Charger Stand 3-in-1",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1615526675159-e248c3021d3f?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "bluetooth-speaker",
+    name: "Portable Bluetooth Speaker (Deep Bass)",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "phone-cases-protectors",
+    name: "Phone Covers, Pouches & 9D Privacy Glass",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1601593346740-925612772716?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "tablet-ipad-appliance",
+    name: "iPad / Android Tablet & Stylus Pen",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop&q=80"
+  },
+  {
+    key: "creator-tripod-mic",
+    name: "Phone Gimbal, Tripod & Wireless Lavalier Mic",
+    category: "Vifaa vya Simu (Appliances)",
+    image_url: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=700&auto=format&fit=crop&q=80"
+  }
+];
+
+function formatSocialUrl(platform, value) {
+  if (!value || !value.trim()) return null;
+  const clean = value.trim();
+  if (clean.startsWith("http://") || clean.startsWith("https://")) return clean;
+  const handle = clean.replace(/^@/, "");
+  switch (platform) {
+    case "whatsapp": {
+      const digits = clean.replace(/\D/g, "");
+      return digits ? `https://wa.me/${digits}` : null;
+    }
+    case "instagram":
+      return `https://instagram.com/${handle}`;
+    case "tiktok":
+      return `https://tiktok.com/@${handle}`;
+    case "facebook":
+      return `https://facebook.com/${handle}`;
+    case "telegram":
+      return `https://t.me/${handle}`;
+    case "twitter":
+      return `https://x.com/${handle}`;
+    case "youtube":
+      return `https://youtube.com/@${handle}`;
+    default:
+      return `https://${clean}`;
+  }
+}
+
+export function AffiliateManagerCatalogue({
+  profile,
+  onShowToast,
+  onMessageUser,
+  lang = "sw"
+}) {
   const [catalogues, setCatalogues] = useState([]);
   const [orders, setOrders] = useState([]);
   const [payouts, setPayouts] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState("catalogue"); // 'catalogue' | 'manage' | 'orders' | 'payouts'
 
-  // Add Product Form State
+  // 'shop' | 'manage' | 'ceo_config' | 'orders'
+  const [viewMode, setViewMode] = useState("shop");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Add / Edit Product State (Manual CEO input)
+  const [editingProductId, setEditingProductId] = useState(null);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
-  const [commissionRate, setCommissionRate] = useState("10");
-  const [category, setCategory] = useState("Vifaa vya Kielektroniki");
+  const [category, setCategory] = useState("Simu (Smartphones)");
   const [description, setDescription] = useState("");
-  const [whatsappNumber, setWhatsappNumber] = useState(profile?.whatsapp || profile?.phone || "255754000111");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [selectedImageUrl, setSelectedImageUrl] = useState(SHOP_PHONE_GALLERY[0].image_url);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // In-App Order & Payment State
+  // Quick Manual Edit Modal for any Gallery / Shop Item
+  const [quickEditModalItem, setQuickEditModalItem] = useState(null);
+
+  // Order & Payment Modal State
   const [orderingProduct, setOrderingProduct] = useState(null);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [payingProduct, setPayingProduct] = useState(null);
+  const [customerName, setCustomerName] = useState(profile?.display_name || "");
+  const [customerPhone, setCustomerPhone] = useState(profile?.phone || "");
+  const [deliveryAddress, setDeliveryAddress] = useState(profile?.location || "");
 
-  // Payout Request State
-  const [payoutAmount, setPayoutAmount] = useState("");
-  const [payoutMethod, setPayoutMethod] = useState("Vodacom M-Pesa");
-  const [payoutAccount, setPayoutAccount] = useState(profile?.phone || "");
-  const [requestingPayout, setRequestingPayout] = useState(false);
+  // CEO Manual Lipa Namba & Social Media Accounts State
+  const [mpesaNumber, setMpesaNumber] = useState("");
+  const [mpesaName, setMpesaName] = useState("");
+  const [tigoNumber, setTigoNumber] = useState("");
+  const [tigoName, setTigoName] = useState("");
+  const [airtelNumber, setAirtelNumber] = useState("");
+  const [airtelName, setAirtelName] = useState("");
+  const [haloNumber, setHaloNumber] = useState("");
+  const [haloName, setHaloName] = useState("");
+  const [bankNumber, setBankNumber] = useState("");
+  const [bankName, setBankName] = useState("");
 
+  const [socialWhatsapp, setSocialWhatsapp] = useState("");
+  const [socialInstagram, setSocialInstagram] = useState("");
+  const [socialTiktok, setSocialTiktok] = useState("");
+  const [socialFacebook, setSocialFacebook] = useState("");
+  const [socialTelegram, setSocialTelegram] = useState("");
+  const [socialTwitter, setSocialTwitter] = useState("");
+  const [socialYoutube, setSocialYoutube] = useState("");
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  const isCeo = profile?.role === "ceo";
   const isManagerOrCeo = profile?.role === "manager" || profile?.role === "ceo";
 
-  const loadData = async () => {
+  const loadShopData = async () => {
     try {
       setLoading(true);
-      const [catData, ordData, payData] = await Promise.all([
+      const [catData, ordData, payData, settData] = await Promise.all([
         getManagerCatalogues(),
-        getAffiliateOrders(profile?.id),
-        getPayoutRequests(profile?.id)
+        getAffiliateOrders(isCeo ? null : profile?.id),
+        getPayoutRequests(isCeo ? null : profile?.id),
+        getPlatformSettings()
       ]);
-      setCatalogues(catData);
-      setOrders(ordData);
-      setPayouts(payData);
+      setCatalogues(catData || []);
+      setOrders(ordData || []);
+      setPayouts(payData || []);
+      setSettings(settData);
+
+      if (settData) {
+        const pn = settData.payment_numbers || {};
+        const sl = settData.social_links || pn.social_links || {};
+        setMpesaNumber(pn.mpesa || "");
+        setMpesaName(pn.mpesa_name || "");
+        setTigoNumber(pn.tigopesa || "");
+        setTigoName(pn.tigopesa_name || "");
+        setAirtelNumber(pn.airtel || "");
+        setAirtelName(pn.airtel_name || "");
+        setHaloNumber(pn.halopesa || "");
+        setHaloName(pn.halopesa_name || "");
+        setBankNumber(pn.bank || "");
+        setBankName(pn.bank_name || "");
+
+        setSocialWhatsapp(sl.whatsapp || profile?.whatsapp || "");
+        setSocialInstagram(sl.instagram || "");
+        setSocialTiktok(sl.tiktok || "");
+        setSocialFacebook(sl.facebook || "");
+        setSocialTelegram(sl.telegram || "");
+        setSocialTwitter(sl.twitter || "");
+        setSocialYoutube(sl.youtube || "");
+        setWhatsappNumber((prev) => prev || sl.whatsapp || profile?.whatsapp || "");
+      }
     } catch (err) {
-      console.warn("Load manager catalogue error:", err);
+      console.warn("Load shop error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadShopData();
   }, [profile?.id]);
+
+  // Combine database products with the curated Phone & Appliances gallery so the Shop always has rich phone/appliance photos
+  // while showing CEO's manual prices and descriptions!
+  const combinedShopItems = React.useMemo(() => {
+    const dbByName = new Map();
+    catalogues.forEach((item) => {
+      dbByName.set((item.name || "").trim().toLowerCase(), item);
+    });
+
+    const galleryMapped = SHOP_PHONE_GALLERY.map((gItem) => {
+      const existingDb = dbByName.get(gItem.name.toLowerCase());
+      if (existingDb) {
+        return { ...existingDb, isFromDb: true, galleryKey: gItem.key };
+      }
+      return {
+        id: `gallery_${gItem.key}`,
+        galleryKey: gItem.key,
+        name: gItem.name,
+        category: gItem.category,
+        image_url: gItem.image_url,
+        price: 0, // CEO sets manually
+        description: "", // CEO sets manually
+        whatsapp_number: socialWhatsapp || profile?.whatsapp || "",
+        isFromDb: false,
+        in_stock: true
+      };
+    });
+
+    // Any extra custom products added by CEO/Managers that aren't in the default gallery names
+    const galleryNamesSet = new Set(SHOP_PHONE_GALLERY.map((g) => g.name.toLowerCase()));
+    const customDbItems = catalogues
+      .filter((c) => !galleryNamesSet.has((c.name || "").trim().toLowerCase()))
+      .map((c) => ({ ...c, isFromDb: true }));
+
+    return [...customDbItems, ...galleryMapped];
+  }, [catalogues, socialWhatsapp, profile?.whatsapp]);
+
+  const filteredShopItems = combinedShopItems.filter((item) => {
+    const matchCat =
+      categoryFilter === "all" ||
+      (categoryFilter === "phones" && item.category?.toLowerCase().includes("simu") && !item.category?.toLowerCase().includes("vifaa")) ||
+      (categoryFilter === "appliances" && (item.category?.toLowerCase().includes("vifaa") || item.category?.toLowerCase().includes("appliance")));
+    const matchSearch =
+      !searchQuery.trim() ||
+      item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCat && matchSearch;
+  });
+
+  // Active social links configured by CEO
+  const activeSocialLinks = React.useMemo(() => {
+    const sl = settings?.social_links || settings?.payment_numbers?.social_links || {
+      whatsapp: socialWhatsapp,
+      instagram: socialInstagram,
+      tiktok: socialTiktok,
+      facebook: socialFacebook,
+      telegram: socialTelegram,
+      twitter: socialTwitter,
+      youtube: socialYoutube
+    };
+    const list = [];
+    if (sl.whatsapp) list.push({ id: "whatsapp", label: "WhatsApp", icon: "💬", color: "#25D366", url: formatSocialUrl("whatsapp", sl.whatsapp), raw: sl.whatsapp });
+    if (sl.instagram) list.push({ id: "instagram", label: "Instagram", icon: "📸", color: "#E1306C", url: formatSocialUrl("instagram", sl.instagram), raw: sl.instagram });
+    if (sl.tiktok) list.push({ id: "tiktok", label: "TikTok", icon: "🎵", color: "#111827", url: formatSocialUrl("tiktok", sl.tiktok), raw: sl.tiktok });
+    if (sl.facebook) list.push({ id: "facebook", label: "Facebook", icon: "📘", color: "#1877F2", url: formatSocialUrl("facebook", sl.facebook), raw: sl.facebook });
+    if (sl.telegram) list.push({ id: "telegram", label: "Telegram", icon: "✈️", color: "#0088cc", url: formatSocialUrl("telegram", sl.telegram), raw: sl.telegram });
+    if (sl.twitter) list.push({ id: "twitter", label: "X", icon: "𝕏", color: "#0f172a", url: formatSocialUrl("twitter", sl.twitter), raw: sl.twitter });
+    if (sl.youtube) list.push({ id: "youtube", label: "YouTube", icon: "▶️", color: "#FF0000", url: formatSocialUrl("youtube", sl.youtube), raw: sl.youtube });
+    return list.filter((x) => Boolean(x.url));
+  }, [settings, socialWhatsapp, socialInstagram, socialTiktok, socialFacebook, socialTelegram, socialTwitter, socialYoutube]);
+
+  // Active Lipa Namba configured by CEO
+  const activeLipaNumbers = React.useMemo(() => {
+    const pn = settings?.payment_numbers || {};
+    const list = [];
+    if (pn.mpesa) list.push({ label: "M-Pesa", number: pn.mpesa, name: pn.mpesa_name, color: "#e60000" });
+    if (pn.tigopesa) list.push({ label: "Tigo Pesa / Mixx", number: pn.tigopesa, name: pn.tigopesa_name, color: "#00377b" });
+    if (pn.airtel) list.push({ label: "Airtel Money", number: pn.airtel, name: pn.airtel_name, color: "#dc2626" });
+    if (pn.halopesa) list.push({ label: "HaloPesa", number: pn.halopesa, name: pn.halopesa_name, color: "#ea580c" });
+    if (pn.bank) list.push({ label: "Benki", number: pn.bank, name: pn.bank_name, color: "#059669" });
+    return list;
+  }, [settings]);
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -76,39 +397,61 @@ export function AffiliateManagerCatalogue({ profile, onShowToast, lang = "sw" })
     }
   };
 
-  const handleAddProduct = async (e) => {
+  const handleOpenManualEdit = (prod) => {
+    setQuickEditModalItem(prod);
+    setEditingProductId(prod.isFromDb ? prod.id : null);
+    setName(prod.name || "");
+    setPrice(prod.price > 0 ? String(prod.price) : "");
+    setCategory(prod.category || "Simu (Smartphones)");
+    setDescription(prod.description || "");
+    setSelectedImageUrl(prod.image_url || SHOP_PHONE_GALLERY[0].image_url);
+    setWhatsappNumber(prod.whatsapp_number || socialWhatsapp || profile?.whatsapp || "");
+    setImageFile(null);
+    setImagePreview("");
+  };
+
+  const handleSaveProductManual = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !price || !description.trim()) {
-      if (onShowToast) onShowToast("Tafadhali jaza jina, bei na maelezo ya bidhaa!");
+    if (!name.trim()) {
+      if (onShowToast) onShowToast("Tafadhali weka jina la bidhaa!");
       return;
     }
 
     setSubmitting(true);
     try {
-      let imageUrl = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80";
+      let finalImageUrl = selectedImageUrl || SHOP_PHONE_GALLERY[0].image_url;
       if (imageFile) {
-        imageUrl = await uploadImage(profile.id, imageFile, "catalogue-media");
+        finalImageUrl = await uploadImage(profile.id, imageFile, "catalogue-media");
       }
 
-      await createCatalogueProduct(profile.id, {
+      const payload = {
         name: name.trim(),
-        price: Number(price),
+        price: Number(price) || 0,
         currency: "TZS",
-        commission_rate: Number(commissionRate) || 10,
+        commission_rate: 10,
         category,
         description: description.trim(),
-        image_url: imageUrl,
-        whatsapp_number: whatsappNumber.replace("+", "").trim()
-      });
+        image_url: finalImageUrl,
+        whatsapp_number: (whatsappNumber || socialWhatsapp || "").replace(/\D/g, "")
+      };
 
-      if (onShowToast) onShowToast("Bidhaa imeongezwa kwenye Catalogue ya WhatsApp!");
+      if (editingProductId) {
+        await updateCatalogueProduct(editingProductId, payload);
+        if (onShowToast) onShowToast(`✓ Bidhaa "${name}" imesasishwa kikamilifu!`);
+      } else {
+        await createCatalogueProduct(profile.id, payload);
+        if (onShowToast) onShowToast(`✓ Bidhaa "${name}" imehifadhiwa kwenye Shop!`);
+      }
+
+      setQuickEditModalItem(null);
+      setEditingProductId(null);
       setName("");
       setPrice("");
       setDescription("");
       setImageFile(null);
       setImagePreview("");
-      setViewMode("catalogue");
-      loadData();
+      if (viewMode === "manage") setViewMode("shop");
+      await loadShopData();
     } catch (err) {
       if (onShowToast) onShowToast("Hitilafu: " + err.message);
     } finally {
@@ -116,195 +459,239 @@ export function AffiliateManagerCatalogue({ profile, onShowToast, lang = "sw" })
     }
   };
 
-  const handleCopyAffiliateLink = (prod) => {
-    const affiliateUrl = `${window.location.origin}/?ref=${profile?.username || "affiliate"}&prod=${prod.id}`;
-    navigator.clipboard.writeText(affiliateUrl);
-    if (onShowToast) onShowToast(`Kiungo cha Affiliate kimenakiliwa: ${prod.name}`);
-  };
-
-  const handleDirectWhatsAppOrder = (prod) => {
-    const phone = prod.whatsapp_number || "255754000111";
-    const msg = `Habari ${prod.profiles?.display_name || "Manager"}, ninahitaji kuagiza "${prod.name}" (Bei: TZS ${Number(
-      prod.price
-    ).toLocaleString()}) kutoka THE CIRCLE DUARA WhatsApp Catalogue. Namba ya kumbukumbu: ${prod.affiliate_code || prod.id}.`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-    window.open(url, "_blank");
-  };
-
-  const handleRequestPayoutSubmit = async (e) => {
-    e.preventDefault();
-    const amountNum = Number(payoutAmount);
-    if (!amountNum || amountNum < 5000) {
-      if (onShowToast) onShowToast("Kiwango cha chini cha kutoa ni TZS 5,000");
-      return;
-    }
-    setRequestingPayout(true);
+  const handleDeleteProduct = async (prod) => {
+    if (!prod.isFromDb) return;
     try {
-      await requestPayout(profile.id, amountNum, payoutMethod, payoutAccount);
-      if (onShowToast) onShowToast("Ombi la kutoa pesa limetumwa kwa CEO kwa uhakiki!");
-      setPayoutAmount("");
-      loadData();
+      await deleteCatalogueProduct(prod.id);
+      if (onShowToast) onShowToast("Bidhaa imeondolewa.");
+      setQuickEditModalItem(null);
+      await loadShopData();
+    } catch (err) {
+      if (onShowToast) onShowToast("Hitilafu: " + err.message);
+    }
+  };
+
+  const handleSaveCeoConfig = async (e) => {
+    e.preventDefault();
+    setSavingConfig(true);
+    try {
+      await updatePlatformSettings({
+        payment_numbers: {
+          mpesa: mpesaNumber.trim(),
+          mpesa_name: mpesaName.trim(),
+          tigopesa: tigoNumber.trim(),
+          tigopesa_name: tigoName.trim(),
+          airtel: airtelNumber.trim(),
+          airtel_name: airtelName.trim(),
+          halopesa: haloNumber.trim(),
+          halopesa_name: haloName.trim(),
+          bank: bankNumber.trim(),
+          bank_name: bankName.trim()
+        },
+        social_links: {
+          whatsapp: socialWhatsapp.trim(),
+          instagram: socialInstagram.trim(),
+          tiktok: socialTiktok.trim(),
+          facebook: socialFacebook.trim(),
+          telegram: socialTelegram.trim(),
+          twitter: socialTwitter.trim(),
+          youtube: socialYoutube.trim()
+        }
+      });
+      if (onShowToast) {
+        onShowToast("✓ Lipa Namba na Akaunti za Mitandao ya Kijamii za CEO zimehifadhiwa!");
+      }
+      await loadShopData();
+      setViewMode("shop");
     } catch (err) {
       if (onShowToast) onShowToast("Hitilafu: " + err.message);
     } finally {
-      setRequestingPayout(false);
+      setSavingConfig(false);
     }
   };
 
-  // Calculate manager metrics
-  const totalCommissionEarned = orders.reduce((sum, o) => sum + (Number(o.commission_earned) || 0), 0);
-  const myProducts = catalogues.filter((c) => c.manager_id === profile?.id);
+  const handleCopyProductLink = (prod) => {
+    const shareUrl = `${window.location.origin}/?shop_item=${encodeURIComponent(prod.name)}`;
+    navigator.clipboard?.writeText(shareUrl);
+    if (onShowToast) onShowToast(`🔗 Link ya "${prod.name}" imenakiliwa!`);
+  };
 
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", padding: "16px" }}>
-      {/* WhatsApp Catalogue Style Header */}
+    <div className="shop-shell" style={{ maxWidth: 1120, margin: "0 auto", width: "100%" }}>
+      {/* Clean Shop Header Banner */}
       <div
+        className="glass-card"
         style={{
-          background: "linear-gradient(135deg, #075e54, #128c7e)",
-          color: "#fff",
-          borderRadius: 16,
-          padding: "24px",
-          marginBottom: 20,
-          boxShadow: "0 4px 20px rgba(7, 94, 84, 0.2)"
+          background: "linear-gradient(135deg, #064e3b, #0f766e)",
+          color: "#ffffff",
+          borderRadius: 18,
+          padding: "20px",
+          marginBottom: 18,
+          border: "none"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span
-                style={{
-                  background: "#25D366",
-                  color: "#fff",
-                  padding: "4px 10px",
-                  borderRadius: 20,
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.05em"
-                }}
-              >
-                WHATSAPP BUSINESS CATALOGUE & AFFILIATE
-              </span>
-              <span style={{ fontSize: 13, opacity: 0.9 }}>📍 Tanzania & East Africa</span>
-            </div>
-            <h2 style={{ margin: "4px 0", fontSize: 24, fontWeight: 800 }}>
-              {profile?.display_name || "Manager"} - Duka & Catalogue
+            <span
+              style={{
+                display: "inline-block",
+                background: "rgba(255,255,255,0.18)",
+                padding: "4px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: 0.6,
+                marginBottom: 6
+              }}
+            >
+              🛍️ OFFICIAL SHOP • SIMU & VIFAA VYA SIMU
+            </span>
+            <h2 style={{ margin: "2px 0 6px", fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, color: "#fff" }}>
+              Duka la Simu Mbalimbali & Phone Appliances
             </h2>
-            <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>
-              Uza bidhaa kwa viungo vya WhatsApp, pata wateja halisi na pokea kamisheni za mauzo moja kwa moja.
+            <p style={{ margin: 0, fontSize: 13, opacity: 0.92, maxWidth: 620 }}>
+              Chagua simu na vifaa vya kisasa. Bei, maelezo ya bidhaa, na Lipa Namba huwekwa moja kwa moja na CEO. Wasiliana nasi kupitia mitandao yetu ya kijamii au Message ya moja kwa moja.
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {isManagerOrCeo && (
+          {isManagerOrCeo && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
                 type="button"
-                onClick={() => setViewMode("manage")}
+                onClick={() => {
+                  setEditingProductId(null);
+                  setName("");
+                  setPrice("");
+                  setDescription("");
+                  setViewMode("manage");
+                }}
                 style={{
-                  background: "#25D366",
-                  color: "#fff",
+                  background: "#ffffff",
+                  color: "#064e3b",
                   border: "none",
                   borderRadius: 10,
-                  padding: "10px 18px",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6
+                  padding: "10px 14px",
+                  fontWeight: 800,
+                  fontSize: 12,
+                  cursor: "pointer"
                 }}
               >
                 ➕ Ongeza Bidhaa Mpya
               </button>
-            )}
-            <a
-              href={`https://wa.me/${profile?.whatsapp || profile?.phone || "255754000111"}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                background: "#fff",
-                color: "#075e54",
-                border: "none",
-                borderRadius: 10,
-                padding: "10px 18px",
-                fontWeight: 700,
-                fontSize: 13,
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 6
-              }}
-            >
-              💬 WhatsApp Chat
-            </a>
-          </div>
-        </div>
-
-        {/* Manager KPI Ribbon */}
-        {isManagerOrCeo && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: 12,
-              marginTop: 20,
-              paddingTop: 16,
-              borderTop: "1px solid rgba(255,255,255,0.2)"
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, textTransform: "uppercase" }}>Bidhaa Zangu</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>{myProducts.length}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, textTransform: "uppercase" }}>Jumla ya Oda</div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>{orders.length}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, textTransform: "uppercase" }}>Kamisheni Yangu</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#a7f3d0" }}>
-                TZS {totalCommissionEarned.toLocaleString()}
-              </div>
-            </div>
-            <div>
               <button
                 type="button"
-                onClick={() => setViewMode("payouts")}
+                onClick={() => setViewMode("ceo_config")}
                 style={{
-                  background: "rgba(255,255,255,0.25)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  borderRadius: 8,
-                  padding: "6px 12px",
+                  background: "#fbbf24",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  fontWeight: 800,
                   fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  marginTop: 2
+                  cursor: "pointer"
                 }}
               >
-                💵 Toa Pesa (Withdraw)
+                ⚙️ Weka Lipa Namba & Social Links
               </button>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 10, borderBottom: "1px solid var(--line, #e2e8f0)", marginBottom: 20 }}>
-        <button
-          type="button"
-          onClick={() => setViewMode("catalogue")}
+        {/* CEO Active Lipa Namba & Social Media Bar */}
+        <div
           style={{
-            padding: "10px 16px",
-            border: "none",
-            borderBottom: viewMode === "catalogue" ? "3px solid #128c7e" : "3px solid transparent",
-            background: "transparent",
-            fontWeight: viewMode === "catalogue" ? 700 : 500,
-            color: viewMode === "catalogue" ? "#128c7e" : "var(--muted)",
-            cursor: "pointer",
-            fontSize: 14
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: "1px solid rgba(255,255,255,0.18)",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12
           }}
         >
-          📱 WhatsApp Catalogue ({catalogues.length})
+          {/* Lipa Namba Strip */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9 }}>💳 Lipa Namba za Duka:</span>
+            {activeLipaNumbers.length > 0 ? (
+              activeLipaNumbers.map((ln, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    background: "rgba(255,255,255,0.16)",
+                    padding: "4px 10px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700
+                  }}
+                >
+                  {ln.label}: <strong>{ln.number}</strong> {ln.name ? `(${ln.name})` : ""}
+                </span>
+              ))
+            ) : (
+              <span style={{ fontSize: 12, opacity: 0.85, fontStyle: "italic" }}>
+                {isManagerOrCeo
+                  ? "Bado hujaweka Lipa Namba — Bonyeza '⚙️ Weka Lipa Namba & Social Links' kuweka manual"
+                  : "Lipa Namba itaonyeshwa hapa punde inapowekwa na CEO"}
+              </span>
+            )}
+          </div>
+
+          {/* Direct CEO Social Media Links */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9 }}>🔗 Mitandao ya CEO:</span>
+            {activeSocialLinks.length > 0 ? (
+              activeSocialLinks.map((soc) => (
+                <a
+                  key={soc.id}
+                  href={soc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    background: "#ffffff",
+                    color: "#064e3b",
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4
+                  }}
+                >
+                  <span>{soc.icon}</span>
+                  <span>{soc.label}</span>
+                </a>
+              ))
+            ) : (
+              <span style={{ fontSize: 12, opacity: 0.85 }}>
+                {isManagerOrCeo ? "Weka akaunti zako za mitandao kwenye Mipangilio ya Shop" : ""}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          overflowX: "auto",
+          paddingBottom: 8,
+          marginBottom: 16,
+          borderBottom: "1px solid var(--line)"
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setViewMode("shop")}
+          className={`button ${viewMode === "shop" ? "button-primary" : "button-soft"}`}
+          style={{ padding: "8px 14px", fontSize: 13 }}
+        >
+          📱 Bidhaa za Shop ({combinedShopItems.length})
         </button>
 
         {isManagerOrCeo && (
@@ -312,456 +699,697 @@ export function AffiliateManagerCatalogue({ profile, onShowToast, lang = "sw" })
             <button
               type="button"
               onClick={() => setViewMode("manage")}
-              style={{
-                padding: "10px 16px",
-                border: "none",
-                borderBottom: viewMode === "manage" ? "3px solid #128c7e" : "3px solid transparent",
-                background: "transparent",
-                fontWeight: viewMode === "manage" ? 700 : 500,
-                color: viewMode === "manage" ? "#128c7e" : "var(--muted)",
-                cursor: "pointer",
-                fontSize: 14
-              }}
+              className={`button ${viewMode === "manage" ? "button-primary" : "button-soft"}`}
+              style={{ padding: "8px 14px", fontSize: 13 }}
             >
-              ➕ Ongeza Bidhaa
+              ➕ Weka Bidhaa Manual
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("ceo_config")}
+              className={`button ${viewMode === "ceo_config" ? "button-primary" : "button-soft"}`}
+              style={{ padding: "8px 14px", fontSize: 13 }}
+            >
+              ⚙️ Lipa Namba & Social Links
             </button>
             <button
               type="button"
               onClick={() => setViewMode("orders")}
-              style={{
-                padding: "10px 16px",
-                border: "none",
-                borderBottom: viewMode === "orders" ? "3px solid #128c7e" : "3px solid transparent",
-                background: "transparent",
-                fontWeight: viewMode === "orders" ? 700 : 500,
-                color: viewMode === "orders" ? "#128c7e" : "var(--muted)",
-                cursor: "pointer",
-                fontSize: 14
-              }}
+              className={`button ${viewMode === "orders" ? "button-primary" : "button-soft"}`}
+              style={{ padding: "8px 14px", fontSize: 13 }}
             >
               📦 Oda za Wateja ({orders.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("payouts")}
-              style={{
-                padding: "10px 16px",
-                border: "none",
-                borderBottom: viewMode === "payouts" ? "3px solid #128c7e" : "3px solid transparent",
-                background: "transparent",
-                fontWeight: viewMode === "payouts" ? 700 : 500,
-                color: viewMode === "payouts" ? "#128c7e" : "var(--muted)",
-                cursor: "pointer",
-                fontSize: 14
-              }}
-            >
-              💸 Maombi ya Payout ({payouts.length})
             </button>
           </>
         )}
       </div>
 
-      {/* VIEW: CATALOGUE (WhatsApp Grid) */}
-      {viewMode === "catalogue" && (
+      {/* VIEW 1: SHOP GRID */}
+      {viewMode === "shop" && (
         <div>
-          {loading ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>Inapakia Catalogue...</div>
-          ) : catalogues.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "50px", background: "var(--bg-hover)", borderRadius: 12 }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🛍️</div>
-              <h3>Catalogue iko tupu kwa sasa.</h3>
-              {isManagerOrCeo && (
+          {/* Category & Search Bar */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 18
+            }}
+          >
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[
+                { id: "all", label: `Zote (${combinedShopItems.length})` },
+                { id: "phones", label: "📱 Simu (Smartphones)" },
+                { id: "appliances", label: "🎧 Vifaa vya Simu (Appliances)" }
+              ].map((c) => (
                 <button
+                  key={c.id}
                   type="button"
-                  className="button button-primary"
-                  onClick={() => setViewMode("manage")}
-                  style={{ marginTop: 10 }}
-                >
-                  Ongeza Bidhaa Yako ya Kwanza
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 20 }}>
-              {catalogues.map((prod) => (
-                <div
-                  key={prod.id}
+                  onClick={() => setCategoryFilter(c.id)}
                   style={{
-                    background: "var(--card-bg, #fff)",
-                    border: "1px solid var(--line, #e2e8f0)",
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "column",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                    transition: "transform 0.15s ease"
+                    padding: "8px 14px",
+                    borderRadius: 999,
+                    border: categoryFilter === c.id ? "none" : "1px solid var(--line)",
+                    background: categoryFilter === c.id ? "var(--primary)" : "var(--card-bg)",
+                    color: categoryFilter === c.id ? "#fff" : "var(--ink)",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer"
                   }}
                 >
-                  {/* Image Container with WhatsApp tag */}
-                  <div style={{ position: "relative", width: "100%", height: 210, background: "#f8fafc" }}>
-                    <img
-                      src={prod.image_url}
-                      alt={prod.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        background: "#25D366",
-                        color: "#fff",
-                        padding: "4px 8px",
-                        borderRadius: 12,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
-                      }}
-                    >
-                      WhatsApp Catalog
-                    </div>
-                    {prod.commission_rate > 0 && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          bottom: 10,
-                          left: 10,
-                          background: "rgba(15, 118, 110, 0.9)",
-                          color: "#fff",
-                          padding: "3px 8px",
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 700
-                        }}
-                      >
-                        Kamisheni: {prod.commission_rate}%
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Body Content */}
-                  <div style={{ padding: "16px", flex: 1, display: "flex", flexDirection: "column" }}>
-                    <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                      {prod.category}
-                    </div>
-                    <h3 style={{ margin: "4px 0 8px", fontSize: 16, fontWeight: 700, lineHeight: 1.3 }}>
-                      {prod.name}
-                    </h3>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "#075e54", marginBottom: 8 }}>
-                      TZS {Number(prod.price).toLocaleString()}
-                    </div>
-                    <p
-                      style={{
-                        margin: "0 0 16px",
-                        fontSize: 13,
-                        color: "var(--muted)",
-                        lineHeight: 1.4,
-                        flex: 1
-                      }}
-                    >
-                      {prod.description}
-                    </p>
-
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        background: "var(--bg-hover, #f8fafc)",
-                        borderRadius: 8,
-                        fontSize: 11,
-                        color: "var(--muted)",
-                        marginBottom: 12,
-                        display: "flex",
-                        justifyContent: "space-between"
-                      }}
-                    >
-                      <span>SKU: {prod.affiliate_code}</span>
-                      <span style={{ color: "#16a34a", fontWeight: 700 }}>● Ipo Dukani</span>
-                    </div>
-
-                    {/* Actions: Direct WhatsApp, In-App Order, Affiliate Share */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleDirectWhatsAppOrder(prod)}
-                        style={{
-                          background: "#25D366",
-                          color: "#fff",
-                          border: "none",
-                          padding: "10px",
-                          borderRadius: 8,
-                          fontWeight: 700,
-                          fontSize: 13,
-                          cursor: "pointer",
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          gap: 6
-                        }}
-                      >
-                        💬 Agiza kupitia WhatsApp
-                      </button>
-
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        <button
-                          type="button"
-                          onClick={() => setOrderingProduct(prod)}
-                          style={{
-                            background: "var(--bg-hover, #f1f5f9)",
-                            color: "var(--text, #0f172a)",
-                            border: "1px solid var(--line, #cbd5e1)",
-                            padding: "8px",
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            fontSize: 12,
-                            cursor: "pointer"
-                          }}
-                        >
-                          💳 Agiza & Lipia Mtandaoni
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleCopyAffiliateLink(prod)}
-                          style={{
-                            background: "var(--bg-hover, #f1f5f9)",
-                            color: "var(--text, #0f172a)",
-                            border: "1px solid var(--line, #cbd5e1)",
-                            padding: "8px",
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            fontSize: 12,
-                            cursor: "pointer"
-                          }}
-                        >
-                          🔗 Copy Affiliate Link
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  {c.label}
+                </button>
               ))}
+            </div>
+
+            <input
+              type="text"
+              placeholder="Tafuta simu au kifaa..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: "1 1 220px",
+                maxWidth: 340,
+                padding: "9px 14px",
+                borderRadius: 10,
+                border: "1px solid var(--line)",
+                background: "var(--input-bg)",
+                color: "var(--ink)",
+                fontSize: 13,
+                outline: "none"
+              }}
+            />
+          </div>
+
+          {loading ? (
+            <div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>Inapakia bidhaa za Shop...</div>
+          ) : (
+            <div className="shop-products-grid">
+              {filteredShopItems.map((prod) => {
+                const hasManualPrice = Number(prod.price) > 0;
+                const hasManualDesc = Boolean(prod.description && prod.description.trim());
+
+                return (
+                  <article
+                    key={prod.id}
+                    className="shop-product-card"
+                  >
+                    {/* Product Image */}
+                    <div className="shop-product-img-box">
+                      <img
+                        src={prod.image_url}
+                        alt={prod.name}
+                        loading="lazy"
+                      />
+                      <span className="shop-category-badge">{prod.category}</span>
+
+                      {isManagerOrCeo && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenManualEdit(prod)}
+                          style={{
+                            position: "absolute",
+                            bottom: 8,
+                            right: 8,
+                            background: "#0f172a",
+                            color: "#fbbf24",
+                            border: "1px solid #fbbf24",
+                            borderRadius: 8,
+                            padding: "5px 10px",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.35)"
+                          }}
+                        >
+                          ✏️ Weka Bei & Maelezo
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Product Info */}
+                    <div className="shop-product-body">
+                      <h3 className="shop-product-title">{prod.name}</h3>
+
+                      {/* Price (Manual by CEO) */}
+                      <div style={{ margin: "4px 0 8px" }}>
+                        {hasManualPrice ? (
+                          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--primary)" }}>
+                            TZS {Number(prod.price).toLocaleString()}
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: "inline-block",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "#b45309",
+                              background: "rgba(245, 158, 11, 0.14)",
+                              padding: "3px 8px",
+                              borderRadius: 6
+                            }}
+                          >
+                            Bei: Inawekwa na CEO / Uliza Bei
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Description (Manual by CEO) */}
+                      <p
+                        style={{
+                          margin: "0 0 12px",
+                          fontSize: 12.5,
+                          color: hasManualDesc ? "var(--ink)" : "var(--muted)",
+                          lineHeight: 1.45,
+                          flex: 1,
+                          fontStyle: hasManualDesc ? "normal" : "italic"
+                        }}
+                      >
+                        {hasManualDesc
+                          ? prod.description
+                          : isManagerOrCeo
+                          ? "Bonyeza '✏️ Weka Bei & Maelezo' kuandika sifa na bei ya bidhaa hii manual."
+                          : "Wasiliana na CEO moja kwa moja kupata maelezo kamili ya bidhaa hii."}
+                      </p>
+
+                      {/* CEO Direct Social Media Links on Every Product */}
+                      {activeSocialLinks.length > 0 && (
+                        <div
+                          style={{
+                            marginBottom: 10,
+                            padding: "8px",
+                            borderRadius: 10,
+                            background: "var(--bg-base)",
+                            border: "1px solid var(--line)"
+                          }}
+                        >
+                          <div style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", marginBottom: 5, textTransform: "uppercase" }}>
+                            Wasiliana na CEO Direct:
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                            {activeSocialLinks.map((soc) => {
+                              const href =
+                                soc.id === "whatsapp"
+                                  ? `${soc.url}?text=${encodeURIComponent(
+                                      `Habari CEO, ninahitaji bidhaa hii kwenye Shop: "${prod.name}"${
+                                        hasManualPrice ? ` (Bei: TZS ${Number(prod.price).toLocaleString()})` : ""
+                                      }`
+                                    )}`
+                                  : soc.url;
+                              return (
+                                <a
+                                  key={soc.id}
+                                  href={href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: 6,
+                                    background: `${soc.color}15`,
+                                    color: soc.color,
+                                    border: `1px solid ${soc.color}35`,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    textDecoration: "none",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4
+                                  }}
+                                >
+                                  <span>{soc.icon}</span>
+                                  <span>{soc.label}</span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Primary Action Buttons */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            style={{ padding: "8px 10px", fontSize: 12, borderRadius: 8 }}
+                            onClick={() => setOrderingProduct(prod)}
+                          >
+                            🛒 Agiza Sasa
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-soft"
+                            style={{ padding: "8px 10px", fontSize: 12, borderRadius: 8 }}
+                            onClick={() => {
+                              if (onMessageUser) {
+                                onMessageUser(prod);
+                              }
+                            }}
+                          >
+                            💬 Chat kwenye App
+                          </button>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => setPayingProduct(prod)}
+                            style={{
+                              background: "var(--input-bg)",
+                              color: "var(--ink)",
+                              border: "1px solid var(--line)",
+                              padding: "7px",
+                              borderRadius: 8,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer"
+                            }}
+                          >
+                            💳 Lipa Namba
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyProductLink(prod)}
+                            style={{
+                              background: "var(--input-bg)",
+                              color: "var(--ink)",
+                              border: "1px solid var(--line)",
+                              padding: "7px",
+                              borderRadius: 8,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer"
+                            }}
+                          >
+                            🔗 Share Link
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* VIEW: ADD / MANAGE PRODUCT */}
+      {/* VIEW 2: MANUAL ADD / EDIT PRODUCT */}
       {viewMode === "manage" && isManagerOrCeo && (
         <div
-          style={{
-            background: "var(--card-bg, #fff)",
-            border: "1px solid var(--line, #e2e8f0)",
-            borderRadius: 16,
-            padding: "24px",
-            maxWidth: 700,
-            margin: "0 auto"
-          }}
+          className="glass-card"
+          style={{ maxWidth: 680, margin: "0 auto", padding: "20px", borderRadius: 16 }}
         >
-          <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 700 }}>
-            Ongeza Bidhaa Kwenye Catalogue Yako ya WhatsApp
+          <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>
+            ➕ Ongeza au Hariri Bidhaa Kwenye Shop (Manual)
           </h3>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+            Chagua picha ya simu au kifaa kutoka kwenye maktaba au pakia picha yako, kisha weka bei na maelezo manual.
+          </p>
 
-          <form onSubmit={handleAddProduct} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <form onSubmit={handleSaveProductManual} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Jina la Bidhaa: *
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                Chagua Picha ya Haraka (Simu & Appliances):
               </label>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  overflowX: "auto",
+                  paddingBottom: 8
+                }}
+              >
+                {SHOP_PHONE_GALLERY.map((g) => (
+                  <button
+                    key={g.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedImageUrl(g.image_url);
+                      if (!name) setName(g.name);
+                      setCategory(g.category);
+                      setImageFile(null);
+                      setImagePreview("");
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      width: 84,
+                      padding: 4,
+                      borderRadius: 10,
+                      border: selectedImageUrl === g.image_url ? "2px solid var(--primary)" : "1px solid var(--line)",
+                      background: "var(--input-bg)",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <img
+                      src={g.image_url}
+                      alt={g.name}
+                      style={{ width: "100%", height: 54, objectFit: "cover", borderRadius: 6 }}
+                    />
+                    <div
+                      style={{
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        marginTop: 3,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        color: "var(--ink)"
+                      }}
+                    >
+                      {g.name}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Jina la Simu au Kifaa: *</label>
               <input
                 type="text"
-                placeholder="Mfano: Saa ya Kijanja ya Smartwatch Pro Series 9"
+                placeholder="Mfano: iPhone 15 Pro Max 256GB"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--line, #cbd5e1)",
-                  fontSize: 14
-                }}
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Bei ya Mauzo (TZS): *
-                </label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Bei ya Bidhaa (TZS - Weka Manual):</label>
                 <input
                   type="number"
-                  placeholder="Mfano: 85000"
+                  placeholder="Weka bei kwa TZS..."
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    fontSize: 14
-                  }}
                 />
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Asilimia ya Kamisheni ya Affiliate (%):
-                </label>
-                <input
-                  type="number"
-                  placeholder="10"
-                  value={commissionRate}
-                  onChange={(e) => setCommissionRate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    fontSize: 14
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Kategoria:
-                </label>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Kategoria:</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: "1px solid var(--line)",
+                    background: "var(--input-bg)",
+                    color: "var(--ink)",
                     fontSize: 14
                   }}
                 >
-                  <option value="Vifaa vya Kielektroniki">Vifaa vya Kielektroniki</option>
-                  <option value="Mavazi & Mitindo">Mavazi & Mitindo</option>
-                  <option value="Urembo & Afya">Urembo & Afya</option>
-                  <option value="Vyakula & Vinywaji">Vyakula & Vinywaji</option>
-                  <option value="Nyumba & Mapambo">Nyumba & Mapambo</option>
+                  <option value="Simu (Smartphones)">Simu (Smartphones)</option>
+                  <option value="Vifaa vya Simu (Appliances)">Vifaa vya Simu (Appliances)</option>
+                  <option value="Tablets & iPads">Tablets & iPads</option>
+                  <option value="vifaa Vingine">Vifaa Vingine</option>
                 </select>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Namba ya WhatsApp ya Kuagizia: *
-                </label>
-                <input
-                  type="text"
-                  placeholder="255754XXXXXX"
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    fontSize: 14
-                  }}
-                />
               </div>
             </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Picha ya Bidhaa: *
-              </label>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Maelezo ya Bidhaa (Storage, RAM, Rangi, Hali, Warranty): *</label>
+              <textarea
+                rows={3}
+                placeholder="Andika maelezo ya bidhaa manual hapa..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Au Pakia Picha Mpya Kutoka Kwenye Simu/Kompyuta:</label>
               <input type="file" accept="image/*" onChange={handleImageChange} />
-              {imagePreview && (
-                <div style={{ marginTop: 10 }}>
+              {(imagePreview || selectedImageUrl) && (
+                <div style={{ marginTop: 8 }}>
                   <img
-                    src={imagePreview}
+                    src={imagePreview || selectedImageUrl}
                     alt="Preview"
-                    style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 8 }}
+                    style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line)" }}
                   />
                 </div>
               )}
             </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Maelezo ya Bidhaa: *
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Eleza sifa na faida za bidhaa kwa wanunuzi..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--line, #cbd5e1)",
-                  fontSize: 14
-                }}
-              />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button type="button" className="button button-soft" onClick={() => setViewMode("shop")}>
+                Ghairi
+              </button>
+              <button type="submit" className="button button-primary" disabled={submitting}>
+                {submitting ? "Inahifadhi..." : "💾 Hifadhi Kwenye Shop"}
+              </button>
             </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                background: "#075e54",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "12px",
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer"
-              }}
-            >
-              {submitting ? "Inapakia..." : "Weka Bidhaa Kwenye Catalogue"}
-            </button>
           </form>
         </div>
       )}
 
-      {/* VIEW: ORDERS */}
-      {viewMode === "orders" && isManagerOrCeo && (
-        <div>
-          <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>Oda Zilizowekwa Kupitia Viungo Vyako ({orders.length})</h3>
-          {orders.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", background: "var(--bg-hover)", borderRadius: 12 }}>
-              <p style={{ color: "var(--muted)" }}>Bado hujaingiza oda yoyote. Share affiliate links zako kupata mauzo!</p>
+      {/* VIEW 3: CEO MANUAL LIPA NAMBA & SOCIAL MEDIA LINKS */}
+      {viewMode === "ceo_config" && isManagerOrCeo && (
+        <div
+          className="glass-card"
+          style={{ maxWidth: 720, margin: "0 auto", padding: "20px", borderRadius: 16 }}
+        >
+          <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>
+            ⚙️ Weka Lipa Namba & Akaunti za Mitandao ya Kijamii (Manual CEO Setup)
+          </h3>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 18 }}>
+            Taarifa hizi zote zitaonekana moja kwa moja kwenye bidhaa zote za Shop na kwenye madirisha ya malipo.
+          </p>
+
+          <form onSubmit={handleSaveCeoConfig} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {/* Part A: Lipa Namba */}
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 14,
+                background: "var(--bg-base)",
+                border: "1px solid var(--line)"
+              }}
+            >
+              <h4 style={{ margin: "0 0 12px", fontSize: 15, color: "var(--primary)" }}>
+                1. Namba za Malipo (Lipa Namba / Simu / Benki)
+              </h4>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Vodacom M-Pesa (Lipa Namba / Simu):</label>
+                  <input
+                    type="text"
+                    placeholder="Weka Lipa Namba au Simu ya M-Pesa..."
+                    value={mpesaNumber}
+                    onChange={(e) => setMpesaNumber(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Jina la M-Pesa (Mpokeaji):</label>
+                  <input
+                    type="text"
+                    placeholder="Jina linalotokea kwenye M-Pesa..."
+                    value={mpesaName}
+                    onChange={(e) => setMpesaName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Mixx by Yas / Tigo Pesa (Lipa Namba / Simu):</label>
+                  <input
+                    type="text"
+                    placeholder="Weka Lipa Namba au Simu ya Tigo..."
+                    value={tigoNumber}
+                    onChange={(e) => setTigoNumber(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Jina la Tigo Pesa (Mpokeaji):</label>
+                  <input
+                    type="text"
+                    placeholder="Jina linalotokea Tigo Pesa..."
+                    value={tigoName}
+                    onChange={(e) => setTigoName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Airtel Money (Lipa Namba / Simu):</label>
+                  <input
+                    type="text"
+                    placeholder="Weka namba ya Airtel Money..."
+                    value={airtelNumber}
+                    onChange={(e) => setAirtelNumber(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Jina la Airtel Money:</label>
+                  <input
+                    type="text"
+                    placeholder="Jina la mpokeaji Airtel..."
+                    value={airtelName}
+                    onChange={(e) => setAirtelName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>HaloPesa (Lipa Namba / Simu):</label>
+                  <input
+                    type="text"
+                    placeholder="Weka namba ya HaloPesa..."
+                    value={haloNumber}
+                    onChange={(e) => setHaloNumber(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Jina la HaloPesa:</label>
+                  <input
+                    type="text"
+                    placeholder="Jina la mpokeaji HaloPesa..."
+                    value={haloName}
+                    onChange={(e) => setHaloName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Namba ya Akaunti ya Benki (CRDB / NMB):</label>
+                  <input
+                    type="text"
+                    placeholder="Weka namba ya akaunti ya benki..."
+                    value={bankNumber}
+                    onChange={(e) => setBankNumber(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Jina la Akaunti ya Benki:</label>
+                  <input
+                    type="text"
+                    placeholder="Jina la akaunti ya benki..."
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
+
+            {/* Part B: CEO Social Media Links */}
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 14,
+                background: "var(--bg-base)",
+                border: "1px solid var(--line)"
+              }}
+            >
+              <h4 style={{ margin: "0 0 6px", fontSize: 15, color: "var(--primary)" }}>
+                2. Akaunti za Mitandao ya Kijamii za CEO (Direct Links Kwenye Bidhaa Zote)
+              </h4>
+              <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                Weka namba ya WhatsApp, username au link kamili. Wateja wataweza kukupata moja kwa moja kwa kubonyeza link kwenye kila bidhaa.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>💬 Namba ya WhatsApp (mf. 2557...):</label>
+                  <input
+                    type="text"
+                    placeholder="Mfano: 2557..."
+                    value={socialWhatsapp}
+                    onChange={(e) => setSocialWhatsapp(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>📸 Instagram (@username au Link):</label>
+                  <input
+                    type="text"
+                    placeholder="Mfano: @username au https://instagram.com/..."
+                    value={socialInstagram}
+                    onChange={(e) => setSocialInstagram(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>🎵 TikTok (@username au Link):</label>
+                  <input
+                    type="text"
+                    placeholder="Mfano: @username au https://tiktok.com/@..."
+                    value={socialTiktok}
+                    onChange={(e) => setSocialTiktok(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>📘 Facebook (Page au Profile Link):</label>
+                  <input
+                    type="text"
+                    placeholder="Mfano: https://facebook.com/..."
+                    value={socialFacebook}
+                    onChange={(e) => setSocialFacebook(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>✈️ Telegram (@username au Link):</label>
+                  <input
+                    type="text"
+                    placeholder="Mfano: @username au https://t.me/..."
+                    value={socialTelegram}
+                    onChange={(e) => setSocialTelegram(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>▶️ YouTube / X (Twitter):</label>
+                  <input
+                    type="text"
+                    placeholder="Channel au profile link..."
+                    value={socialYoutube}
+                    onChange={(e) => setSocialYoutube(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button type="button" className="button button-soft" onClick={() => setViewMode("shop")}>
+                Rudi Kwenye Shop
+              </button>
+              <button type="submit" className="button button-primary" disabled={savingConfig}>
+                {savingConfig ? "Inahifadhi..." : "💾 Hifadhi Lipa Namba & Social Links"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* VIEW 4: ORDERS */}
+      {viewMode === "orders" && isManagerOrCeo && (
+        <div className="glass-card" style={{ padding: 20, borderRadius: 16 }}>
+          <h3 style={{ margin: "0 0 14px", fontSize: 18 }}>📦 Oda za Wateja Kwenye Shop ({orders.length})</h3>
+          {orders.length === 0 ? (
+            <p className="muted">Hakuna oda zilizowekwa bado.</p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {orders.map((o) => (
                 <div
                   key={o.id}
                   style={{
-                    background: "var(--card-bg, #fff)",
-                    border: "1px solid var(--line, #e2e8f0)",
+                    padding: "14px",
                     borderRadius: 12,
-                    padding: "16px",
+                    border: "1px solid var(--line)",
+                    background: "var(--bg-base)",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
                     flexWrap: "wrap",
-                    gap: 12
+                    gap: 10
                   }}
                 >
                   <div>
-                    <h4 style={{ margin: 0, fontSize: 15 }}>Oda #{o.id.slice(-6)}</h4>
-                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                      Mteja: <strong>{o.customer_name}</strong> ({o.customer_phone}) | Eneo: {o.delivery_address}
+                    <strong>{o.customer_name}</strong> • <span>{o.customer_phone}</span>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      Mahali: {o.delivery_address} • {new Date(o.created_at).toLocaleString()}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#075e54" }}>
-                      TZS {Number(o.amount).toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>
-                      Kamisheni: +TZS {Number(o.commission_earned || 0).toLocaleString()}
-                    </div>
+                  <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 15 }}>
+                    {Number(o.amount) > 0 ? `TZS ${Number(o.amount).toLocaleString()}` : "Oda ya Bidhaa"}
                   </div>
                 </div>
               ))}
@@ -770,260 +1398,246 @@ export function AffiliateManagerCatalogue({ profile, onShowToast, lang = "sw" })
         </div>
       )}
 
-      {/* VIEW: PAYOUTS (Withdrawal) */}
-      {viewMode === "payouts" && isManagerOrCeo && (
-        <div style={{ maxWidth: 640, margin: "0 auto" }}>
-          <div
-            style={{
-              background: "var(--card-bg, #fff)",
-              border: "1px solid var(--line, #e2e8f0)",
-              borderRadius: 16,
-              padding: "24px",
-              marginBottom: 20
-            }}
-          >
-            <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>💵 Ombi la Kutoa Kamisheni (Payout)</h3>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted)" }}>
-              Salio Linalopatikana:{" "}
-              <strong style={{ color: "#075e54", fontSize: 16 }}>
-                TZS {totalCommissionEarned.toLocaleString()}
-              </strong>
-            </p>
-
-            <form onSubmit={handleRequestPayoutSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Kiasi cha Kutoa (TZS): *
-                </label>
-                <input
-                  type="number"
-                  placeholder="Kima cha chini TZS 5,000"
-                  value={payoutAmount}
-                  onChange={(e) => setPayoutAmount(e.target.value)}
-                  required
-                  min="5000"
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    fontSize: 14
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Njia ya Kupokea Fedha:
-                </label>
-                <select
-                  value={payoutMethod}
-                  onChange={(e) => setPayoutMethod(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    fontSize: 14
-                  }}
-                >
-                  <option value="Vodacom M-Pesa">Vodacom M-Pesa</option>
-                  <option value="Tigo Pesa">Tigo Pesa</option>
-                  <option value="Airtel Money">Airtel Money</option>
-                  <option value="HaloPesa">HaloPesa</option>
-                  <option value="CRDB Bank">CRDB Bank</option>
-                  <option value="NMB Bank">NMB Bank</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Namba ya Simu au Namba ya Akaunti ya Benki: *
-                </label>
-                <input
-                  type="text"
-                  placeholder="0754XXXXXX au Namba ya Akaunti"
-                  value={payoutAccount}
-                  onChange={(e) => setPayoutAccount(e.target.value)}
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    fontSize: 14
-                  }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={requestingPayout}
-                style={{
-                  background: "#128c7e",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "12px",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer"
-                }}
-              >
-                {requestingPayout ? "Inatuma ombi..." : "Tuma Ombi la Kutoa Pesa"}
-              </button>
-            </form>
-          </div>
-
-          {/* Historic Payouts */}
-          <h4 style={{ margin: "0 0 12px", fontSize: 16 }}>Historia ya Maombi ya Kutoa Pesa</h4>
-          {payouts.length === 0 ? (
-            <p style={{ color: "var(--muted)", fontSize: 13 }}>Hakuna maombi yaliyopita.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {payouts.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    padding: "12px 16px",
-                    background: "var(--card-bg, #fff)",
-                    border: "1px solid var(--line, #e2e8f0)",
-                    borderRadius: 10,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 700 }}>TZS {Number(p.amount).toLocaleString()}</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                      {p.method} - {p.account_number}
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      padding: "3px 10px",
-                      borderRadius: 12,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      background: p.status === "paid" ? "#16a34a20" : "#eab30820",
-                      color: p.status === "paid" ? "#16a34a" : "#ca8a04"
-                    }}
-                  >
-                    {p.status.toUpperCase()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* In-App Direct Order Modal */}
-      {orderingProduct && (
-        <div className="modal-backdrop" onClick={() => setOrderingProduct(null)} style={{ zIndex: 9999 }}>
+      {/* MODAL: CEO QUICK MANUAL EDIT FOR ANY PHONE / APPLIANCE CARD */}
+      {quickEditModalItem && (
+        <div className="modal-backdrop" onClick={() => setQuickEditModalItem(null)} style={{ zIndex: 9999, padding: 12 }}>
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 460, width: "95%", borderRadius: 16, padding: "24px", background: "var(--card-bg, #fff)" }}
+            style={{
+              maxWidth: 500,
+              width: "100%",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              borderRadius: 18,
+              padding: 20,
+              background: "var(--card-bg)",
+              border: "1px solid var(--line)"
+            }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 18 }}>Weka Oda ya Haraka</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>✏️ Weka Bei & Maelezo Manual</h3>
               <button
                 type="button"
-                onClick={() => setOrderingProduct(null)}
-                style={{ border: "none", background: "transparent", fontSize: 18, cursor: "pointer" }}
+                onClick={() => setQuickEditModalItem(null)}
+                style={{ border: "none", background: "transparent", fontSize: 18, cursor: "pointer", color: "var(--ink)" }}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+            <form onSubmit={handleSaveProductManual} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <img
+                  src={imagePreview || selectedImageUrl}
+                  alt={name}
+                  style={{ width: 68, height: 68, borderRadius: 10, objectFit: "cover", border: "1px solid var(--line)" }}
+                />
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>Badilisha Picha (Hiari):</label>
+                  <input type="file" accept="image/*" onChange={handleImageChange} style={{ fontSize: 12, marginTop: 4 }} />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Jina la Bidhaa:</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Bei ya Bidhaa (TZS) - Weka Manual:</label>
+                <input
+                  type="number"
+                  placeholder="Andika bei kwa TZS (mf. 1850000)"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Maelezo ya Bidhaa (Storage, RAM, Rangi, Warranty, n.k.):</label>
+                <textarea
+                  rows={3}
+                  placeholder="Andika maelezo ya bidhaa manual..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+                {quickEditModalItem.isFromDb ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProduct(quickEditModalItem)}
+                    className="button button-soft"
+                    style={{ color: "#ef4444" }}
+                  >
+                    🗑️ Futa
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" className="button button-soft" onClick={() => setQuickEditModalItem(null)}>
+                    Ghairi
+                  </button>
+                  <button type="submit" className="button button-primary" disabled={submitting}>
+                    {submitting ? "Inahifadhi..." : "💾 Hifadhi"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CUSTOMER ORDER */}
+      {orderingProduct && (
+        <div className="modal-backdrop" onClick={() => setOrderingProduct(null)} style={{ zIndex: 9999, padding: 12 }}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 460,
+              width: "100%",
+              borderRadius: 18,
+              padding: 20,
+              background: "var(--card-bg)",
+              border: "1px solid var(--line)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18 }}>🛒 Agiza Bidhaa Kwenye Shop</h3>
+              <button
+                type="button"
+                onClick={() => setOrderingProduct(null)}
+                style={{ border: "none", background: "transparent", fontSize: 18, cursor: "pointer", color: "var(--ink)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
               <img
                 src={orderingProduct.image_url}
                 alt={orderingProduct.name}
-                style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8 }}
+                style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 10 }}
               />
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{orderingProduct.name}</div>
-                <div style={{ color: "#075e54", fontWeight: 800 }}>
-                  TZS {Number(orderingProduct.price).toLocaleString()}
+                <div style={{ fontWeight: 800, fontSize: 15 }}>{orderingProduct.name}</div>
+                <div style={{ color: "var(--primary)", fontWeight: 800, fontSize: 14 }}>
+                  {Number(orderingProduct.price) > 0
+                    ? `TZS ${Number(orderingProduct.price).toLocaleString()}`
+                    : "Bei itathibitishwa na CEO"}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Jina Lako Kamili: *
-                </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Jina Lako Kamili: *</label>
                 <input
                   type="text"
-                  placeholder="Mfano: David Mwita"
+                  placeholder="Andika jina lako..."
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
                 />
               </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Namba ya Simu: *
-                </label>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Namba Yako ya Simu: *</label>
                 <input
-                  type="text"
-                  placeholder="0754XXXXXX"
+                  type="tel"
+                  placeholder="Namba yako ya simu..."
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
                 />
               </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                  Anwani ya Kuletewa (Delivery Location): *
-                </label>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Mahali Ulipo (Mkoa / Wilaya): *</label>
                 <input
                   type="text"
-                  placeholder="Mfano: Kinondoni, Dar es Salaam"
+                  placeholder="Mfano: Dar es Salaam, Sinza"
                   value={deliveryAddress}
                   onChange={(e) => setDeliveryAddress(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
                 />
               </div>
             </div>
 
-            <button
-              type="button"
-              className="button button-primary"
-              onClick={async () => {
-                if (!customerName.trim() || !customerPhone.trim() || !deliveryAddress.trim()) {
-                  if (onShowToast) onShowToast("Tafadhali jaza taarifa zako zote za oda!");
-                  return;
-                }
-                const comm = Math.round((orderingProduct.price * (orderingProduct.commission_rate || 10)) / 100);
-                await createAffiliateOrder({
-                  product_id: orderingProduct.id,
-                  manager_id: orderingProduct.manager_id,
-                  customer_name: customerName.trim(),
-                  customer_phone: customerPhone.trim(),
-                  delivery_address: deliveryAddress.trim(),
-                  amount: orderingProduct.price,
-                  commission_earned: comm
-                });
-                if (onShowToast) onShowToast("Oda imepokelewa kikamilifu! Manager atawasiliana nawe.");
-                setOrderingProduct(null);
-                setCustomerName("");
-                setCustomerPhone("");
-                setDeliveryAddress("");
-                loadData();
-              }}
-              style={{ width: "100%", padding: "12px", background: "#075e54" }}
-            >
-              Thibitisha Oda (TZS {Number(orderingProduct.price).toLocaleString()})
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className="button button-soft"
+                onClick={() => setOrderingProduct(null)}
+                style={{ flex: 1 }}
+              >
+                Funga
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                style={{ flex: 2 }}
+                onClick={async () => {
+                  if (!customerName.trim() || !customerPhone.trim() || !deliveryAddress.trim()) {
+                    if (onShowToast) onShowToast("Tafadhali jaza jina, namba ya simu na mahali ulipo!");
+                    return;
+                  }
+                  try {
+                    await createAffiliateOrder({
+                      product_id: orderingProduct.isFromDb ? orderingProduct.id : null,
+                      manager_id: orderingProduct.manager_id || profile?.id,
+                      customer_name: customerName.trim(),
+                      customer_phone: customerPhone.trim(),
+                      delivery_address: `${orderingProduct.name} - ${deliveryAddress.trim()}`,
+                      amount: Number(orderingProduct.price) || 0,
+                      commission_earned: 0
+                    });
+                    if (onShowToast) onShowToast("✓ Oda yako imetumwa! CEO atawasiliana nawe.");
+                    setOrderingProduct(null);
+                    loadShopData();
+                  } catch (err) {
+                    if (onShowToast) onShowToast("Hitilafu: " + err.message);
+                  }
+                }}
+              >
+                Thibitisha Oda
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: LIPA NAMBA PAYMENT */}
+      {payingProduct && (
+        <PaymentModal
+          isOpen={Boolean(payingProduct)}
+          onClose={() => setPayingProduct(null)}
+          title="Malipo ya Bidhaa (Lipa Namba)"
+          amount={Number(payingProduct.price) || 0}
+          purpose={payingProduct.name}
+          onPaymentSuccess={async (paymentDetails) => {
+            try {
+              await createAffiliateOrder({
+                product_id: payingProduct.isFromDb ? payingProduct.id : null,
+                manager_id: payingProduct.manager_id || profile?.id,
+                customer_name: profile?.display_name || "Mteja",
+                customer_phone: paymentDetails.phone || profile?.phone || "",
+                delivery_address: `Malipo (${paymentDetails.method} Ref: ${paymentDetails.reference}) - ${payingProduct.name}`,
+                amount: Number(payingProduct.price) || 0,
+                payment_reference: paymentDetails.reference
+              });
+              if (onShowToast) onShowToast("✓ Taarifa za malipo zimehifadhiwa!");
+              loadShopData();
+            } catch (err) {
+              console.warn(err);
+            }
+          }}
+        />
       )}
     </div>
   );
