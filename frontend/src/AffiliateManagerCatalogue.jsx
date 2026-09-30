@@ -196,6 +196,7 @@ function formatSocialUrl(platform, value) {
 export function AffiliateManagerCatalogue({
   profile,
   onShowToast,
+  onOpenDirectMessage,
   onMessageUser,
   lang = "sw"
 }) {
@@ -228,6 +229,7 @@ export function AffiliateManagerCatalogue({
   // Order & Payment Modal State
   const [orderingProduct, setOrderingProduct] = useState(null);
   const [payingProduct, setPayingProduct] = useState(null);
+  const [previewImageProduct, setPreviewImageProduct] = useState(null);
   const [customerName, setCustomerName] = useState(profile?.display_name || "");
   const [customerPhone, setCustomerPhone] = useState(profile?.phone || "");
   const [deliveryAddress, setDeliveryAddress] = useState(profile?.location || "");
@@ -341,10 +343,13 @@ export function AffiliateManagerCatalogue({
   }, [catalogues, socialWhatsapp, profile?.whatsapp]);
 
   const filteredShopItems = combinedShopItems.filter((item) => {
+    const cat = (item.category || "").toLowerCase();
     const matchCat =
       categoryFilter === "all" ||
-      (categoryFilter === "phones" && item.category?.toLowerCase().includes("simu") && !item.category?.toLowerCase().includes("vifaa")) ||
-      (categoryFilter === "appliances" && (item.category?.toLowerCase().includes("vifaa") || item.category?.toLowerCase().includes("appliance")));
+      (categoryFilter === "phones" && cat.includes("simu") && !cat.includes("vifaa")) ||
+      (categoryFilter === "appliances" && (cat.includes("vifaa") || cat.includes("appliance") || cat.includes("elektroniki"))) ||
+      (categoryFilter === "fashion" && (cat.includes("mitindo") || cat.includes("mavazi") || cat.includes("urembo"))) ||
+      (categoryFilter === "other" && !cat.includes("simu") && !cat.includes("vifaa") && !cat.includes("appliance"));
     const matchSearch =
       !searchQuery.trim() ||
       item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -524,34 +529,18 @@ export function AffiliateManagerCatalogue({
         style={{
           background: "linear-gradient(135deg, #064e3b, #0f766e)",
           color: "#ffffff",
-          borderRadius: 18,
-          padding: "20px",
-          marginBottom: 18,
+          borderRadius: 16,
+          padding: "16px 18px",
+          marginBottom: 14,
           border: "none"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
-          <div>
-            <span
-              style={{
-                display: "inline-block",
-                background: "rgba(255,255,255,0.18)",
-                padding: "4px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: 0.6,
-                marginBottom: 6
-              }}
-            >
-              🛍️ OFFICIAL SHOP • SIMU & VIFAA VYA SIMU
-            </span>
-            <h2 style={{ margin: "2px 0 6px", fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, color: "#fff" }}>
-              Duka la Simu Mbalimbali & Phone Appliances
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🛍️</span>
+            <h2 style={{ margin: 0, fontSize: "clamp(18px, 3vw, 22px)", fontWeight: 800, color: "#fff" }}>
+              Shop
             </h2>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.92, maxWidth: 620 }}>
-              Chagua simu na vifaa vya kisasa. Bei, maelezo ya bidhaa, na Lipa Namba huwekwa moja kwa moja na CEO. Wasiliana nasi kupitia mitandao yetu ya kijamii au Message ya moja kwa moja.
-            </p>
           </div>
 
           {isManagerOrCeo && (
@@ -570,13 +559,13 @@ export function AffiliateManagerCatalogue({
                   color: "#064e3b",
                   border: "none",
                   borderRadius: 10,
-                  padding: "10px 14px",
+                  padding: "8px 12px",
                   fontWeight: 800,
                   fontSize: 12,
                   cursor: "pointer"
                 }}
               >
-                ➕ Ongeza Bidhaa Mpya
+                ➕ Ongeza Bidhaa
               </button>
               <button
                 type="button"
@@ -586,92 +575,81 @@ export function AffiliateManagerCatalogue({
                   color: "#111827",
                   border: "none",
                   borderRadius: 10,
-                  padding: "10px 14px",
+                  padding: "8px 12px",
                   fontWeight: 800,
                   fontSize: 12,
                   cursor: "pointer"
                 }}
               >
-                ⚙️ Weka Lipa Namba & Social Links
+                ⚙️ Malipo & Links
               </button>
             </div>
           )}
         </div>
 
-        {/* CEO Active Lipa Namba & Social Media Bar */}
-        <div
-          style={{
-            marginTop: 16,
-            paddingTop: 14,
-            borderTop: "1px solid rgba(255,255,255,0.18)",
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12
-          }}
-        >
-          {/* Lipa Namba Strip */}
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9 }}>💳 Lipa Namba za Duka:</span>
-            {activeLipaNumbers.length > 0 ? (
-              activeLipaNumbers.map((ln, idx) => (
-                <span
-                  key={idx}
-                  style={{
-                    background: "rgba(255,255,255,0.16)",
-                    padding: "4px 10px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700
-                  }}
-                >
-                  {ln.label}: <strong>{ln.number}</strong> {ln.name ? `(${ln.name})` : ""}
-                </span>
-              ))
-            ) : (
-              <span style={{ fontSize: 12, opacity: 0.85, fontStyle: "italic" }}>
-                {isManagerOrCeo
-                  ? "Bado hujaweka Lipa Namba — Bonyeza '⚙️ Weka Lipa Namba & Social Links' kuweka manual"
-                  : "Lipa Namba itaonyeshwa hapa punde inapowekwa na CEO"}
-              </span>
+        {/* Active Lipa Namba & Social Media Bar (only shown when configured) */}
+        {(activeLipaNumbers.length > 0 || activeSocialLinks.length > 0) && (
+          <div
+            style={{
+              marginTop: 14,
+              paddingTop: 12,
+              borderTop: "1px solid rgba(255,255,255,0.18)",
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 10
+            }}
+          >
+            {activeLipaNumbers.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9 }}>💳 Lipa Namba:</span>
+                {activeLipaNumbers.map((ln, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      background: "rgba(255,255,255,0.16)",
+                      padding: "4px 10px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700
+                    }}
+                  >
+                    {ln.label}: <strong>{ln.number}</strong> {ln.name ? `(${ln.name})` : ""}
+                  </span>
+                ))}
+              </div>
             )}
-          </div>
 
-          {/* Direct CEO Social Media Links */}
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9 }}>🔗 Mitandao ya CEO:</span>
-            {activeSocialLinks.length > 0 ? (
-              activeSocialLinks.map((soc) => (
-                <a
-                  key={soc.id}
-                  href={soc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    background: "#ffffff",
-                    color: "#064e3b",
-                    padding: "4px 10px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4
-                  }}
-                >
-                  <span>{soc.icon}</span>
-                  <span>{soc.label}</span>
-                </a>
-              ))
-            ) : (
-              <span style={{ fontSize: 12, opacity: 0.85 }}>
-                {isManagerOrCeo ? "Weka akaunti zako za mitandao kwenye Mipangilio ya Shop" : ""}
-              </span>
+            {activeSocialLinks.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                {activeSocialLinks.map((soc) => (
+                  <a
+                    key={soc.id}
+                    href={soc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      background: "#ffffff",
+                      color: "#064e3b",
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      textDecoration: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4
+                    }}
+                  >
+                    <span>{soc.icon}</span>
+                    <span>{soc.label}</span>
+                  </a>
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Navigation Tabs */}
@@ -681,7 +659,7 @@ export function AffiliateManagerCatalogue({
           gap: 8,
           overflowX: "auto",
           paddingBottom: 8,
-          marginBottom: 16,
+          marginBottom: 14,
           borderBottom: "1px solid var(--line)"
         }}
       >
@@ -689,9 +667,9 @@ export function AffiliateManagerCatalogue({
           type="button"
           onClick={() => setViewMode("shop")}
           className={`button ${viewMode === "shop" ? "button-primary" : "button-soft"}`}
-          style={{ padding: "8px 14px", fontSize: 13 }}
+          style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
         >
-          📱 Bidhaa za Shop ({combinedShopItems.length})
+          🛍️ Bidhaa ({combinedShopItems.length})
         </button>
 
         {isManagerOrCeo && (
@@ -700,25 +678,25 @@ export function AffiliateManagerCatalogue({
               type="button"
               onClick={() => setViewMode("manage")}
               className={`button ${viewMode === "manage" ? "button-primary" : "button-soft"}`}
-              style={{ padding: "8px 14px", fontSize: 13 }}
+              style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
             >
-              ➕ Weka Bidhaa Manual
+              ➕ Ongeza Bidhaa
             </button>
             <button
               type="button"
               onClick={() => setViewMode("ceo_config")}
               className={`button ${viewMode === "ceo_config" ? "button-primary" : "button-soft"}`}
-              style={{ padding: "8px 14px", fontSize: 13 }}
+              style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
             >
-              ⚙️ Lipa Namba & Social Links
+              ⚙️ Malipo & Links
             </button>
             <button
               type="button"
               onClick={() => setViewMode("orders")}
               className={`button ${viewMode === "orders" ? "button-primary" : "button-soft"}`}
-              style={{ padding: "8px 14px", fontSize: 13 }}
+              style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
             >
-              📦 Oda za Wateja ({orders.length})
+              📦 Oda ({orders.length})
             </button>
           </>
         )}
@@ -735,28 +713,32 @@ export function AffiliateManagerCatalogue({
               gap: 10,
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 18
+              marginBottom: 16
             }}
           >
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", maxWidth: "100%", paddingBottom: 4 }}>
               {[
                 { id: "all", label: `Zote (${combinedShopItems.length})` },
-                { id: "phones", label: "📱 Simu (Smartphones)" },
-                { id: "appliances", label: "🎧 Vifaa vya Simu (Appliances)" }
+                { id: "phones", label: "📱 Simu" },
+                { id: "appliances", label: "🎧 Vifaa & Elektroniki" },
+                { id: "fashion", label: "👗 Mitindo & Urembo" },
+                { id: "other", label: "🏪 Bidhaa Nyingine" }
               ].map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => setCategoryFilter(c.id)}
                   style={{
-                    padding: "8px 14px",
+                    padding: "7px 13px",
                     borderRadius: 999,
                     border: categoryFilter === c.id ? "none" : "1px solid var(--line)",
                     background: categoryFilter === c.id ? "var(--primary)" : "var(--card-bg)",
                     color: categoryFilter === c.id ? "#fff" : "var(--ink)",
                     fontSize: 12,
                     fontWeight: 700,
-                    cursor: "pointer"
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0
                   }}
                 >
                   {c.label}
@@ -766,12 +748,12 @@ export function AffiliateManagerCatalogue({
 
             <input
               type="text"
-              placeholder="Tafuta simu au kifaa..."
+              placeholder="🔍 Tafuta bidhaa..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                flex: "1 1 220px",
-                maxWidth: 340,
+                flex: "1 1 200px",
+                maxWidth: "100%",
                 padding: "9px 14px",
                 borderRadius: 10,
                 border: "1px solid var(--line)",
@@ -797,7 +779,12 @@ export function AffiliateManagerCatalogue({
                     className="shop-product-card"
                   >
                     {/* Product Image */}
-                    <div className="shop-product-img-box">
+                    <div
+                      className="shop-product-img-box"
+                      onClick={() => setPreviewImageProduct(prod)}
+                      title="Bonyeza kuona picha kamili"
+                      style={{ cursor: "zoom-in" }}
+                    >
                       <img
                         src={prod.image_url}
                         alt={prod.name}
@@ -808,7 +795,10 @@ export function AffiliateManagerCatalogue({
                       {isManagerOrCeo && (
                         <button
                           type="button"
-                          onClick={() => handleOpenManualEdit(prod)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenManualEdit(prod);
+                          }}
                           style={{
                             position: "absolute",
                             bottom: 8,
@@ -821,10 +811,11 @@ export function AffiliateManagerCatalogue({
                             fontSize: 11,
                             fontWeight: 800,
                             cursor: "pointer",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.35)"
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+                            zIndex: 3
                           }}
                         >
-                          ✏️ Weka Bei & Maelezo
+                          ✏️ Hariri
                         </button>
                       )}
                     </div>
@@ -833,97 +824,67 @@ export function AffiliateManagerCatalogue({
                     <div className="shop-product-body">
                       <h3 className="shop-product-title">{prod.name}</h3>
 
-                      {/* Price (Manual by CEO) */}
-                      <div style={{ margin: "4px 0 8px" }}>
-                        {hasManualPrice ? (
+                      {/* Price */}
+                      {hasManualPrice && (
+                        <div style={{ margin: "4px 0 8px" }}>
                           <div style={{ fontSize: 18, fontWeight: 800, color: "var(--primary)" }}>
                             TZS {Number(prod.price).toLocaleString()}
                           </div>
-                        ) : (
-                          <div
-                            style={{
-                              display: "inline-block",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: "#b45309",
-                              background: "rgba(245, 158, 11, 0.14)",
-                              padding: "3px 8px",
-                              borderRadius: 6
-                            }}
-                          >
-                            Bei: Inawekwa na CEO / Uliza Bei
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
-                      {/* Description (Manual by CEO) */}
-                      <p
-                        style={{
-                          margin: "0 0 12px",
-                          fontSize: 12.5,
-                          color: hasManualDesc ? "var(--ink)" : "var(--muted)",
-                          lineHeight: 1.45,
-                          flex: 1,
-                          fontStyle: hasManualDesc ? "normal" : "italic"
-                        }}
-                      >
-                        {hasManualDesc
-                          ? prod.description
-                          : isManagerOrCeo
-                          ? "Bonyeza '✏️ Weka Bei & Maelezo' kuandika sifa na bei ya bidhaa hii manual."
-                          : "Wasiliana na CEO moja kwa moja kupata maelezo kamili ya bidhaa hii."}
-                      </p>
-
-                      {/* CEO Direct Social Media Links on Every Product */}
-                      {activeSocialLinks.length > 0 && (
-                        <div
+                      {/* Description */}
+                      {hasManualDesc && (
+                        <p
                           style={{
-                            marginBottom: 10,
-                            padding: "8px",
-                            borderRadius: 10,
-                            background: "var(--bg-base)",
-                            border: "1px solid var(--line)"
+                            margin: "0 0 12px",
+                            fontSize: 12.5,
+                            color: "var(--ink)",
+                            lineHeight: 1.45,
+                            flex: 1
                           }}
                         >
-                          <div style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", marginBottom: 5, textTransform: "uppercase" }}>
-                            Wasiliana na CEO Direct:
-                          </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                            {activeSocialLinks.map((soc) => {
-                              const href =
-                                soc.id === "whatsapp"
-                                  ? `${soc.url}?text=${encodeURIComponent(
-                                      `Habari CEO, ninahitaji bidhaa hii kwenye Shop: "${prod.name}"${
-                                        hasManualPrice ? ` (Bei: TZS ${Number(prod.price).toLocaleString()})` : ""
-                                      }`
-                                    )}`
-                                  : soc.url;
-                              return (
-                                <a
-                                  key={soc.id}
-                                  href={href}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    padding: "4px 8px",
-                                    borderRadius: 6,
-                                    background: `${soc.color}15`,
-                                    color: soc.color,
-                                    border: `1px solid ${soc.color}35`,
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textDecoration: "none",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4
-                                  }}
-                                >
-                                  <span>{soc.icon}</span>
-                                  <span>{soc.label}</span>
-                                </a>
-                              );
-                            })}
-                          </div>
+                          {prod.description}
+                        </p>
+                      )}
+
+                      {/* Direct Social Media Links */}
+                      {activeSocialLinks.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+                          {activeSocialLinks.map((soc) => {
+                            const href =
+                              soc.id === "whatsapp"
+                                ? `${soc.url}?text=${encodeURIComponent(
+                                    `Habari, nahitaji: "${prod.name}"${
+                                      hasManualPrice ? ` (TZS ${Number(prod.price).toLocaleString()})` : ""
+                                    }`
+                                  )}`
+                                : soc.url;
+                            return (
+                              <a
+                                key={soc.id}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  padding: "4px 8px",
+                                  borderRadius: 6,
+                                  background: `${soc.color}15`,
+                                  color: soc.color,
+                                  border: `1px solid ${soc.color}35`,
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  textDecoration: "none",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4
+                                }}
+                              >
+                                <span>{soc.icon}</span>
+                                <span>{soc.label}</span>
+                              </a>
+                            );
+                          })}
                         </div>
                       )}
 
@@ -936,19 +897,24 @@ export function AffiliateManagerCatalogue({
                             style={{ padding: "8px 10px", fontSize: 12, borderRadius: 8 }}
                             onClick={() => setOrderingProduct(prod)}
                           >
-                            🛒 Agiza Sasa
+                            🛒 Agiza
                           </button>
                           <button
                             type="button"
                             className="button button-soft"
                             style={{ padding: "8px 10px", fontSize: 12, borderRadius: 8 }}
                             onClick={() => {
-                              if (onMessageUser) {
+                              const msgText = `Habari, nahitaji: "${prod.name}"${
+                                hasManualPrice ? ` (TZS ${Number(prod.price).toLocaleString()})` : ""
+                              }.`;
+                              if (onOpenDirectMessage) {
+                                onOpenDirectMessage(prod.manager_id || null, "Shop", msgText);
+                              } else if (onMessageUser) {
                                 onMessageUser(prod);
                               }
                             }}
                           >
-                            💬 Chat kwenye App
+                            💬 Chat
                           </button>
                         </div>
 
@@ -967,7 +933,7 @@ export function AffiliateManagerCatalogue({
                               cursor: "pointer"
                             }}
                           >
-                            💳 Lipa Namba
+                            💳 Lipa
                           </button>
                           <button
                             type="button"
@@ -983,7 +949,7 @@ export function AffiliateManagerCatalogue({
                               cursor: "pointer"
                             }}
                           >
-                            🔗 Share Link
+                            🔗 Share
                           </button>
                         </div>
                       </div>
@@ -996,23 +962,20 @@ export function AffiliateManagerCatalogue({
         </div>
       )}
 
-      {/* VIEW 2: MANUAL ADD / EDIT PRODUCT */}
+      {/* VIEW 2: ADD / EDIT PRODUCT */}
       {viewMode === "manage" && isManagerOrCeo && (
         <div
           className="glass-card"
           style={{ maxWidth: 680, margin: "0 auto", padding: "20px", borderRadius: 16 }}
         >
-          <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>
-            ➕ Ongeza au Hariri Bidhaa Kwenye Shop (Manual)
+          <h3 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800 }}>
+            ➕ Weka Bidhaa Kwenye Shop
           </h3>
-          <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
-            Chagua picha ya simu au kifaa kutoka kwenye maktaba au pakia picha yako, kisha weka bei na maelezo manual.
-          </p>
 
           <form onSubmit={handleSaveProductManual} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                Chagua Picha ya Haraka (Simu & Appliances):
+                Chagua Picha au Pakia Picha Yako:
               </label>
               <div
                 style={{
@@ -1068,10 +1031,10 @@ export function AffiliateManagerCatalogue({
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Jina la Simu au Kifaa: *</label>
+              <label>Jina la Bidhaa: *</label>
               <input
                 type="text"
-                placeholder="Mfano: iPhone 15 Pro Max 256GB"
+                placeholder="Andika jina la bidhaa..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -1080,10 +1043,10 @@ export function AffiliateManagerCatalogue({
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Bei ya Bidhaa (TZS - Weka Manual):</label>
+                <label>Bei (TZS):</label>
                 <input
                   type="number"
-                  placeholder="Weka bei kwa TZS..."
+                  placeholder="Bei kwa TZS..."
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                 />
@@ -1105,25 +1068,28 @@ export function AffiliateManagerCatalogue({
                   }}
                 >
                   <option value="Simu (Smartphones)">Simu (Smartphones)</option>
-                  <option value="Vifaa vya Simu (Appliances)">Vifaa vya Simu (Appliances)</option>
-                  <option value="Tablets & iPads">Tablets & iPads</option>
-                  <option value="vifaa Vingine">Vifaa Vingine</option>
+                  <option value="Vifaa vya Simu (Appliances)">Vifaa & Elektroniki</option>
+                  <option value="Mitindo & Mavazi">Mitindo & Mavazi</option>
+                  <option value="Urembo & Afya">Urembo & Afya</option>
+                  <option value="Nyumba & Samani">Nyumba & Samani</option>
+                  <option value="Magari & Usafiri">Magari & Usafiri</option>
+                  <option value="Bidhaa Mbalimbali">Bidhaa Mbalimbali</option>
                 </select>
               </div>
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Maelezo ya Bidhaa (Storage, RAM, Rangi, Hali, Warranty): *</label>
+              <label>Maelezo:</label>
               <textarea
                 rows={3}
-                placeholder="Andika maelezo ya bidhaa manual hapa..."
+                placeholder="Maelezo ya bidhaa..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Au Pakia Picha Mpya Kutoka Kwenye Simu/Kompyuta:</label>
+              <label>Pakia Picha:</label>
               <input type="file" accept="image/*" onChange={handleImageChange} />
               {(imagePreview || selectedImageUrl) && (
                 <div style={{ marginTop: 8 }}>
@@ -1141,25 +1107,22 @@ export function AffiliateManagerCatalogue({
                 Ghairi
               </button>
               <button type="submit" className="button button-primary" disabled={submitting}>
-                {submitting ? "Inahifadhi..." : "💾 Hifadhi Kwenye Shop"}
+                {submitting ? "Inahifadhi..." : "💾 Hifadhi"}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* VIEW 3: CEO MANUAL LIPA NAMBA & SOCIAL MEDIA LINKS */}
+      {/* VIEW 3: LIPA NAMBA & SOCIAL MEDIA LINKS */}
       {viewMode === "ceo_config" && isManagerOrCeo && (
         <div
           className="glass-card"
           style={{ maxWidth: 720, margin: "0 auto", padding: "20px", borderRadius: 16 }}
         >
-          <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>
-            ⚙️ Weka Lipa Namba & Akaunti za Mitandao ya Kijamii (Manual CEO Setup)
+          <h3 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800 }}>
+            ⚙️ Lipa Namba & Mitandao ya Kijamii
           </h3>
-          <p className="muted" style={{ fontSize: 13, marginBottom: 18 }}>
-            Taarifa hizi zote zitaonekana moja kwa moja kwenye bidhaa zote za Shop na kwenye madirisha ya malipo.
-          </p>
 
           <form onSubmit={handleSaveCeoConfig} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {/* Part A: Lipa Namba */}
@@ -1273,7 +1236,7 @@ export function AffiliateManagerCatalogue({
               </div>
             </div>
 
-            {/* Part B: CEO Social Media Links */}
+            {/* Part B: Social Media Links */}
             <div
               style={{
                 padding: 16,
@@ -1282,12 +1245,9 @@ export function AffiliateManagerCatalogue({
                 border: "1px solid var(--line)"
               }}
             >
-              <h4 style={{ margin: "0 0 6px", fontSize: 15, color: "var(--primary)" }}>
-                2. Akaunti za Mitandao ya Kijamii za CEO (Direct Links Kwenye Bidhaa Zote)
+              <h4 style={{ margin: "0 0 10px", fontSize: 15, color: "var(--primary)" }}>
+                2. Mitandao ya Kijamii
               </h4>
-              <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-                Weka namba ya WhatsApp, username au link kamili. Wateja wataweza kukupata moja kwa moja kwa kubonyeza link kwenye kila bidhaa.
-              </p>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1416,7 +1376,7 @@ export function AffiliateManagerCatalogue({
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>✏️ Weka Bei & Maelezo Manual</h3>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>✏️ Hariri Bidhaa</h3>
               <button
                 type="button"
                 onClick={() => setQuickEditModalItem(null)}
@@ -1434,7 +1394,7 @@ export function AffiliateManagerCatalogue({
                   style={{ width: 68, height: 68, borderRadius: 10, objectFit: "cover", border: "1px solid var(--line)" }}
                 />
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>Badilisha Picha (Hiari):</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>Picha:</label>
                   <input type="file" accept="image/*" onChange={handleImageChange} style={{ fontSize: 12, marginTop: 4 }} />
                 </div>
               </div>
@@ -1450,10 +1410,10 @@ export function AffiliateManagerCatalogue({
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Bei ya Bidhaa (TZS) - Weka Manual:</label>
+                <label>Bei (TZS):</label>
                 <input
                   type="number"
-                  placeholder="Andika bei kwa TZS (mf. 1850000)"
+                  placeholder="Bei kwa TZS..."
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   autoFocus
@@ -1461,10 +1421,10 @@ export function AffiliateManagerCatalogue({
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Maelezo ya Bidhaa (Storage, RAM, Rangi, Warranty, n.k.):</label>
+                <label>Maelezo:</label>
                 <textarea
                   rows={3}
-                  placeholder="Andika maelezo ya bidhaa manual..."
+                  placeholder="Maelezo mafupi..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
@@ -1608,6 +1568,52 @@ export function AffiliateManagerCatalogue({
                 Thibitisha Oda
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: FULL IMAGE PREVIEW LIGHTBOX */}
+      {previewImageProduct && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setPreviewImageProduct(null)}
+          style={{ zIndex: 10000, padding: 16 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 680,
+              width: "100%",
+              background: "var(--card-bg)",
+              borderRadius: 20,
+              padding: 18,
+              border: "1px solid var(--line)",
+              textAlign: "center"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, textAlign: "left" }}>{previewImageProduct.name}</h3>
+              <button
+                type="button"
+                onClick={() => setPreviewImageProduct(null)}
+                style={{ border: "none", background: "var(--bg-base)", width: 32, height: 32, borderRadius: "50%", fontSize: 16, cursor: "pointer", color: "var(--ink)" }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ background: "#0f172a", borderRadius: 14, overflow: "hidden", maxHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <img
+                src={previewImageProduct.image_url}
+                alt={previewImageProduct.name}
+                style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", display: "block" }}
+              />
+            </div>
+            {previewImageProduct.description && (
+              <p style={{ marginTop: 12, fontSize: 13.5, color: "var(--ink)", textAlign: "left", lineHeight: 1.5 }}>
+                {previewImageProduct.description}
+              </p>
+            )}
           </div>
         </div>
       )}

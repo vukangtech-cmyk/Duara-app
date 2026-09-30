@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { getCustomerAds, createCustomerAd, updateAdStatus, uploadImage } from "./api/api";
 import { PaymentModal } from "./PaymentModal";
 
-export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage, lang = "sw" }) {
+export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage, onViewUserProfile, lang = "sw" }) {
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("all"); // 'all' | 'my_ads' | 'create'
   const [selectedAdForPayment, setSelectedAdForPayment] = useState(null);
+  const [previewAdImage, setPreviewAdImage] = useState(null);
   const [filterCategory, setFilterCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -125,40 +126,24 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
   });
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "16px" }}>
+    <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto" }}>
       {/* Header Banner */}
       <div
         style={{
           background: "linear-gradient(135deg, #0f766e, #18a66a)",
           color: "#fff",
           borderRadius: 16,
-          padding: "24px",
-          marginBottom: 24,
+          padding: "14px 18px",
+          marginBottom: 14,
           boxShadow: "0 4px 20px rgba(15, 118, 110, 0.15)"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-          <div>
-            <span
-              style={{
-                display: "inline-block",
-                padding: "4px 10px",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.2)",
-                fontSize: 12,
-                fontWeight: 700,
-                marginBottom: 8,
-                letterSpacing: "0.05em"
-              }}
-            >
-              📢 MTEJA & MTANGAZAJI DASHBOARD
-            </span>
-            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
-              Tangaza Bidhaa na Huduma Zako Mtandaoni
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>📢</span>
+            <h2 style={{ margin: 0, fontSize: "clamp(18px, 3vw, 22px)", fontWeight: 800, color: "#fff" }}>
+              Matangazo
             </h2>
-            <p style={{ margin: "6px 0 0", fontSize: 14, opacity: 0.9 }}>
-              Fikia maelfu ya wateja na mameneja wa affiliate papo hapo kwa bei nafuu na malipo ya haraka.
-            </p>
           </div>
           <button
             type="button"
@@ -167,68 +152,73 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
               background: "#fff",
               color: "#0f766e",
               border: "none",
-              borderRadius: 12,
-              padding: "12px 20px",
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+              borderRadius: 10,
+              padding: "9px 14px",
+              fontWeight: 800,
+              fontSize: 12.5,
+              cursor: "pointer"
             }}
           >
-            ➕ Post Tangazo Jipya (Ad)
+            ➕ Weka Tangazo
           </button>
         </div>
       </div>
 
       {/* Tabs Navigation */}
-      <div style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--line, #e2e8f0)", marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", borderBottom: "1px solid var(--line, #e2e8f0)", marginBottom: 16, paddingBottom: 4 }}>
         <button
           type="button"
           onClick={() => setTab("all")}
           style={{
-            padding: "10px 18px",
+            padding: "8px 14px",
             border: "none",
             borderBottom: tab === "all" ? "3px solid #18a66a" : "3px solid transparent",
-            background: "transparent",
-            fontWeight: tab === "all" ? 700 : 500,
+            background: tab === "all" ? "rgba(24, 166, 106, 0.08)" : "transparent",
+            borderRadius: "8px 8px 0 0",
+            fontWeight: tab === "all" ? 800 : 600,
             color: tab === "all" ? "#18a66a" : "var(--muted)",
             cursor: "pointer",
-            fontSize: 14
+            fontSize: 12.5,
+            whiteSpace: "nowrap"
           }}
         >
-          🔍 Matangazo Yote ({ads.length})
+          Matangazo ({ads.length})
         </button>
         <button
           type="button"
           onClick={() => setTab("my_ads")}
           style={{
-            padding: "10px 18px",
+            padding: "8px 14px",
             border: "none",
             borderBottom: tab === "my_ads" ? "3px solid #18a66a" : "3px solid transparent",
-            background: "transparent",
-            fontWeight: tab === "my_ads" ? 700 : 500,
+            background: tab === "my_ads" ? "rgba(24, 166, 106, 0.08)" : "transparent",
+            borderRadius: "8px 8px 0 0",
+            fontWeight: tab === "my_ads" ? 800 : 600,
             color: tab === "my_ads" ? "#18a66a" : "var(--muted)",
             cursor: "pointer",
-            fontSize: 14
+            fontSize: 12.5,
+            whiteSpace: "nowrap"
           }}
         >
-          📁 Matangazo Yangu ({myAds.length})
+          Yangu ({myAds.length})
         </button>
         <button
           type="button"
           onClick={() => setTab("create")}
           style={{
-            padding: "10px 18px",
+            padding: "8px 14px",
             border: "none",
             borderBottom: tab === "create" ? "3px solid #18a66a" : "3px solid transparent",
-            background: "transparent",
-            fontWeight: tab === "create" ? 700 : 500,
+            background: tab === "create" ? "rgba(24, 166, 106, 0.08)" : "transparent",
+            borderRadius: "8px 8px 0 0",
+            fontWeight: tab === "create" ? 800 : 600,
             color: tab === "create" ? "#18a66a" : "var(--muted)",
             cursor: "pointer",
-            fontSize: 14
+            fontSize: 12.5,
+            whiteSpace: "nowrap"
           }}
         >
-          ✍️ Weka Tangazo & Lipia
+          ➕ Weka Tangazo
         </button>
       </div>
 
@@ -298,27 +288,27 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
               </button>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 265px), 1fr))", gap: 18 }}>
               {filteredAds.map((ad) => (
                 <div
                   key={ad.id}
                   style={{
                     background: "var(--card-bg, #fff)",
                     border: ad.status === "boosted" ? "2px solid #18a66a" : "1px solid var(--line, #e2e8f0)",
-                    borderRadius: 14,
+                    borderRadius: 16,
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
                     position: "relative",
-                    boxShadow: ad.status === "boosted" ? "0 4px 16px rgba(24, 166, 106, 0.15)" : "none"
+                    boxShadow: ad.status === "boosted" ? "0 4px 16px rgba(24, 166, 106, 0.15)" : "var(--shadow-sm)"
                   }}
                 >
                   {ad.status === "boosted" && (
                     <div
                       style={{
                         position: "absolute",
-                        top: 12,
-                        left: 12,
+                        top: 10,
+                        left: 10,
                         background: "#18a66a",
                         color: "#fff",
                         padding: "4px 10px",
@@ -333,11 +323,22 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
                     </div>
                   )}
 
-                  <div style={{ position: "relative", width: "100%", height: 200, background: "#f1f5f9" }}>
+                  <div
+                    onClick={() => setPreviewAdImage(ad)}
+                    title="Bonyeza kuona picha kamili"
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "4 / 3",
+                      background: "linear-gradient(135deg, #0f172a, #1e293b)",
+                      cursor: "zoom-in",
+                      overflow: "hidden"
+                    }}
+                  >
                     <img
                       src={ad.image_url}
                       alt={ad.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                       loading="lazy"
                     />
                     <div
@@ -345,7 +346,7 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
                         position: "absolute",
                         bottom: 8,
                         right: 8,
-                        background: "rgba(0,0,0,0.75)",
+                        background: "rgba(0,0,0,0.8)",
                         color: "#fff",
                         padding: "4px 10px",
                         borderRadius: 8,
@@ -376,8 +377,32 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
                       {ad.description}
                     </p>
 
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
-                      📍 <strong>{ad.location}</strong>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                      <span>📍 <strong>{ad.location}</strong></span>
+                      {ad.profiles?.display_name && onViewUserProfile && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onViewUserProfile({
+                              id: ad.user_id,
+                              display_name: ad.profiles.display_name,
+                              username: ad.profiles.username || "member",
+                              avatar_url: ad.profiles.avatar_url
+                            })
+                          }
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: "var(--primary)",
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            padding: 0
+                          }}
+                        >
+                          👤 {ad.profiles.display_name}
+                        </button>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -798,6 +823,49 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
               {submitting ? "Inapakia..." : "Weka Tangazo & Endelea na Malipo"}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Full Image Preview Modal */}
+      {previewAdImage && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setPreviewAdImage(null)}
+          style={{ zIndex: 10000, padding: 16 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 680,
+              width: "100%",
+              background: "var(--card-bg, #fff)",
+              borderRadius: 20,
+              padding: 18,
+              border: "1px solid var(--line)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{previewAdImage.title}</h3>
+              <button
+                type="button"
+                onClick={() => setPreviewAdImage(null)}
+                style={{ border: "none", background: "var(--bg-base)", width: 32, height: 32, borderRadius: "50%", fontSize: 16, cursor: "pointer", color: "var(--ink)" }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ background: "#0f172a", borderRadius: 14, overflow: "hidden", maxHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <img
+                src={previewAdImage.image_url}
+                alt={previewAdImage.title}
+                style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", display: "block" }}
+              />
+            </div>
+            <p style={{ marginTop: 12, fontSize: 13.5, color: "var(--ink)", lineHeight: 1.5 }}>
+              {previewAdImage.description}
+            </p>
+          </div>
         </div>
       )}
 

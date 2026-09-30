@@ -154,39 +154,23 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      {/* CEO Header Banner */}
+      {/* Header Banner */}
       <div
         style={{
           background: "linear-gradient(135deg, #0f172a, #1e293b)",
           color: "#fff",
-          borderRadius: 18,
-          padding: "20px",
-          marginBottom: 18,
+          borderRadius: 16,
+          padding: "16px",
+          marginBottom: 14,
           border: "1px solid rgba(255,255,255,0.1)"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <span
-              style={{
-                background: "#eab308",
-                color: "#000",
-                padding: "3px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 900,
-                display: "inline-block",
-                marginBottom: 6
-              }}
-            >
-              👑 OFISI YA CEO • HAMZA VUKANG
-            </span>
-            <h2 style={{ margin: "2px 0 4px", fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, color: "#fff" }}>
-              Usimamizi Mkuu wa Shop, Lipa Namba & Mitandao ya Kijamii
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>👑</span>
+            <h2 style={{ margin: 0, fontSize: "clamp(18px, 3vw, 22px)", fontWeight: 800, color: "#fff" }}>
+              CEO Dashboard
             </h2>
-            <p style={{ margin: 0, fontSize: 13, color: "#cbd5e1" }}>
-              Weka Lipa Namba zako manual, unganisha akaunti zako za mitandao ya kijamii, na simamia Shop na matangazo.
-            </p>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -199,13 +183,13 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
                   color: "#fff",
                   border: "none",
                   borderRadius: 10,
-                  padding: "10px 14px",
+                  padding: "8px 12px",
                   fontSize: 12,
                   fontWeight: 800,
                   cursor: "pointer"
                 }}
               >
-                🛍️ Nenda Kwenye Shop (Hariri Bidhaa)
+                🛍️ Shop
               </button>
             )}
             <button
@@ -216,13 +200,13 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
                 color: "#fff",
                 border: "1px solid rgba(255,255,255,0.2)",
                 borderRadius: 10,
-                padding: "10px 14px",
+                padding: "8px 12px",
                 fontSize: 12,
                 fontWeight: 700,
                 cursor: "pointer"
               }}
             >
-              🔄 Refresh
+              🔄
             </button>
           </div>
         </div>
@@ -231,34 +215,34 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: 10,
-            marginTop: 16,
-            paddingTop: 14,
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 8,
+            marginTop: 12,
+            paddingTop: 12,
             borderTop: "1px solid rgba(255,255,255,0.1)"
           }}
         >
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: "12px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Mauzo ya Oda</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#38bdf8", marginTop: 2 }}>
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Mauzo</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#38bdf8", marginTop: 2 }}>
               TZS {totalTurnover.toLocaleString()}
             </div>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: "12px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Bidhaa za Shop (DB)</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80", marginTop: 2 }}>
-              {catalogues.length} Bidhaa
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Bidhaa</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#4ade80", marginTop: 2 }}>
+              {catalogues.length}
             </div>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: "12px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Matangazo ya Wateja</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#facc15", marginTop: 2 }}>
-              {ads.length} Ads
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Matangazo</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#facc15", marginTop: 2 }}>
+              {ads.length}
             </div>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: "12px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Payout Zinazosubiri</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#f87171", marginTop: 2 }}>
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Payouts</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#f87171", marginTop: 2 }}>
               {pendingPayouts.length}
             </div>
           </div>
@@ -266,10 +250,10 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 16, borderBottom: "1px solid var(--line)" }}>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, borderBottom: "1px solid var(--line)" }}>
         {[
-          { id: "settings", label: "⚙️ Lipa Namba & Mitandao ya Kijamii (Manual)" },
-          { id: "overview", label: `📦 Oda & Bidhaa (${orders.length})` },
+          { id: "settings", label: "⚙️ Malipo & Links" },
+          { id: "overview", label: `📦 Oda (${orders.length})` },
           { id: "all_ads", label: `📢 Matangazo (${ads.length})` },
           { id: "payouts", label: `💸 Payouts (${pendingPayouts.length})` }
         ].map((t) => (
@@ -278,28 +262,25 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
             type="button"
             onClick={() => setActiveTab(t.id)}
             className={`button ${activeTab === t.id ? "button-primary" : "button-soft"}`}
-            style={{ padding: "8px 14px", fontSize: 12.5 }}
+            style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* TAB 1: MANUAL SETTINGS (LIPA NAMBA & SOCIAL MEDIA LINKS) */}
+      {/* TAB 1: SETTINGS (LIPA NAMBA & SOCIAL MEDIA LINKS) */}
       {activeTab === "settings" && (
-        <div className="glass-card" style={{ padding: 20, borderRadius: 16 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>
-            ⚙️ Weka Manual: Lipa Namba & Akaunti za Mitandao ya Kijamii za CEO
+        <div className="glass-card" style={{ padding: 18, borderRadius: 16 }}>
+          <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800 }}>
+            ⚙️ Malipo & Mitandao ya Kijamii
           </h3>
-          <p className="muted" style={{ fontSize: 13, marginBottom: 18 }}>
-            Hakuna namba za kubuni. Weka Lipa Namba zako halisi na viungo vya akaunti zako za mitandao ya kijamii ili wateja wakupate moja kwa moja kwenye kila bidhaa.
-          </p>
 
-          <form onSubmit={handleSaveSettings} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <form onSubmit={handleSaveSettings} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* 1. Lipa Namba Section */}
-            <div style={{ padding: 16, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
-              <h4 style={{ margin: "0 0 12px", fontSize: 15, color: "var(--primary)" }}>
-                💳 1. Lipa Namba & Akaunti za Malipo (Weka Manual)
+            <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--primary)" }}>
+                💳 1. Lipa Namba & Akaunti za Malipo
               </h4>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -399,14 +380,11 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
               </div>
             </div>
 
-            {/* 2. CEO Social Media Accounts Section */}
-            <div style={{ padding: 16, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
-              <h4 style={{ margin: "0 0 8px", fontSize: 15, color: "var(--primary)" }}>
-                🔗 2. Akaunti za Mitandao ya Kijamii za CEO (Zitaonekana Kwenye Bidhaa Zote)
+            {/* 2. Social Media Accounts Section */}
+            <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
+              <h4 style={{ margin: "0 0 10px", fontSize: 14, color: "var(--primary)" }}>
+                🔗 2. Mitandao ya Kijamii
               </h4>
-              <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-                Wateja wakibonyeza link kwenye bidhaa yoyote au ukurasa wowote watafikia akaunti hizi moja kwa moja.
-              </p>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -543,10 +521,10 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
           </div>
 
           <div className="glass-card" style={{ padding: 18 }}>
-            <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>🛍️ Bidhaa Ulizohifadhi Kwenye Database ({catalogues.length})</h3>
+            <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>🛍️ Bidhaa ({catalogues.length})</h3>
             {catalogues.length === 0 ? (
               <p className="muted" style={{ fontSize: 13 }}>
-                Bonyeza "Nenda Kwenye Shop" kuweka bei na maelezo manual kwenye simu na vifaa vya simu.
+                Hakuna bidhaa zilizoongezwa bado.
               </p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

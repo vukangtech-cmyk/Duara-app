@@ -60,7 +60,9 @@ function FeedPostCard({
   onShowToast,
   isFollowed,
   onToggleFollow,
-  onOpenLightbox
+  onOpenLightbox,
+  onViewUserProfile,
+  onOpenDirectMessage
 }) {
   const t = useTranslation(lang);
   const [activeReaction, setActiveReaction] = useState(() => {
@@ -192,42 +194,75 @@ function FeedPostCard({
     (post.likes?.length || 0) +
     (activeReaction && !(post.likes || []).some((x) => x.user_id === user.id) ? 1 : 0);
 
+  const openAuthorProfile = () => {
+    if (onViewUserProfile) {
+      onViewUserProfile({
+        id: post.author_id,
+        display_name: authorName,
+        username: authorUsername,
+        avatar_url: post.profiles?.avatar_url,
+        bio: post.profiles?.bio,
+        location: post.profiles?.location,
+        role: post.profiles?.role
+      });
+    }
+  };
+
   return (
     <article className="post-card" id={`post-card-${post.id}`}>
       {/* Post Header with Author, Timestamp, and Follow Button */}
       <div className="post-head">
-        <Avatar name={authorName} avatarUrl={post.profiles?.avatar_url} size="md" />
-        <div className="post-meta-group">
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="post-author-name">{authorName}</span>
-            {isAuthor && (
-              <span style={{ fontSize: 11, background: "var(--line)", padding: "2px 6px", borderRadius: 4, color: "var(--muted)", fontWeight: 600 }}>
-                {lang === "sw" ? "Wewe" : "You"}
-              </span>
-            )}
+        <div
+          onClick={openAuthorProfile}
+          style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", flex: 1, minWidth: 0 }}
+          title={lang === "sw" ? `Tazama akaunti ya @${authorUsername}` : `View @${authorUsername}`}
+        >
+          <Avatar name={authorName} avatarUrl={post.profiles?.avatar_url} size="md" />
+          <div className="post-meta-group">
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span className="post-author-name">{authorName}</span>
+              {isAuthor && (
+                <span style={{ fontSize: 11, background: "var(--line)", padding: "2px 6px", borderRadius: 4, color: "var(--muted)", fontWeight: 600 }}>
+                  {lang === "sw" ? "Wewe" : "You"}
+                </span>
+              )}
+            </div>
+            <span className="post-time-meta">
+              @{authorUsername} ·{" "}
+              {new Date(post.created_at).toLocaleDateString(lang === "sw" ? "sw-TZ" : "en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit"
+              })}
+            </span>
           </div>
-          <span className="post-time-meta">
-            @{authorUsername} ·{" "}
-            {new Date(post.created_at).toLocaleDateString(lang === "sw" ? "sw-TZ" : "en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit"
-            })}
-          </span>
         </div>
 
-        {/* Follow / Unfollow Button for other creators */}
-        {!isAuthor && onToggleFollow && (
-          <button
-            type="button"
-            className={`post-follow-badge ${isFollowed ? "following" : "not-following"}`}
-            onClick={() => onToggleFollow(post.author_id, authorName, isFollowed)}
-            title={isFollowed ? (lang === "sw" ? "Acha kumfuata" : "Unfollow") : (lang === "sw" ? "Mfuate" : "Follow")}
-          >
-            <span>{isFollowed ? "✓" : "+"}</span>
-            <span>{isFollowed ? (lang === "sw" ? "Unamfuata" : "Following") : (lang === "sw" ? "Fuata" : "Follow")}</span>
-          </button>
+        {/* Message & Follow Buttons for other creators */}
+        {!isAuthor && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {onOpenDirectMessage && (
+              <button
+                type="button"
+                className="post-follow-badge"
+                onClick={() => onOpenDirectMessage(post.author_id, authorName, "")}
+                title={lang === "sw" ? `Tuma ujumbe kwa @${authorUsername}` : `Message @${authorUsername}`}
+              >
+                <span>💬</span>
+              </button>
+            )}
+            {onToggleFollow && (
+              <button
+                type="button"
+                className={`post-follow-badge ${isFollowed ? "following" : "not-following"}`}
+                onClick={() => onToggleFollow(post.author_id, authorName, isFollowed)}
+              >
+                <span>{isFollowed ? "✓" : "+"}</span>
+                <span>{isFollowed ? (lang === "sw" ? "Unamfuata" : "Following") : (lang === "sw" ? "Fuata" : "Follow")}</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -431,14 +466,17 @@ export function MainFeed({
   lang,
   onShowToast,
   setActive,
-  StatusRail
+  StatusRail,
+  onViewUserProfile,
+  onOpenDirectMessage
 }) {
   const t = useTranslation(lang);
 
-  // Feed Filter States
-  const [feedMode, setFeedMode] = useState("following"); // 'following' | 'for_you' | 'media'
+  // Feed Filter States - Default to 'for_you' (Duara Zote) so feed is immediately rich & active on mobile
+  const [feedMode, setFeedMode] = useState("for_you"); // 'for_you' | 'following' | 'media'
   const [includeMyPosts, setIncludeMyPosts] = useState(true);
   const [selectedCreatorId, setSelectedCreatorId] = useState(null);
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   // Follow States
   const [followedIds, setFollowedIds] = useState([]);
@@ -597,56 +635,96 @@ export function MainFeed({
   return (
     <div className="feed-container" id="main-feed-container">
       <div className="feed-column">
+        {/* Modern Duara Scenic Header & Quick Mobile Hub */}
+        <section className="duara-modern-hero" id="duara-modern-hero">
+          <div className="duara-hero-overlay" />
+          <div className="duara-hero-content">
+            <div className="duara-hero-top">
+              <div
+                className="duara-hero-user"
+                onClick={() => setActive && setActive("profile")}
+                style={{ cursor: "pointer" }}
+              >
+                <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="md" />
+                <div className="duara-hero-text">
+                  <span className="duara-eyebrow">@{profile.username}</span>
+                  <h2 className="duara-welcome-title">{profile.display_name}</h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="duara-refresh-pill"
+                onClick={refreshFeed}
+                title={t.refresh}
+              >
+                🔄
+              </button>
+            </div>
+
+            {/* Compact Stats & Quick Navigation Pills */}
+            <div className="duara-stats-bar">
+              <div className="duara-stat-chip">
+                <strong>{posts.length}</strong>
+                <span>{lang === "sw" ? "Machapisho" : "Posts"}</span>
+              </div>
+              <div className="duara-stat-chip">
+                <strong>{followedIds.length}</strong>
+                <span>{lang === "sw" ? "Unaowafuata" : "Following"}</span>
+              </div>
+              <button
+                type="button"
+                className="duara-stat-chip clickable"
+                onClick={() => setActive && setActive("saved")}
+              >
+                <strong>🔖 {savedCount}</strong>
+                <span>Saved</span>
+              </button>
+              {setActive && (
+                <button
+                  type="button"
+                  className="duara-stat-chip clickable accent"
+                  onClick={() => setActive("catalogue")}
+                >
+                  <strong>🛍️ Shop</strong>
+                  <span>{lang === "sw" ? "Duka" : "Shop"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Status / Stories Rail */}
         {StatusRail && <StatusRail profile={profile} lang={lang} />}
 
-        {/* In-Feed Post Creation Composer */}
-        <section className="composer-card" id="main-feed-composer">
+        {/* Sleek Mobile-First Post Creation Composer */}
+        <section className="composer-card duara-composer-card" id="main-feed-composer">
           <div className="composer-top">
             <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="md" />
-            <div className="composer-user-info">
+            <div className="composer-user-info" style={{ flex: 1, minWidth: 0 }}>
               <span className="composer-user-name">{profile.display_name}</span>
-              <span className="composer-user-sub">{t.shareWithCircle}</span>
+              <span className="composer-user-sub">@{profile.username}</span>
             </div>
           </div>
 
           <form onSubmit={submitPost} id="create-post-form">
             <textarea
               id="post-textarea"
-              className="composer-textarea"
+              className={`composer-textarea ${composerExpanded || content ? "expanded" : ""}`}
               value={content}
+              onFocus={() => setComposerExpanded(true)}
               onChange={(e) => setContent(e.target.value)}
               placeholder={t.composerPlaceholder}
               maxLength={600}
             />
 
             {file && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 12px",
-                  background: "var(--primary-soft)",
-                  borderRadius: 10,
-                  marginBottom: 10,
-                  fontSize: 13,
-                  color: "var(--primary)"
-                }}
-              >
+              <div className="composer-file-pill">
                 <span>{file.type.startsWith("video/") ? "🎬" : "🖼️"}</span>
-                <span style={{ fontWeight: 600 }}>{file.name}</span>
+                <span className="composer-file-name">{file.name}</span>
                 <button
                   type="button"
                   onClick={() => setFile(null)}
-                  style={{
-                    marginLeft: "auto",
-                    border: "none",
-                    background: "none",
-                    color: "#ef4444",
-                    fontWeight: 700,
-                    cursor: "pointer"
-                  }}
+                  className="composer-file-remove"
                 >
                   ✕
                 </button>
@@ -658,7 +736,7 @@ export function MainFeed({
             <div className="composer-bottom">
               <div className="composer-tools-group">
                 <label className="tool-chip" id="btn-upload-media">
-                  <span>📷</span> {t.photoVideo}
+                  <span>📷</span> <span>{t.photoVideo}</span>
                   <input
                     type="file"
                     accept="image/*,video/*"
@@ -671,16 +749,16 @@ export function MainFeed({
                   className="tool-chip"
                   onClick={() => setShowEmoji(!showEmoji)}
                 >
-                  <span>😊</span> {t.emoji}
+                  <span>😊</span> <span>{t.emoji}</span>
                 </button>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="composer-submit-group">
                 <span className="char-counter">{content.length}/600</span>
                 <button
                   type="submit"
                   id="btn-publish-post"
-                  className="button button-primary"
+                  className="button button-primary composer-submit-btn"
                   disabled={busy}
                 >
                   {busy ? t.sharingBtn : t.shareBtn}
@@ -693,6 +771,54 @@ export function MainFeed({
 
           <ErrorBox message={message} />
         </section>
+
+        {/* Mobile & Tablet Swipeable Trending Tags & Quick Creators Strip */}
+        <div className="duara-mobile-discovery-strip">
+          <div className="duara-tags-scroll">
+            {["#SwahiliTech", "#SimuMpya", "#KilimoBora", "#BongoFlava", "#KaribuDuara", "#EastAfrica"].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="duara-trend-pill"
+                onClick={() => {
+                  setContent((prev) => (prev ? `${prev} ${tag}` : tag));
+                  if (onShowToast) onShowToast(`${tag} ${lang === "sw" ? "imeongezwa" : "added"}`);
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
+          {suggestedCreators.length > 0 && (
+            <div className="duara-creators-mini-rail">
+              <span className="duara-mini-rail-label">
+                {lang === "sw" ? "👥 Akaunti:" : "👥 Accounts:"}
+              </span>
+              {suggestedCreators.slice(0, 8).map((person) => {
+                const isFollowing = followedIds.includes(person.id);
+                return (
+                  <div key={person.id} className="duara-mini-creator-pill">
+                    <div
+                      onClick={() => onViewUserProfile && onViewUserProfile(person)}
+                      style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}
+                    >
+                      <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
+                      <span className="duara-mini-creator-name">@{person.username || person.display_name.split(" ")[0]}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`duara-mini-follow-btn ${isFollowing ? "following" : ""}`}
+                      onClick={() => handleToggleFollow(person.id, person.display_name, isFollowing)}
+                    >
+                      {isFollowing ? "✓" : "+"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Followed Creators Story / Quick Filter Rail */}
         {followedProfiles.length > 0 && (
@@ -725,9 +851,23 @@ export function MainFeed({
           </div>
         )}
 
-        {/* Feed View Tabs Bar (Following / For You / Media) with Saved Bookmarks Shortcut */}
+        {/* Feed View Tabs Bar (For You / Following / Media) */}
         <div className="feed-tabs-header" id="feed-tabs-header">
           <div className="feed-tabs-group">
+            <button
+              type="button"
+              id="tab-feed-foryou"
+              className={`feed-tab-btn ${feedMode === "for_you" ? "active" : ""}`}
+              onClick={() => {
+                setFeedMode("for_you");
+                setSelectedCreatorId(null);
+              }}
+            >
+              <span>🌍</span>
+              <span>{lang === "sw" ? "Duara Zote" : "For You"}</span>
+              <span className="feed-tab-badge">{posts.length}</span>
+            </button>
+
             <button
               type="button"
               id="tab-feed-following"
@@ -744,19 +884,6 @@ export function MainFeed({
 
             <button
               type="button"
-              id="tab-feed-foryou"
-              className={`feed-tab-btn ${feedMode === "for_you" ? "active" : ""}`}
-              onClick={() => {
-                setFeedMode("for_you");
-                setSelectedCreatorId(null);
-              }}
-            >
-              <span>🌍</span>
-              <span>{lang === "sw" ? "Duara Zote" : "For You"}</span>
-            </button>
-
-            <button
-              type="button"
               id="tab-feed-media"
               className={`feed-tab-btn ${feedMode === "media" ? "active" : ""}`}
               onClick={() => {
@@ -765,22 +892,9 @@ export function MainFeed({
               }}
             >
               <span>🎬</span>
-              <span>{lang === "sw" ? "Picha & Video" : "Media Only"}</span>
+              <span>{lang === "sw" ? "Picha & Video" : "Media"}</span>
             </button>
           </div>
-
-          {/* Quick Jump to Saved Media Collections */}
-          {setActive && (
-            <button
-              type="button"
-              className="feed-saved-shortcut-btn"
-              onClick={() => setActive("saved")}
-              title={lang === "sw" ? "Fungua mikusanyiko ya media uliyohifadhi" : "Open your saved bookmarks"}
-            >
-              <span>🔖</span>
-              <span>{lang === "sw" ? `Vilihifadhiwa (${savedCount})` : `Saved (${savedCount})`}</span>
-            </button>
-          )}
         </div>
 
         {/* Sub-bar options when in Following Mode */}
@@ -827,6 +941,8 @@ export function MainFeed({
               isFollowed={followedIds.includes(post.author_id)}
               onToggleFollow={handleToggleFollow}
               onOpenLightbox={setLightboxItem}
+              onViewUserProfile={onViewUserProfile}
+              onOpenDirectMessage={onOpenDirectMessage}
             />
           ))
         ) : (
@@ -835,20 +951,13 @@ export function MainFeed({
             <span className="empty-following-icon">
               {feedMode === "following" ? "👥" : "🌱"}
             </span>
-            <h3 style={{ fontSize: 20, marginBottom: 8 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 8 }}>
               {feedMode === "following"
                 ? lang === "sw"
-                  ? "Huna machapisho kutoka kwa watu unaowafuata bado"
-                  : "No posts from followed users yet"
+                  ? " bado hujamfuata mtu"
+                  : "No posts from followed accounts yet"
                 : t.emptyFeedTitle}
             </h3>
-            <p className="muted" style={{ maxWidth: 460, margin: "0 auto 20px", fontSize: 14 }}>
-              {feedMode === "following"
-                ? lang === "sw"
-                  ? "Anza kuwafuata watayarishi na marafiki hawa ili kuona machapisho na hadithi zao hapa kwenye duara lako:"
-                  : "Start following these creators and friends to see their posts and media in your personalized feed:"
-                : t.emptyFeedDesc}
-            </p>
 
             {/* Suggested Creators Quick Grid */}
             <div className="suggested-creators-grid">
@@ -856,7 +965,11 @@ export function MainFeed({
                 const isFollowing = followedIds.includes(creator.id);
                 return (
                   <div key={creator.id} className="suggested-creator-card">
-                    <div className="suggested-creator-info">
+                    <div
+                      className="suggested-creator-info"
+                      onClick={() => onViewUserProfile && onViewUserProfile(creator)}
+                      style={{ cursor: "pointer" }}
+                    >
                       <Avatar name={creator.display_name} avatarUrl={creator.avatar_url} size="md" />
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{creator.display_name}</div>
@@ -864,22 +977,34 @@ export function MainFeed({
                       </div>
                     </div>
                     {creator.bio && <p className="suggested-creator-bio">{creator.bio}</p>}
-                    <button
-                      type="button"
-                      className={`button ${isFollowing ? "button-outline" : "button-primary"}`}
-                      style={{ marginTop: "auto", fontSize: 13, padding: "6px 12px" }}
-                      onClick={() =>
-                        handleToggleFollow(creator.id, creator.display_name, isFollowing)
-                      }
-                    >
-                      {isFollowing
-                        ? lang === "sw"
-                          ? "✓ Unamfuata"
-                          : "Following"
-                        : lang === "sw"
-                        ? "+ Fuata"
-                        : "+ Follow"}
-                    </button>
+                    <div style={{ display: "flex", gap: 6, marginTop: "auto" }}>
+                      <button
+                        type="button"
+                        className={`button ${isFollowing ? "button-outline" : "button-primary"}`}
+                        style={{ flex: 1, fontSize: 12, padding: "6px 10px" }}
+                        onClick={() =>
+                          handleToggleFollow(creator.id, creator.display_name, isFollowing)
+                        }
+                      >
+                        {isFollowing
+                          ? lang === "sw"
+                            ? "✓ Unamfuata"
+                            : "Following"
+                          : lang === "sw"
+                          ? "+ Fuata"
+                          : "+ Follow"}
+                      </button>
+                      {onOpenDirectMessage && (
+                        <button
+                          type="button"
+                          className="button button-soft"
+                          style={{ fontSize: 12, padding: "6px 10px" }}
+                          onClick={() => onOpenDirectMessage(creator.id, creator.display_name, "")}
+                        >
+                          💬
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -949,16 +1074,21 @@ export function MainFeed({
             {lang === "sw" ? "Watayarishi wa Kuwafuata" : "Creators to Follow"}
           </h4>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {suggestedCreators.slice(0, 3).map((person) => {
+            {suggestedCreators.slice(0, 4).map((person) => {
               const isFollowing = followedIds.includes(person.id);
               return (
                 <div key={person.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {person.display_name}
+                  <div
+                    onClick={() => onViewUserProfile && onViewUserProfile(person)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, cursor: "pointer" }}
+                  >
+                    <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {person.display_name}
+                      </div>
+                      <div className="muted" style={{ fontSize: 11 }}>@{person.username}</div>
                     </div>
-                    <div className="muted" style={{ fontSize: 11 }}>@{person.username}</div>
                   </div>
                   <button
                     type="button"

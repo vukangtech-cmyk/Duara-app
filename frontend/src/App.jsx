@@ -324,10 +324,90 @@ function PasscodeLockModal({ lang, correctPin, onUnlock }) {
   );
 }
 
-/* Background Ambient Lighting Mesh */
-function AmbientBackground() {
+const PAGE_BACKDROP_SCENES = {
+  home: {
+    main: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=600&auto=format&fit=crop&q=80"
+  },
+  catalogue: {
+    main: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80"
+  },
+  ads: {
+    main: "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&auto=format&fit=crop&q=80"
+  },
+  messages: {
+    main: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80"
+  },
+  wallet: {
+    main: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&auto=format&fit=crop&q=80"
+  },
+  reels: {
+    main: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&auto=format&fit=crop&q=80"
+  },
+  marketplace: {
+    main: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80"
+  },
+  ceo: {
+    main: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&auto=format&fit=crop&q=80"
+  },
+  profile: {
+    main: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1800&auto=format&fit=crop&q=80",
+    card1: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80",
+    card2: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80",
+    card3: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80"
+  }
+};
+
+/* Background Ambient Lighting & Modern Page-Aware Photographic Backdrop */
+function AmbientBackground({ activePage = "home" }) {
+  const scene = PAGE_BACKDROP_SCENES[activePage] || PAGE_BACKDROP_SCENES.home;
   return (
     <div className="ambient-mesh" aria-hidden="true">
+      {/* Full-bleed scenic background photo layer */}
+      <div
+        className="ambient-scene-photo"
+        style={{ backgroundImage: `url("${scene.main}")` }}
+      />
+      {/* Floating aesthetic picture frames visible subtly on every page */}
+      <div className="ambient-photo-collage">
+        <div
+          className="ambient-photo-card card-pos-1"
+          style={{ backgroundImage: `url("${scene.card1}")` }}
+        />
+        <div
+          className="ambient-photo-card card-pos-2"
+          style={{ backgroundImage: `url("${scene.card2}")` }}
+        />
+        <div
+          className="ambient-photo-card card-pos-3"
+          style={{ backgroundImage: `url("${scene.card3}")` }}
+        />
+      </div>
+      {/* Glassmorphic gradient veil for crisp legibility */}
+      <div className="ambient-scene-veil" />
       <div className="ambient-orb ambient-orb-1" />
       <div className="ambient-orb ambient-orb-2" />
       <div className="ambient-orb ambient-orb-3" />
@@ -336,8 +416,18 @@ function AmbientBackground() {
 }
 
 /* Top Navigation Bar */
-function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, unreadCount, passcodeEnabled, onLockApp, onOpenDirectMessage }) {
-  const t = useTranslation(lang);
+function TopHeader({
+  active,
+  setActive,
+  profile,
+  lang,
+  unreadCount,
+  onOpenDirectMessage,
+  onViewUserProfile,
+  isMobileLayout,
+  onOpenMobileMenu
+}) {
+  const isSw = lang === "sw";
   const [term, setTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -345,10 +435,11 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
   const handleSearch = async (e) => {
     const val = e.target.value;
     setTerm(val);
-    if (val.trim().length > 1) {
+    const clean = val.trim().replace(/^@+/, "");
+    if (clean.length >= 1) {
       setSearching(true);
       try {
-        const res = await searchProfiles(val);
+        const res = await searchProfiles(clean);
         setSearchResults(res || []);
       } catch (err) {
         console.warn(err);
@@ -359,6 +450,24 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
       setSearchResults([]);
     }
   };
+
+  const cleanHandle = term.trim().replace(/^@+/, "").toLowerCase().replace(/\s+/g, "_");
+  const hasExactMatch = searchResults.some(
+    (p) => (p.username || "").toLowerCase() === cleanHandle
+  );
+  const displayList =
+    cleanHandle.length >= 2 && !hasExactMatch
+      ? [
+          ...searchResults,
+          {
+            id: `username_${cleanHandle}`,
+            username: cleanHandle,
+            display_name: `@${cleanHandle}`,
+            role: "customer",
+            location: "Tanzania"
+          }
+        ]
+      : searchResults;
 
   return (
     <header className="top-header" id="app-top-header">
@@ -371,29 +480,94 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
             type="text"
             value={term}
             onChange={handleSearch}
-            placeholder={t.searchPersonPlaceholder}
+            placeholder={isSw ? "Tafuta @username..." : "Search @username..."}
           />
-          {searchResults.length > 0 && (
-            <div className="emoji-popover" style={{ position: "absolute", top: "44px", left: 0, width: "300px", maxWidth: "88vw", display: "flex", flexDirection: "column", gap: 8, zIndex: 100 }}>
-              {searchResults.map((p) => (
+          {term.trim().length >= 1 && (
+            <div
+              className="search-results-dropdown"
+              style={{
+                position: "absolute",
+                top: "calc(100% + 6px)",
+                left: 0,
+                right: 0,
+                minWidth: "min(320px, 92vw)",
+                maxHeight: "70vh",
+                overflowY: "auto",
+                background: "var(--card-bg)",
+                border: "1px solid var(--line)",
+                borderRadius: 14,
+                padding: 8,
+                boxShadow: "0 14px 34px rgba(0,0,0,0.22)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                zIndex: 1200
+              }}
+            >
+              {searching && displayList.length === 0 && (
+                <div style={{ padding: "10px", fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
+                  {isSw ? "Inatafuta..." : "Searching..."}
+                </div>
+              )}
+              {displayList.map((p) => (
                 <div
                   key={p.id}
-                  className="suggestion-row"
-                  style={{ padding: "6px", cursor: "pointer" }}
-                  onClick={() => {
-                    if (onOpenDirectMessage) {
-                      onOpenDirectMessage(p.id, p.display_name, "");
-                    } else {
-                      setActive("messages");
-                    }
-                    setTerm("");
-                    setSearchResults([]);
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    padding: "8px",
+                    borderRadius: 10,
+                    background: "var(--bg-base)",
+                    border: "1px solid var(--line)"
                   }}
                 >
-                  <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
-                  <div className="suggestion-info">
-                    <span className="suggestion-name">{p.display_name}</span>
-                    <span className="suggestion-handle">@{p.username}</span>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1, cursor: "pointer" }}
+                    onClick={() => {
+                      if (onViewUserProfile) onViewUserProfile(p);
+                      setTerm("");
+                      setSearchResults([]);
+                    }}
+                  >
+                    <Avatar name={p.display_name || p.username} avatarUrl={p.avatar_url} size="sm" />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {p.display_name}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        @{p.username}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      className="button button-soft"
+                      style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
+                      onClick={() => {
+                        if (onViewUserProfile) onViewUserProfile(p);
+                        setTerm("");
+                        setSearchResults([]);
+                      }}
+                    >
+                      👤 {isSw ? "Akaunti" : "Profile"}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
+                      onClick={() => {
+                        if (onOpenDirectMessage) {
+                          onOpenDirectMessage(p.id, p.display_name || `@${p.username}`, "", p);
+                        }
+                        setTerm("");
+                        setSearchResults([]);
+                      }}
+                    >
+                      💬 Message
+                    </button>
                   </div>
                 </div>
               ))}
@@ -403,35 +577,12 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
       </div>
 
       <div className="header-actions">
-        {passcodeEnabled && (
-          <button
-            type="button"
-            id="btn-nav-passcode-lock"
-            className="theme-pill-btn"
-            onClick={onLockApp}
-            title={lang === "sw" ? "Funga Programu (Telegram Passcode)" : "Lock App (Telegram Passcode)"}
-            style={{ color: "#0ea5e9" }}
-          >
-            <span>🔒</span>
-          </button>
-        )}
-        <button
-          type="button"
-          id="btn-nav-saved-items"
-          className={`theme-pill-btn ${active === "saved" ? "active" : ""}`}
-          onClick={() => setActive("saved")}
-          title={t.savedDownloadsTab}
-        >
-          <span>🔖</span>
-        </button>
-        <LanguageToggle lang={lang} setLang={setLang} />
-        <ThemeToggle dark={dark} setDark={setDark} />
         <button
           type="button"
           id="btn-nav-notifications"
           className="theme-pill-btn"
           onClick={() => setActive("notifications")}
-          title={t.notifications}
+          title={isSw ? "Arifa" : "Notifications"}
           style={{ position: "relative" }}
         >
           <span>🔔</span>
@@ -447,8 +598,58 @@ function TopHeader({ active, setActive, profile, lang, setLang, dark, setDark, u
         >
           <Avatar name={profile?.display_name || "User"} avatarUrl={profile?.avatar_url} size="sm" />
         </button>
+        {isMobileLayout && onOpenMobileMenu && (
+          <button
+            type="button"
+            className="theme-pill-btn"
+            onClick={onOpenMobileMenu}
+            title="Menyu"
+            style={{ fontWeight: 800 }}
+          >
+            ☰
+          </button>
+        )}
       </div>
     </header>
+  );
+}
+
+/* Mobile Horizontal Quick Feature Ribbon */
+function MobileFeatureRibbon({ active, setActive, profile, unread, lang }) {
+  const isCeo = profile?.role === "ceo";
+  const isSw = lang === "sw";
+  const pills = [
+    ["home", "⌂", "Duara"],
+    ["catalogue", "🛍️", "Shop"],
+    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
+    ["messages", "💬", "Messages", unread],
+    ["dashboard", "📊", "Dashboard"],
+    ["wallet", "💳", "Wallet"],
+    ["reels", "▶", "Reels"],
+    ["marketplace", "🏪", isSw ? "Soko" : "Market"],
+    ["saved", "🔖", isSw ? "Hifadhi" : "Saved"],
+    ["profile", "👤", isSw ? "Wasifu" : "Profile"],
+    ["settings", "⚙️", isSw ? "Mipangilio" : "Settings"]
+  ];
+  if (isCeo) {
+    pills.unshift(["ceo", "👑", "CEO"]);
+  }
+
+  return (
+    <div className="mobile-feature-ribbon" id="mobile-feature-ribbon">
+      {pills.map(([id, icon, label, badge]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setActive(id)}
+          className={`mobile-ribbon-pill ${active === id ? "active" : ""}`}
+        >
+          <span>{icon}</span>
+          <span>{label}</span>
+          {Boolean(badge) && <span className="mobile-ribbon-badge">{badge}</span>}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -529,14 +730,14 @@ function AuthScreen({ lang, setLang, dark, setDark }) {
         </div>
 
         <div style={{ position: "relative", zIndex: 2, margin: "auto 0" }}>
-          <p className="eyebrow" style={{ color: "#ffffff" }}>✦ THE CIRCLE DUARA</p>
-          <h1 style={{ fontSize: "clamp(34px, 4vw, 56px)", color: "#ffffff", lineHeight: 1.15, margin: "14px 0 16px" }}>
-            Mtandao Rasmi wa<br />
-            <em style={{ fontFamily: "'Playfair Display', serif", color: "#fbbf24" }}>Affiliate & Matangazo</em><br />
-            Tanzania & East Africa
+          <p className="eyebrow" style={{ color: "#ffffff" }}>✦ THE CIRCLE</p>
+          <h1 style={{ fontSize: "clamp(32px, 4vw, 52px)", color: "#ffffff", lineHeight: 1.15, margin: "14px 0 16px" }}>
+            Watu Wako.<br />
+            <em style={{ fontFamily: "'Playfair Display', serif", color: "#fbbf24" }}>Biashara Yako.</em><br />
+            Duara Lako.
           </h1>
-          <p style={{ maxWidth: 460, fontSize: 15, color: "rgba(255,255,255,0.9)", lineHeight: 1.6 }}>
-            Uongozi Mkuu wa <strong>CEO HAMZA VUKANG</strong>. Ungana kama <strong>Manager</strong> mwenye WhatsApp Catalogue ya duka lako au kama <strong>Mteja Mtangazaji</strong> unayepost bidhaa na kulipia matangazo hewani kwa muda halisi bila akaunti fake.
+          <p style={{ maxWidth: 420, fontSize: 15, color: "rgba(255,255,255,0.9)", lineHeight: 1.6 }}>
+            Ungana na marafiki, tangaza biashara na uza bidhaa zako kwa urahisi.
           </p>
         </div>
 
@@ -816,19 +1017,19 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
   const isCeo = profile?.role === "ceo";
 
   const mainLinks = [
-    ["catalogue", "🛍️", lang === "sw" ? "Duka la Simu & Vifaa (Shop)" : "Phone & Appliance Shop"],
-    ["ads", "📢", lang === "sw" ? "Matangazo ya Wateja" : "Customer Ads"],
-    ["home", "⌂", t.home],
-    ["messages", "✉", t.messages, unread],
+    ["home", "⌂", "Duara"],
+    ["catalogue", "🛍️", "Shop"],
+    ["ads", "📢", lang === "sw" ? "Matangazo" : "Ads"],
+    ["messages", "✉", t.messages, unread]
   ];
 
   if (isCeo) {
-    mainLinks.unshift(["ceo", "👑", lang === "sw" ? "Ofisi ya CEO (Hamza)" : "CEO Office"]);
+    mainLinks.unshift(["ceo", "👑", "CEO Dashboard"]);
   }
 
   const exploreLinks = [
-    ["dashboard", "📊", isCeo ? "CEO Dashboard" : profile?.role === "manager" ? "Manager Stats" : "Mteja Dashboard"],
-    ["marketplace", "🛍️", t.marketplace],
+    ["dashboard", "📊", "Dashboard"],
+    ["marketplace", "🏪", t.marketplace],
     ["reels", "▶", t.reels],
     ["wallet", "💳", t.wallet],
     ["saved", "🔖", t.savedDownloadsTab]
@@ -923,32 +1124,152 @@ function Sidebar({ profile, active, setActive, onLogout, unread, lang, setLang, 
   );
 }
 
-/* Mobile Bottom Navigation Dock */
-function MobileBottomNav({ active, setActive, lang, unread, profile }) {
+/* Mobile Bottom Navigation Dock + Full Feature Launcher Drawer */
+function MobileBottomNav({ active, setActive, lang, unread, profile, onLogout, dark, setDark, setLang, menuOpen, setMenuOpen }) {
   const isCeo = profile?.role === "ceo";
+  const isSw = lang === "sw";
   const items = [
+    ["home", "⌂", "Duara"],
     ["catalogue", "🛍️", "Shop"],
     ["ads", "📢", "Ads"],
-    ["home", "⌂", "Duara"],
-    ["messages", "✉", "Messages", unread],
-    isCeo ? ["ceo", "👑", "CEO"] : ["profile", "👤", "Wasifu"]
+    ["messages", "💬", "Chat", unread]
   ];
 
+  const allFeatures = [
+    ["home", "⌂", "Duara"],
+    ["catalogue", "🛍️", "Shop"],
+    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
+    ["messages", "💬", "Messages", unread],
+    ["wallet", "💳", "Wallet"],
+    ["dashboard", "📊", "Dashboard"],
+    ["reels", "▶", "Reels"],
+    ["marketplace", "🏪", isSw ? "Soko" : "Marketplace"],
+    ["saved", "🔖", isSw ? "Hifadhi" : "Saved"],
+    ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread],
+    ["profile", "👤", isSw ? "Wasifu" : "Profile"],
+    ["settings", "⚙️", isSw ? "Mipangilio" : "Settings"],
+    ["about", "ℹ️", isSw ? "Kuhusu" : "About"],
+    ["terms", "🛡️", isSw ? "Masharti" : "Terms"],
+    ["help", "❓", isSw ? "Msaada" : "Help"]
+  ];
+  if (isCeo) {
+    allFeatures.unshift(["ceo", "👑", "CEO Dashboard"]);
+  }
+
   return (
-    <div className="mobile-bottom-nav" id="mobile-bottom-nav">
-      {items.map(([id, icon, label, badge]) => (
+    <>
+      <div className="mobile-bottom-nav" id="mobile-bottom-nav">
+        {items.map(([id, icon, label, badge]) => (
+          <button
+            key={id}
+            id={`mobile-nav-${id}`}
+            className={`mobile-nav-btn ${active === id && !menuOpen ? "active" : ""}`}
+            onClick={() => {
+              setMenuOpen(false);
+              setActive(id);
+            }}
+          >
+            <span className="icon">{icon}</span>
+            <span>{label}</span>
+            {Boolean(badge) && <span className="mobile-nav-dot" />}
+          </button>
+        ))}
         <button
-          key={id}
-          id={`mobile-nav-${id}`}
-          className={`mobile-nav-btn ${active === id ? "active" : ""}`}
-          onClick={() => setActive(id)}
+          type="button"
+          id="mobile-nav-more-menu"
+          className={`mobile-nav-btn ${menuOpen ? "active" : ""}`}
+          onClick={() => setMenuOpen(!menuOpen)}
         >
-          <span className="icon">{icon}</span>
-          <span>{label}</span>
-          {Boolean(badge) && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--primary)" }} />}
+          <span className="icon">☰</span>
+          <span>{isSw ? "Menyu" : "Menu"}</span>
         </button>
-      ))}
-    </div>
+      </div>
+
+      {menuOpen && (
+        <div className="mobile-drawer-backdrop" onClick={() => setMenuOpen(false)}>
+          <div className="mobile-drawer-sheet" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Avatar name={profile?.display_name} avatarUrl={profile?.avatar_url} size="sm" />
+                <div>
+                  <strong style={{ fontSize: 14, display: "block" }}>{profile?.display_name}</strong>
+                  <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700 }}>
+                    {isCeo ? "👑 CEO HAMZA VUKANG" : profile?.role === "manager" ? "💼 AFFILIATE MANAGER" : "🛒 MTEJA"}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  border: "1px solid var(--line)",
+                  background: "var(--bg-base)",
+                  width: 34,
+                  height: 34,
+                  borderRadius: "50%",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  color: "var(--ink)"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
+              {isSw ? "Menyu" : "Menu"}
+            </div>
+
+            <div className="mobile-drawer-grid">
+              {allFeatures.map(([id, icon, label, badge]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`mobile-drawer-item ${active === id ? "active" : ""}`}
+                  onClick={() => {
+                    setActive(id);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span style={{ fontSize: 22 }}>{icon}</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{label}</span>
+                  {Boolean(badge) && <span className="mobile-ribbon-badge">{badge}</span>}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 16,
+                paddingTop: 14,
+                borderTop: "1px solid var(--line)",
+                flexWrap: "wrap",
+                gap: 10
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <LanguageToggle lang={lang} setLang={setLang} />
+                <ThemeToggle dark={dark} setDark={setDark} />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (onLogout) onLogout();
+                }}
+                className="button button-soft"
+                style={{ color: "#ef4444", padding: "8px 14px", fontSize: 12 }}
+              >
+                🚪 {isSw ? "Ondoka (Logout)" : "Logout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1411,7 +1732,7 @@ const Home = MainFeed;
 export { MainFeed, Home };
 
 /* Suggestions Widget */
-function Suggestions({ userId, lang }) {
+function Suggestions({ userId, lang, onViewUserProfile, onOpenDirectMessage }) {
   const t = useTranslation(lang);
   const [term, setTerm] = useState("");
   const [results, setResults] = useState([]);
@@ -1420,8 +1741,8 @@ function Suggestions({ userId, lang }) {
   const search = async (e) => {
     const value = e.target.value;
     setTerm(value);
-    if (value.length > 1) {
-      setResults(await searchProfiles(value));
+    if (value.trim().length >= 1) {
+      setResults(await searchProfiles(value.trim()));
     } else {
       setResults([]);
     }
@@ -1448,26 +1769,37 @@ function Suggestions({ userId, lang }) {
       />
       {results.map((person) => (
         <div className="suggestion-row" key={person.id}>
-          <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
-          <div className="suggestion-info">
-            <span className="suggestion-name">{person.display_name}</span>
-            <span className="suggestion-handle">@{person.username}</span>
-          </div>
-          <button
-            type="button"
-            className="friend-btn"
-            onClick={() => addFriend(person)}
-            disabled={sent[person.id]}
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}
+            onClick={() => onViewUserProfile && onViewUserProfile(person)}
           >
-            {sent[person.id] ? t.requestSent : t.addFriend}
-          </button>
+            <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
+            <div className="suggestion-info">
+              <span className="suggestion-name">{person.display_name}</span>
+              <span className="suggestion-handle">@{person.username}</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {onOpenDirectMessage && (
+              <button
+                type="button"
+                className="friend-btn"
+                onClick={() => onOpenDirectMessage(person.id, person.display_name, "", person)}
+              >
+                💬
+              </button>
+            )}
+            <button
+              type="button"
+              className="friend-btn"
+              onClick={() => addFriend(person)}
+              disabled={sent[person.id]}
+            >
+              {sent[person.id] ? t.requestSent : t.addFriend}
+            </button>
+          </div>
         </div>
       ))}
-      {!results.length && (
-        <p className="muted" style={{ fontSize: 12, textAlign: "center", padding: "10px 0" }}>
-          {lang === "sw" ? "Tafuta jina kuongeza watu." : "Search to connect with others."}
-        </p>
-      )}
     </div>
   );
 }
@@ -2004,23 +2336,10 @@ function Wallet({ profile, lang }) {
       return;
     }
     if (!phone || phone.length < 9) {
-      setErrorMsg("Weka namba sahihi ya simu ya Mobile Money.");
+      setErrorMsg("Weka namba sahihi ya simu.");
       return;
     }
-    setErrorMsg("");
-    setUssdPromptActive(true);
-    setUssdCountdown(4);
-
-    const interval = setInterval(() => {
-      setUssdCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          completeDepositSubmission();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    completeDepositSubmission();
   };
 
   const completeDepositSubmission = async () => {
@@ -2087,26 +2406,16 @@ function Wallet({ profile, lang }) {
 
   return (
     <div className="feature-shell" id="wallet-view">
-      <div className="feature-top-banner">
-        <div>
-          <p className="eyebrow">💳 MFUMO WA PESA & MALIPO</p>
-          <h1 style={{ fontSize: 32, margin: "6px 0 10px" }}>{t.walletTitle}</h1>
-          <p className="muted">
-            Salio lako la Mobile Money (M-Pesa, Tigo Pesa, Airtel, HaloPesa) kwa ajili ya kulipia matangazo, kupokea faida za catalogue na kutoa pesa muda wowote.
-          </p>
-        </div>
-      </div>
-
       {/* Main Balance Hero Card */}
       <div
         className="wallet-hero"
         style={{
           background: "linear-gradient(135deg, #075e54, #128c7e)",
           borderRadius: 18,
-          padding: "28px",
+          padding: "20px",
           color: "#ffffff",
           boxShadow: "0 10px 30px rgba(7, 94, 84, 0.25)",
-          marginBottom: 24,
+          marginBottom: 18,
           position: "relative",
           overflow: "hidden"
         }}
@@ -2572,8 +2881,8 @@ function Wallet({ profile, lang }) {
   );
 }
 
-/* Direct Messages View with Live Realtime Chat, Typing Indicators, Media & Calling */
-function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitialChatTarget }) {
+/* Direct Messages View */
+function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitialChatTarget, onViewUserProfile }) {
   const t = useTranslation(lang);
   const isSw = lang === "sw";
   const [term, setTerm] = useState("");
@@ -2601,7 +2910,6 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
       ]);
       setConversations(convList || []);
       const filtered = (memberList || []).filter((m) => m.id !== profile.id);
-      // Sort CEO first
       filtered.sort((a, b) => (a.role === "ceo" ? -1 : b.role === "ceo" ? 1 : 0));
       setAllMembers(filtered);
     } catch (err) {
@@ -2642,8 +2950,8 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
   useEffect(() => {
     if (initialChatTarget) {
       const handleInitialTarget = async () => {
-        let targetProfile = null;
-        if (initialChatTarget.userId) {
+        let targetProfile = initialChatTarget.userObj || null;
+        if (!targetProfile && initialChatTarget.userId) {
           const found = allMembers.find((m) => m.id === initialChatTarget.userId);
           if (found) {
             targetProfile = found;
@@ -2651,7 +2959,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
             try {
               const { data } = await supabase
                 .from("profiles")
-                .select("id, username, display_name, avatar_url, role, verified")
+                .select("id, username, display_name, avatar_url, role, verified, bio, location")
                 .eq("id", initialChatTarget.userId)
                 .maybeSingle();
               if (data) targetProfile = data;
@@ -2660,24 +2968,22 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
             }
           }
         }
-        if (!targetProfile) {
-          // Find CEO profile if messaging CEO from Shop
-          const ceoProfile = allMembers.find((m) => m.role === "ceo");
-          if (ceoProfile) {
-            targetProfile = ceoProfile;
+        if (!targetProfile && initialChatTarget.name) {
+          const cleanName = initialChatTarget.name.replace(/^@+/, "").toLowerCase();
+          const byHandle = allMembers.find((m) => (m.username || "").toLowerCase() === cleanName);
+          if (byHandle) {
+            targetProfile = byHandle;
           } else {
-            try {
-              const { data } = await supabase
-                .from("profiles")
-                .select("id, username, display_name, avatar_url, role, verified")
-                .eq("role", "ceo")
-                .limit(1)
-                .maybeSingle();
-              if (data) targetProfile = data;
-            } catch {
-              // ignore
-            }
+            targetProfile = {
+              id: initialChatTarget.userId || `user_${cleanName}`,
+              username: cleanName,
+              display_name: initialChatTarget.name
+            };
           }
+        }
+        if (!targetProfile) {
+          const ceoProfile = allMembers.find((m) => m.role === "ceo");
+          if (ceoProfile) targetProfile = ceoProfile;
         }
         if (targetProfile && targetProfile.id !== profile.id) {
           await open(targetProfile, initialChatTarget.prefillText || "");
@@ -2693,10 +2999,21 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
   const search = async (e) => {
     const value = e.target.value;
     setTerm(value);
-    if (value.trim().length > 0) {
+    const clean = value.trim().replace(/^@+/, "");
+    if (clean.length > 0) {
       try {
-        const res = await searchProfiles(value.trim());
-        setPeople((res || []).filter((p) => p.id !== profile.id));
+        const res = await searchProfiles(clean);
+        const filtered = (res || []).filter((p) => p.id !== profile.id);
+        const hasExact = filtered.some((p) => (p.username || "").toLowerCase() === clean.toLowerCase());
+        if (!hasExact && clean.length >= 2) {
+          filtered.push({
+            id: `username_${clean.toLowerCase()}`,
+            username: clean.toLowerCase(),
+            display_name: `@${clean.toLowerCase()}`,
+            role: "customer"
+          });
+        }
+        setPeople(filtered);
       } catch {
         setPeople([]);
       }
@@ -2773,20 +3090,6 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
 
   return (
     <div className="feature-shell" id="messages-view">
-      <div className="feature-top-banner" style={{ marginBottom: 16 }}>
-        <div>
-          <p className="eyebrow">💬 MAWASILIANO YA MOJA KWA MOJA (SUPABASE REALTIME)</p>
-          <h1 style={{ fontSize: "clamp(22px, 3vw, 30px)", margin: "4px 0 6px" }}>
-            {isSw ? "Ukurasa wa Messages (Wasiliana Moja kwa Moja)" : "Direct Realtime Messages"}
-          </h1>
-          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-            {isSw
-              ? "Chagua CEO au mwanachama yeyote hapa chini kuanza mazungumzo ya papo kwa hapo, kutuma picha au kupiga simu."
-              : "Select the CEO or any member below to start a real-time 1-to-1 conversation, send photos, or call."}
-          </p>
-        </div>
-      </div>
-
       <ErrorBox message={message} />
 
       <div className={`messages-box ${mobileShowChat && person ? "mobile-chat-active" : ""}`}>
@@ -2805,7 +3108,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
               }}
               value={term}
               onChange={search}
-              placeholder={isSw ? "🔍 Tafuta jina au @username..." : "🔍 Search name or @username..."}
+              placeholder={isSw ? "🔍 Tafuta @username..." : "🔍 Search @username..."}
               id="input-search-chats"
             />
           </div>
@@ -2814,7 +3117,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
           {conversations.length > 0 && !term.trim() && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6, padding: "0 4px" }}>
-                {isSw ? "Mazungumzo Yanayoendelea" : "Active Chats"} ({conversations.length})
+                {isSw ? "Mazungumzo" : "Chats"} ({conversations.length})
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {conversations.map((conv) => {
@@ -2822,9 +3125,8 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                   if (!p) return null;
                   const isSelected = person?.id === p.id;
                   return (
-                    <button
+                    <div
                       key={conv.conversationId}
-                      type="button"
                       className="suggestion-row"
                       style={{
                         width: "100%",
@@ -2832,7 +3134,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                         background: isSelected ? "var(--primary-soft)" : "var(--card-hover)",
                         border: isSelected ? "1px solid var(--primary)" : "1px solid transparent",
                         cursor: "pointer",
-                        padding: "10px",
+                        padding: "9px 10px",
                         borderRadius: 10,
                         display: "flex",
                         alignItems: "center",
@@ -2846,17 +3148,33 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                           <strong style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {p.display_name}
                           </strong>
-                          {p.role === "ceo" && (
-                            <span style={{ fontSize: 10, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 800 }}>
-                              CEO
-                            </span>
-                          )}
                         </div>
                         <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {conv.lastMessage?.body || (conv.lastMessage?.media_url ? "📷 Picha" : `@${p.username}`)}
                         </div>
                       </div>
-                    </button>
+                      {onViewUserProfile && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewUserProfile(p);
+                          }}
+                          style={{
+                            border: "1px solid var(--line)",
+                            background: "var(--card-bg)",
+                            borderRadius: 8,
+                            padding: "4px 8px",
+                            fontSize: 11,
+                            cursor: "pointer",
+                            color: "var(--ink)"
+                          }}
+                          title="Tazama Akaunti"
+                        >
+                          👤
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -2867,16 +3185,15 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6, padding: "0 4px" }}>
               {term.trim()
-                ? (isSw ? "Matokeo ya Utafutaji" : "Search Results")
-                : (isSw ? "Watu Wote & Uongozi (Bofya Kuchat)" : "All Members & CEO (Click to Chat)")}
+                ? (isSw ? "Matokeo" : "Results")
+                : (isSw ? "Watumiaji" : "People")}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {displayedContacts.map((p) => {
                 const isSelected = person?.id === p.id;
                 return (
-                  <button
+                  <div
                     key={p.id}
-                    type="button"
                     className="suggestion-row"
                     style={{
                       width: "100%",
@@ -2899,20 +3216,36 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                         <span className="suggestion-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {p.display_name}
                         </span>
-                        {p.role === "ceo" && (
-                          <span style={{ fontSize: 10, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 800 }}>
-                            👑 CEO
-                          </span>
-                        )}
                       </div>
                       <span className="suggestion-handle">@{p.username}</span>
                     </div>
-                  </button>
+                    {onViewUserProfile && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewUserProfile(p);
+                        }}
+                        style={{
+                          border: "1px solid var(--line)",
+                          background: "var(--card-bg)",
+                          borderRadius: 8,
+                          padding: "4px 8px",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          color: "var(--ink)"
+                        }}
+                        title="Tazama Akaunti"
+                      >
+                        👤
+                      </button>
+                    )}
+                  </div>
                 );
               })}
               {displayedContacts.length === 0 && (
                 <p className="muted" style={{ fontSize: 12, padding: "12px 6px", margin: 0 }}>
-                  {isSw ? "Hakuna mtumiaji aliyeonekana. Andika jina kumtafuta." : "No users found."}
+                  {isSw ? "Andika @username kumtafuta." : "Search @username."}
                 </p>
               )}
             </div>
@@ -2939,47 +3272,57 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                       color: "var(--ink)"
                     }}
                   >
-                    ← {isSw ? "Orodha" : "Back"}
+                    ←
                   </button>
-                  <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <strong>{person.display_name}</strong>
-                      {person.role === "ceo" && (
-                        <span style={{ fontSize: 10, background: "#fef3c7", color: "#b45309", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
-                          👑 CEO
-                        </span>
-                      )}
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                    onClick={() => onViewUserProfile && onViewUserProfile(person)}
+                  >
+                    <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <strong>{person.display_name}</strong>
+                      </div>
+                      <small className="muted" style={{ display: "block" }}>
+                        @{person.username} • <span style={{ color: "#10b981", fontWeight: 600 }}>● Online</span>
+                      </small>
                     </div>
-                    <small className="muted" style={{ display: "block" }}>
-                      @{person.username} • <span style={{ color: "#10b981", fontWeight: 600 }}>● {isSw ? "Moja kwa Moja" : "Realtime"}</span>
-                    </small>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {onViewUserProfile && (
+                    <button
+                      type="button"
+                      className="button button-soft"
+                      style={{ fontSize: 12, padding: "7px 10px" }}
+                      onClick={() => onViewUserProfile(person)}
+                    >
+                      👤 {isSw ? "Akaunti" : "Profile"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="button button-soft"
-                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 12px" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 10px" }}
                     onClick={() => onStartCall && onStartCall(person, "audio", false, conversationId)}
                     id="btn-voice-call"
                   >
-                    🎙️ {isSw ? "Sauti" : "Voice"}
+                    🎙️
                   </button>
                   <button
                     type="button"
                     className="button button-primary"
-                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 12px" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 10px" }}
                     onClick={() => onStartCall && onStartCall(person, "video", false, conversationId)}
                     id="btn-video-call"
                   >
-                    📹 {isSw ? "Video" : "Video"}
+                    📹
                   </button>
                 </div>
               </>
             ) : (
               <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                {isSw ? "👈 Chagua mtu upande wa kushoto kuanza kuchat moja kwa moja" : "👈 Choose a person on the left to start chatting"}
+                {isSw ? "Chagua mazungumzo" : "Select a chat"}
               </p>
             )}
           </div>
@@ -2987,18 +3330,18 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
           <div className="chat-messages-container">
             {loadingChat ? (
               <div style={{ margin: "auto", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
-                {isSw ? "Inafungua mazungumzo..." : "Loading conversation..."}
+                ...
               </div>
             ) : !person ? (
               <div style={{ margin: "auto", textAlign: "center", padding: 24, color: "var(--muted)" }}>
-                <div style={{ fontSize: 42, marginBottom: 8 }}>💬</div>
+                <div style={{ fontSize: 38, marginBottom: 8 }}>💬</div>
                 <strong style={{ display: "block", color: "var(--ink)", marginBottom: 4 }}>
-                  {isSw ? "Ukurasa wa Mawasiliano ya Moja kwa Moja" : "Direct Realtime Messenger"}
+                  Messages
                 </strong>
                 <span style={{ fontSize: 13 }}>
                   {isSw
-                    ? "Bofya jina la CEO au mwanachama yeyote kuanza mazungumzo ya kweli (Real-time Supabase Chat)."
-                    : "Click on the CEO or any member to start a real-time conversation."}
+                    ? "Tafuta @username au chagua mtu kuanza mazungumzo."
+                    : "Search @username or select a user to chat."}
                 </span>
               </div>
             ) : messages.length === 0 ? (
@@ -3132,9 +3475,24 @@ function Notifications({ items, userId, onRead, lang }) {
 }
 
 /* Master Settings View */
-function Settings({ profile, setProfile, dark, setDark, lang, setLang, passcodeEnabled, setPasscodeEnabled, passcodePin, setPasscodePin, onLockApp, onShowToast }) {
+function Settings({
+  profile,
+  setProfile,
+  dark,
+  setDark,
+  lang,
+  setLang,
+  passcodeEnabled,
+  setPasscodeEnabled,
+  passcodePin,
+  setPasscodePin,
+  onLockApp,
+  onShowToast,
+  layoutPreference,
+  setLayoutPreference
+}) {
   const t = useTranslation(lang);
-  const [activeTab, setActiveTab] = useState("telegram");
+  const [activeTab, setActiveTab] = useState("account");
   const [saved, setSaved] = useState(false);
 
   // Form states
@@ -4233,16 +4591,23 @@ function Settings({ profile, setProfile, dark, setDark, lang, setLang, passcodeE
             <ThemeToggle dark={dark} setDark={setDark} />
           </div>
 
-          <div className="settings-row">
-            <div className="settings-row-info">
-              <div className="settings-row-title">{lang === "sw" ? "Mpangilio Mfupi (Compact Feed)" : "Compact Feed Display"}</div>
-              <div className="settings-row-desc">{lang === "sw" ? "Punguza nafasi kati ya machapisho kuona maudhui mengi zaidi" : "Reduce feed whitespace to fit more posts on screen"}</div>
+          {setLayoutPreference && (
+            <div className="settings-row">
+              <div className="settings-row-info">
+                <div className="settings-row-title">{lang === "sw" ? "Mwonekano wa Skrini (View Mode)" : "Screen Layout Mode"}</div>
+                <div className="settings-row-desc">{lang === "sw" ? "Chagua Kiotomatiki, Simu au Desktop" : "Auto, Mobile or Desktop layout"}</div>
+              </div>
+              <select
+                value={layoutPreference || "auto"}
+                onChange={(e) => setLayoutPreference(e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 8, background: "var(--input-bg)", color: "var(--ink)", border: "1px solid var(--line)" }}
+              >
+                <option value="auto">Auto</option>
+                <option value="mobile">📱 Mobile View</option>
+                <option value="desktop">💻 Desktop View</option>
+              </select>
             </div>
-            <label className="toggle-switch">
-              <input type="checkbox" />
-              <span className="toggle-slider" />
-            </label>
-          </div>
+          )}
         </div>
       )}
 
@@ -4779,6 +5144,165 @@ function Friends({ profile, lang }) {
   );
 }
 
+/* Public Account Profile Viewer (View Other Users' Accounts) */
+function PublicUserProfileView({ targetUser, currentUser, posts = [], onBack, onOpenDirectMessage, onShowToast, lang }) {
+  const isSw = lang === "sw";
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [tab, setTab] = useState("posts");
+
+  useEffect(() => {
+    if (currentUser?.id && targetUser?.id) {
+      getFollowedUserIds(currentUser.id)
+        .then((ids) => setIsFollowing((ids || []).includes(targetUser.id)))
+        .catch(() => {});
+    }
+  }, [currentUser?.id, targetUser?.id]);
+
+  if (!targetUser) return null;
+
+  const userPosts = (posts || []).filter(
+    (p) =>
+      p.author_id === targetUser.id ||
+      p.user_id === targetUser.id ||
+      (targetUser.username && (p.profiles?.username || "").toLowerCase() === targetUser.username.toLowerCase())
+  );
+  const mediaPosts = userPosts.filter((p) => Boolean(p.media_url));
+
+  const handleToggleFollow = async () => {
+    const next = !isFollowing;
+    setIsFollowing(next);
+    try {
+      await followUser(currentUser.id, targetUser.id, !next);
+      if (onShowToast) {
+        onShowToast(next ? `✓ Unamfuata ${targetUser.display_name}` : `Umeacha kumfuata ${targetUser.display_name}`);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <div className="feature-shell" style={{ maxWidth: 780, margin: "0 auto", width: "100%" }}>
+      <div style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          className="button button-soft"
+          onClick={onBack}
+          style={{ padding: "7px 14px", fontSize: 13 }}
+        >
+          ← {isSw ? "Rudi" : "Back"}
+        </button>
+      </div>
+
+      <div className="glass-card" style={{ padding: 0, overflow: "hidden", borderRadius: 18, marginBottom: 16 }}>
+        <div
+          style={{
+            height: 130,
+            background: "linear-gradient(135deg, #064e3b, #0f766e, #0284c7)",
+            position: "relative"
+          }}
+        />
+        <div style={{ padding: "0 18px 18px", marginTop: -38, position: "relative" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ border: "3px solid var(--card-bg)", borderRadius: "50%", background: "var(--card-bg)" }}>
+              <Avatar name={targetUser.display_name || targetUser.username} avatarUrl={targetUser.avatar_url} size="lg" />
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="button button-primary"
+                style={{ padding: "8px 16px", fontSize: 13 }}
+                onClick={() =>
+                  onOpenDirectMessage &&
+                  onOpenDirectMessage(targetUser.id, targetUser.display_name || `@${targetUser.username}`, "", targetUser)
+                }
+              >
+                💬 Message
+              </button>
+              {targetUser.id !== currentUser?.id && (
+                <button
+                  type="button"
+                  className={`button ${isFollowing ? "button-soft" : "button-primary"}`}
+                  style={{ padding: "8px 16px", fontSize: 13 }}
+                  onClick={handleToggleFollow}
+                >
+                  {isFollowing ? (isSw ? "✓ Unamfuata" : "✓ Following") : (isSw ? "+ Fuata" : "+ Follow")}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{targetUser.display_name || `@${targetUser.username}`}</h2>
+              {targetUser.role === "ceo" && (
+                <span style={{ fontSize: 11, background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: 999, fontWeight: 800 }}>
+                  👑 CEO
+                </span>
+              )}
+              {targetUser.role === "manager" && (
+                <span style={{ fontSize: 11, background: "rgba(16,185,129,0.15)", color: "#10b981", padding: "2px 8px", borderRadius: 999, fontWeight: 800 }}>
+                  ✓ Verified
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>@{targetUser.username || "user"}</div>
+            {targetUser.bio && <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>{targetUser.bio}</p>}
+            {targetUser.location && (
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>📍 {targetUser.location}</div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 18, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 13 }}>
+            <span><strong>{userPosts.length}</strong> {isSw ? "Machapisho" : "Posts"}</span>
+            <span><strong>{isFollowing ? 1 : 0}</strong> {isSw ? "Wafuasi" : "Followers"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <button
+          type="button"
+          className={`button ${tab === "posts" ? "button-primary" : "button-soft"}`}
+          onClick={() => setTab("posts")}
+          style={{ padding: "7px 14px", fontSize: 12.5 }}
+        >
+          {isSw ? "Machapisho" : "Posts"} ({userPosts.length})
+        </button>
+        <button
+          type="button"
+          className={`button ${tab === "media" ? "button-primary" : "button-soft"}`}
+          onClick={() => setTab("media")}
+          style={{ padding: "7px 14px", fontSize: 12.5 }}
+        >
+          {isSw ? "Picha & Video" : "Media"} ({mediaPosts.length})
+        </button>
+      </div>
+
+      {(tab === "posts" ? userPosts : mediaPosts).length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {(tab === "posts" ? userPosts : mediaPosts).map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              user={currentUser}
+              onRefresh={() => {}}
+              lang={lang}
+              onShowToast={onShowToast}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="glass-card" style={{ textAlign: "center", padding: "36px 16px" }}>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            {isSw ? "Hakuna machapisho kwa sasa." : "No posts yet."}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Main Application Entry */
 export default function App() {
   const [session, setSession] = useState(null);
@@ -4797,14 +5321,42 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState("");
   const [activeCall, setActiveCall] = useState(null);
   const [initialChatTarget, setInitialChatTarget] = useState(null);
+  const [viewingUserProfile, setViewingUserProfile] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [layoutPreference, setLayoutPreference] = useState("auto"); // 'auto' | 'mobile' | 'desktop'
+  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1200));
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobileLayout =
+    layoutPreference === "mobile"
+      ? true
+      : layoutPreference === "desktop"
+      ? false
+      : windowWidth <= 900;
 
   const showToast = (msg) => {
     setToastMessage(msg);
   };
 
-  const handleOpenDirectMessage = (userId, name = "", prefillText = "") => {
-    setInitialChatTarget({ userId, name, prefillText });
+  const handleOpenDirectMessage = (userId, name = "", prefillText = "", userObj = null) => {
+    setViewingUserProfile(null);
+    setInitialChatTarget({ userId, name, prefillText, userObj });
     setActive("messages");
+  };
+
+  const handleViewUserProfile = (userObj) => {
+    if (!userObj) return;
+    if (userObj.id === profile?.id) {
+      setViewingUserProfile(null);
+      setActive("profile");
+      return;
+    }
+    setViewingUserProfile(userObj);
   };
 
   const handleStartCall = async (recipient, type = "audio", isIncoming = false, conversationId = null) => {
@@ -4970,177 +5522,225 @@ export default function App() {
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   return (
-    <div id="app-root-shell">
-      <AmbientBackground />
+    <div id="app-root-shell" className={isMobileLayout ? "layout-mode-mobile" : "layout-mode-desktop"}>
+      <AmbientBackground activePage={active} />
 
       <TopHeader
         active={active}
-        setActive={setActive}
+        setActive={(page) => {
+          setViewingUserProfile(null);
+          setActive(page);
+        }}
         profile={profile}
         lang={lang}
-        setLang={setLang}
-        dark={dark}
-        setDark={setDark}
         unreadCount={unreadCount}
-        passcodeEnabled={passcodeEnabled}
-        onLockApp={() => {
-          setIsLocked(true);
-          showToast(lang === "sw" ? "🔒 Programu imefungwa salama na Telegram Passcode!" : "🔒 App locked securely with Telegram Passcode!");
-        }}
-        onShowToast={showToast}
         onOpenDirectMessage={handleOpenDirectMessage}
+        onViewUserProfile={handleViewUserProfile}
+        isMobileLayout={isMobileLayout}
+        onOpenMobileMenu={() => setMobileMenuOpen(true)}
       />
 
-      <div className="app-shell">
-        <Sidebar
-          profile={profile}
+      {isMobileLayout && (
+        <MobileFeatureRibbon
           active={active}
-          setActive={setActive}
-          onLogout={logout}
+          setActive={(page) => {
+            setViewingUserProfile(null);
+            setActive(page);
+          }}
+          profile={profile}
           unread={unreadCount}
           lang={lang}
-          setLang={setLang}
-          dark={dark}
-          setDark={setDark}
-          passcodeEnabled={passcodeEnabled}
-          onLockApp={() => {
-            setIsLocked(true);
-            showToast(lang === "sw" ? "🔒 Programu imefungwa na Passcode!" : "🔒 App locked with Passcode!");
-          }}
         />
+      )}
+
+      <div className="app-shell">
+        {!isMobileLayout && (
+          <Sidebar
+            profile={profile}
+            active={active}
+            setActive={(page) => {
+              setViewingUserProfile(null);
+              setActive(page);
+            }}
+            onLogout={logout}
+            unread={unreadCount}
+            lang={lang}
+            setLang={setLang}
+            dark={dark}
+            setDark={setDark}
+            passcodeEnabled={passcodeEnabled}
+            onLockApp={() => {
+              setIsLocked(true);
+              showToast(lang === "sw" ? "🔒 Programu imefungwa na Passcode!" : "🔒 App locked with Passcode!");
+            }}
+          />
+        )}
 
         <main className="main-area" id="main-content-panel">
-          {/* Real-time Affiliate & Commerce Core Modules */}
-          {active === "ads" && (
-            <CustomerAdsDashboard
-              profile={profile}
-              onShowToast={showToast}
-              onOpenDirectMessage={handleOpenDirectMessage}
-              lang={lang}
-            />
-          )}
-
-          {active === "catalogue" && (
-            <AffiliateManagerCatalogue
-              profile={profile}
-              onShowToast={showToast}
-              onOpenDirectMessage={handleOpenDirectMessage}
-              lang={lang}
-            />
-          )}
-
-          {active === "ceo" && (
-            <CeoDashboard
-              profile={profile}
-              onShowToast={showToast}
-              lang={lang}
-            />
-          )}
-
-          {(active === "home" || active === "feed") && (
-            <MainFeed
-              profile={profile}
+          {viewingUserProfile ? (
+            <PublicUserProfileView
+              targetUser={viewingUserProfile}
+              currentUser={profile}
               posts={posts}
-              setPosts={setPosts}
-              onPost={onPost}
-              lang={lang}
+              onBack={() => setViewingUserProfile(null)}
+              onOpenDirectMessage={handleOpenDirectMessage}
               onShowToast={showToast}
-              setActive={setActive}
-              StatusRail={StatusRail}
+              lang={lang}
             />
-          )}
-          {active === "dashboard" && (
-            profile?.role === "ceo" ? (
-              <CeoDashboard
-                profile={profile}
-                onShowToast={showToast}
-                lang={lang}
-              />
-            ) : profile?.role === "manager" ? (
-              <AffiliateManagerCatalogue
-                profile={profile}
-                onShowToast={showToast}
-                onOpenDirectMessage={handleOpenDirectMessage}
-                lang={lang}
-              />
-            ) : (
-              <CustomerAdsDashboard
-                profile={profile}
-                onShowToast={showToast}
-                onOpenDirectMessage={handleOpenDirectMessage}
-                lang={lang}
-              />
-            )
-          )}
+          ) : (
+            <>
+              {active === "ads" && (
+                <CustomerAdsDashboard
+                  profile={profile}
+                  onShowToast={showToast}
+                  onOpenDirectMessage={handleOpenDirectMessage}
+                  onViewUserProfile={handleViewUserProfile}
+                  lang={lang}
+                />
+              )}
 
-          {active === "messages" && (
-            <Messages
-              profile={profile}
-              lang={lang}
-              onStartCall={handleStartCall}
-              initialChatTarget={initialChatTarget}
-              onClearInitialChatTarget={() => setInitialChatTarget(null)}
-            />
+              {active === "catalogue" && (
+                <AffiliateManagerCatalogue
+                  profile={profile}
+                  onShowToast={showToast}
+                  onOpenDirectMessage={handleOpenDirectMessage}
+                  lang={lang}
+                />
+              )}
+
+              {active === "ceo" && (
+                <CeoDashboard
+                  profile={profile}
+                  onShowToast={showToast}
+                  onOpenShop={() => setActive("catalogue")}
+                  lang={lang}
+                />
+              )}
+
+              {(active === "home" || active === "feed") && (
+                <MainFeed
+                  profile={profile}
+                  posts={posts}
+                  setPosts={setPosts}
+                  onPost={onPost}
+                  lang={lang}
+                  onShowToast={showToast}
+                  setActive={setActive}
+                  StatusRail={StatusRail}
+                  onViewUserProfile={handleViewUserProfile}
+                  onOpenDirectMessage={handleOpenDirectMessage}
+                />
+              )}
+              {active === "dashboard" && (
+                profile?.role === "ceo" ? (
+                  <CeoDashboard
+                    profile={profile}
+                    onShowToast={showToast}
+                    onOpenShop={() => setActive("catalogue")}
+                    lang={lang}
+                  />
+                ) : profile?.role === "manager" ? (
+                  <AffiliateManagerCatalogue
+                    profile={profile}
+                    onShowToast={showToast}
+                    onOpenDirectMessage={handleOpenDirectMessage}
+                    lang={lang}
+                  />
+                ) : (
+                  <CustomerAdsDashboard
+                    profile={profile}
+                    onShowToast={showToast}
+                    onOpenDirectMessage={handleOpenDirectMessage}
+                    onViewUserProfile={handleViewUserProfile}
+                    lang={lang}
+                  />
+                )
+              )}
+
+              {active === "messages" && (
+                <Messages
+                  profile={profile}
+                  lang={lang}
+                  onStartCall={handleStartCall}
+                  initialChatTarget={initialChatTarget}
+                  onClearInitialChatTarget={() => setInitialChatTarget(null)}
+                  onViewUserProfile={handleViewUserProfile}
+                />
+              )}
+              {active === "friends" && <Friends profile={profile} lang={lang} />}
+              {active === "marketplace" && <Marketplace lang={lang} />}
+              {active === "reels" && <Reels profile={profile} lang={lang} onShowToast={showToast} />}
+              {active === "saved" && <SavedMedia lang={lang} setActive={setActive} onShowToast={showToast} />}
+              {active === "wallet" && <Wallet profile={profile} lang={lang} />}
+              {active === "profile" && (
+                <UserProfile
+                  profile={profile}
+                  setProfile={setProfile}
+                  posts={posts}
+                  setPosts={setPosts}
+                  onPost={onPost}
+                  lang={lang}
+                  onShowToast={showToast}
+                  setActive={setActive}
+                  PostCard={PostCard}
+                />
+              )}
+              {active === "settings" && (
+                <Settings
+                  profile={profile}
+                  setProfile={setProfile}
+                  dark={dark}
+                  setDark={setDark}
+                  lang={lang}
+                  setLang={setLang}
+                  passcodeEnabled={passcodeEnabled}
+                  setPasscodeEnabled={setPasscodeEnabled}
+                  passcodePin={passcodePin}
+                  setPasscodePin={setPasscodePin}
+                  onLockApp={() => {
+                    setIsLocked(true);
+                    showToast(lang === "sw" ? "🔒 Programu imefungwa!" : "🔒 App locked!");
+                  }}
+                  onShowToast={showToast}
+                  layoutPreference={layoutPreference}
+                  setLayoutPreference={setLayoutPreference}
+                />
+              )}
+              {active === "about" && <AboutUs lang={lang} setActive={setActive} />}
+              {active === "terms" && <TermsOfService lang={lang} />}
+              {active === "help" && <HelpSupport lang={lang} />}
+              {active === "notifications" && (
+                <Notifications
+                  items={notifications}
+                  userId={profile.id}
+                  onRead={markRead}
+                  lang={lang}
+                />
+              )}
+              {active === "discover" && <Discover profile={profile} lang={lang} />}
+            </>
           )}
-          {active === "friends" && <Friends profile={profile} lang={lang} />}
-          {active === "marketplace" && <Marketplace lang={lang} />}
-          {active === "reels" && <Reels profile={profile} lang={lang} onShowToast={showToast} />}
-          {active === "saved" && <SavedMedia lang={lang} setActive={setActive} onShowToast={showToast} />}
-          {active === "wallet" && <Wallet profile={profile} lang={lang} />}
-          {active === "profile" && (
-            <UserProfile
-              profile={profile}
-              setProfile={setProfile}
-              posts={posts}
-              setPosts={setPosts}
-              onPost={onPost}
-              lang={lang}
-              onShowToast={showToast}
-              setActive={setActive}
-              PostCard={PostCard}
-            />
-          )}
-          {active === "settings" && (
-            <Settings
-              profile={profile}
-              setProfile={setProfile}
-              dark={dark}
-              setDark={setDark}
-              lang={lang}
-              setLang={setLang}
-              passcodeEnabled={passcodeEnabled}
-              setPasscodeEnabled={setPasscodeEnabled}
-              passcodePin={passcodePin}
-              setPasscodePin={setPasscodePin}
-              onLockApp={() => {
-                setIsLocked(true);
-                showToast(lang === "sw" ? "🔒 Programu imefungwa!" : "🔒 App locked!");
-              }}
-              onShowToast={showToast}
-            />
-          )}
-          {active === "about" && <AboutUs lang={lang} setActive={setActive} />}
-          {active === "terms" && <TermsOfService lang={lang} />}
-          {active === "help" && <HelpSupport lang={lang} />}
-          {active === "notifications" && (
-            <Notifications
-              items={notifications}
-              userId={profile.id}
-              onRead={markRead}
-              lang={lang}
-            />
-          )}
-          {active === "discover" && <Discover profile={profile} lang={lang} />}
         </main>
       </div>
 
-      <MobileBottomNav
-        active={active}
-        setActive={setActive}
-        lang={lang}
-        unread={unreadCount}
-        profile={profile}
-      />
+      {isMobileLayout && (
+        <MobileBottomNav
+          active={active}
+          setActive={(page) => {
+            setViewingUserProfile(null);
+            setActive(page);
+          }}
+          lang={lang}
+          unread={unreadCount}
+          profile={profile}
+          onLogout={logout}
+          dark={dark}
+          setDark={setDark}
+          setLang={setLang}
+          menuOpen={mobileMenuOpen}
+          setMenuOpen={setMobileMenuOpen}
+        />
+      )}
 
       {/* Telegram-style Passcode Lock Modal */}
       {passcodeEnabled && isLocked && (

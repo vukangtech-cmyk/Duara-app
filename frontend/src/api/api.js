@@ -174,9 +174,12 @@ export async function getSuggestedUsers(currentUserId) {
 export async function searchProfiles(term) {
   const query = supabase
     .from("profiles")
-    .select("id, display_name, username, avatar_url, role, phone, whatsapp, location");
+    .select("id, display_name, username, avatar_url, role, phone, whatsapp, location, bio, verified");
   if (term && term.trim()) {
-    query.or(`display_name.ilike.%${term.trim()}%,username.ilike.%${term.trim()}%`);
+    const clean = term.trim().replace(/^@+/, "");
+    if (clean) {
+      query.or(`username.ilike.%${clean}%,display_name.ilike.%${clean}%`);
+    }
   }
   const { data, error } = await query.limit(25);
   if (error) throw error;
