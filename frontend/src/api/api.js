@@ -227,6 +227,129 @@ export async function loginUser(identifier, password) {
   return { session: sessionObj, user: sessionObj.user, profile: matchedProfile };
 }
 
+export async function loginWithPlatform(provider, identifier = "", displayName = "", role = "customer") {
+  const cleanProvider = (provider || "google").toLowerCase();
+  const raw = (identifier || "").trim();
+  const isEmail = raw.includes("@") && !raw.startsWith("@");
+  const cleanHandle = raw
+    .replace(/^@+/, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_]/g, "");
+
+  const usernamePart = isEmail
+    ? raw.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "")
+    : cleanHandle || `${cleanProvider}_user`;
+
+  let matchedProfile = null;
+  const savedList = getSavedAccounts();
+  if (raw) {
+    matchedProfile = savedList.find(
+      (a) =>
+        (a.username || "").toLowerCase() === usernamePart ||
+        (a.email || "").toLowerCase() === raw.toLowerCase() ||
+        (a.display_name || "").toLowerCase() === raw.toLowerCase()
+    );
+  }
+
+  if (!matchedProfile && raw && supabase) {
+    try {
+      const { data: rows } = await supabase
+        .from("profiles")
+        .select("*")
+        .or(`username.ilike.${usernamePart},display_name.ilike.%${raw}%`)
+        .limit(3);
+      if (rows && rows.length > 0) {
+        matchedProfile = rows[0];
+      }
+    } catch {}
+  }
+
+  if (!matchedProfile) {
+    const isCeo =
+      raw.toLowerCase() === "vukangtech@gmail.com" || usernamePart === "hamza_vukang";
+    const formattedName =
+      displayName.trim() ||
+      usernamePart
+        .split("_")
+        .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
+        .join(" ") ||
+      "Mwanachama";
+
+    matchedProfile = {
+      id: crypto.randomUUID(),
+      display_name: isCeo ? "HAMZA VUKANG" : formattedName,
+      username: usernamePart || `user_${Math.floor(100 + Math.random() * 899)}`,
+      email: isEmail ? raw : `${usernamePart}@${cleanProvider}.com`,
+      role: isCeo ? "ceo" : role || "customer",
+      location: "Dar es Salaam",
+      bio: `Joined via ${provider}`,
+      auth_provider: cleanProvider
+    };
+
+    if (supabase) {
+      try {
+        await supabase.from("profiles").upsert({
+          id: matchedProfile.id,
+          display_name: matchedProfile.display_name,
+          username: matchedProfile.username,
+          role: matchedProfile.role,
+          location: matchedProfile.location,
+          bio: matchedProfile.bio
+        });
+      } catch {}
+    }
+  }
+
+  setActiveAccountOverride(matchedProfile);
+  const sessionObj = {
+    user: {
+      id: matchedProfile.id,
+      email: matchedProfile.email || `${matchedProfile.username}@thecircle.app`,
+      app_metadata: { provider: cleanProvider }
+    }
+  };
+  return { session: sessionObj, user: sessionObj.user, profile: matchedProfile };
+}
+
+export async function signInWithSupabaseOAuth(provider = "google", options = {}) {
+  if (!supabase) {
+    throw new Error("Supabase haijaunganishwa.");
+  }
+  const providerMap = {
+    google: "google",
+    github: "github",
+    apple: "apple",
+    facebook: "facebook",
+    tiktok: "tiktok",
+    telegram: "discord",
+    instagram: "facebook"
+  };
+  const cleanProvider = providerMap[provider.toLowerCase()] || provider.toLowerCase();
+  clearActiveAccountOverride();
+
+  const redirectTo =
+    typeof window !== "undefined" ? `${window.location.origin}` : undefined;
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: cleanProvider,
+    options: {
+      redirectTo,
+      skipBrowserRedirect: true,
+      queryParams:
+        cleanProvider === "google"
+          ? { access_type: "offline", prompt: "select_account" }
+          : undefined,
+      ...options
+    }
+  });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
 export async function logoutUser() {
   clearActiveAccountOverride();
   try {
@@ -243,13 +366,51 @@ export async function getCurrentProfile(userId, userEmail = "") {
   }
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (error) throw error;
-  if (data && userEmail?.toLowerCase() === "vukangtech@gmail.com" && data.role !== "ceo") {
-    return { ...data, role: "ceo" };
-  }
   if (data) {
-    saveAccountToHistory({ ...data, email: userEmail });
+    const finalProfile =
+      userEmail?.toLowerCase() === "vukangtech@gmail.com" && data.role !== "ceo"
+        ? { ...data, role: "ceo" }
+        : data;
+    saveAccountToHistory({ ...finalProfile, email: userEmail });
+    return finalProfile;
   }
-  return data || override;
+
+  // Auto-provision profile for first-time Supabase OAuth users (Google, GitHub, etc.)
+  if (userId && supabase) {
+    try {
+      const { data: authUserRes } = await supabase.auth.getUser();
+      const authUser = authUserRes?.user;
+      const meta = authUser?.user_metadata || {};
+      const email = userEmail || authUser?.email || "";
+      const isCeo = email.toLowerCase() === "vukangtech@gmail.com";
+      const rawHandle =
+        meta.user_name ||
+        meta.preferred_username ||
+        email.split("@")[0] ||
+        `user_${userId.slice(0, 6)}`;
+      const cleanUsername = rawHandle.toLowerCase().replace(/[^a-z0-9_]/g, "") || `user_${userId.slice(0, 6)}`;
+      const displayName =
+        meta.full_name ||
+        meta.name ||
+        (isCeo ? "HAMZA VUKANG" : cleanUsername);
+
+      const newProfile = {
+        id: userId,
+        display_name: displayName,
+        username: cleanUsername,
+        avatar_url: meta.avatar_url || meta.picture || null,
+        role: isCeo ? "ceo" : "customer",
+        location: "Dar es Salaam, Tanzania",
+        bio: `Joined via ${authUser?.app_metadata?.provider || "OAuth"}`
+      };
+
+      await supabase.from("profiles").upsert(newProfile);
+      saveAccountToHistory({ ...newProfile, email });
+      return newProfile;
+    } catch {}
+  }
+
+  return override;
 }
 
 export async function updateProfile(userId, values) {

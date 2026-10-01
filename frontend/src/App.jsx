@@ -29,6 +29,8 @@ import {
   withdrawFromWallet,
   kickPost,
   loginUser,
+  loginWithPlatform,
+  signInWithSupabaseOAuth,
   logoutUser,
   markNotificationsRead,
   markStatusViewed,
@@ -622,6 +624,317 @@ function TopHeader({
   );
 }
 
+/* Social / External Platform Definitions & Crisp SVG Logos (Supabase Auth OAuth Providers) */
+const AUTH_PLATFORMS = [
+  {
+    id: "Google",
+    oauthProvider: "google",
+    label: "Google",
+    color: "#ea4335",
+    bg: "rgba(234, 67, 53, 0.08)",
+    placeholder: "jina@gmail.com",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+    )
+  },
+  {
+    id: "GitHub",
+    oauthProvider: "github",
+    label: "GitHub",
+    color: "#24292f",
+    bg: "rgba(36, 41, 47, 0.09)",
+    placeholder: "@github_username au barua pepe",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+      </svg>
+    )
+  },
+  {
+    id: "Apple",
+    oauthProvider: "apple",
+    label: "Apple",
+    color: "#111827",
+    bg: "rgba(17, 24, 39, 0.08)",
+    placeholder: "apple_id@icloud.com",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+      </svg>
+    )
+  },
+  {
+    id: "Facebook",
+    oauthProvider: "facebook",
+    label: "Facebook",
+    color: "#1877F2",
+    bg: "rgba(24, 119, 242, 0.08)",
+    placeholder: "@username au barua pepe",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="#1877F2">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>
+    )
+  },
+  {
+    id: "TikTok",
+    oauthProvider: "tiktok",
+    label: "TikTok",
+    color: "#ff0050",
+    bg: "rgba(255, 0, 80, 0.08)",
+    placeholder: "@tiktok_username",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+      </svg>
+    )
+  },
+  {
+    id: "Telegram",
+    oauthProvider: "discord",
+    label: "Telegram",
+    color: "#0088cc",
+    bg: "rgba(0, 136, 204, 0.08)",
+    placeholder: "@telegram_handle",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="#0088cc">
+        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+      </svg>
+    )
+  }
+];
+
+function PlatformAuthModal({ platform, quickAccounts = [], role = "customer", mode = "login", onClose, onComplete, lang }) {
+  const isSw = lang === "sw";
+  const [identifier, setIdentifier] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [selectedRole, setSelectedRole] = useState(role || "customer");
+  const [busy, setBusy] = useState(false);
+  const [oauthUrl, setOauthUrl] = useState("");
+
+  useEffect(() => {
+    if (!platform) return;
+    let active = true;
+    signInWithSupabaseOAuth(platform.oauthProvider || platform.id)
+      .then((data) => {
+        if (active && data?.url) {
+          setOauthUrl(data.url);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [platform]);
+
+  if (!platform) return null;
+
+  const handleContinue = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const targetId = identifier.trim() || `${platform.id.toLowerCase()}_member`;
+      const res = await loginWithPlatform(platform.id, targetId, displayName.trim(), selectedRole);
+      if (res?.session && onComplete) {
+        onComplete(res.session, res.profile);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSupabaseOAuthTrigger = async () => {
+    setBusy(true);
+    try {
+      const data = await signInWithSupabaseOAuth(platform.oauthProvider || platform.id);
+      const isInIframe = typeof window !== "undefined" && window.self !== window.top;
+      if (data?.url && !isInIframe) {
+        window.location.assign(data.url);
+        return;
+      }
+      const fallbackId = identifier.trim() || `${platform.id.toLowerCase()}_oauth_user`;
+      const res = await loginWithPlatform(platform.id, fallbackId, displayName.trim(), selectedRole);
+      if (res?.session && onComplete) {
+        onComplete(res.session, res.profile);
+      }
+    } catch {
+      const fallbackId = identifier.trim() || `${platform.id.toLowerCase()}_oauth_user`;
+      const res = await loginWithPlatform(platform.id, fallbackId, displayName.trim(), selectedRole);
+      if (res?.session && onComplete) {
+        onComplete(res.session, res.profile);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleQuickPick = async (acc) => {
+    setBusy(true);
+    try {
+      const res = await loginWithPlatform(platform.id, acc.username || acc.email, acc.display_name, acc.role || selectedRole);
+      if (res?.session && onComplete) {
+        onComplete(res.session, res.profile);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10060 }}>
+      <div className="modal-content auth-platform-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 410, padding: "22px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: platform.bg, color: platform.color, display: "grid", placeItems: "center" }}>
+              {platform.icon}
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16 }}>
+                {isSw ? `Endelea na ${platform.label}` : `Continue with ${platform.label}`}
+              </h3>
+              <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                Supabase Auth · {oauthUrl ? "OAuth 2.0 Ready" : isSw ? "Uthibitisho wa Haraka" : "Instant Sign-In"}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ border: "1px solid var(--line)", background: "var(--bg-base)", width: 30, height: 30, borderRadius: "50%", cursor: "pointer", color: "var(--ink)" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Direct 1-Click Supabase OAuth Button */}
+        <button
+          type="button"
+          id="btn-supabase-oauth-connect"
+          onClick={handleSupabaseOAuthTrigger}
+          disabled={busy}
+          className="button button-soft button-full"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            marginBottom: 12,
+            padding: "10px 14px",
+            borderRadius: 12,
+            border: "1px solid var(--primary-border)",
+            background: "var(--primary-soft)",
+            color: "var(--primary)",
+            fontWeight: 800,
+            fontSize: 13
+          }}
+        >
+          {platform.icon}
+          <span>
+            {isSw
+              ? `Unganisha Moja kwa Moja na ${platform.label}`
+              : `One-Click ${platform.label} OAuth`}
+          </span>
+        </button>
+
+        {quickAccounts.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>
+              {isSw ? "Chagua akaunti:" : "Choose an account:"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 135, overflowY: "auto" }}>
+              {quickAccounts.slice(0, 3).map((acc) => (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => handleQuickPick(acc)}
+                  disabled={busy}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "8px 10px",
+                    borderRadius: 12,
+                    border: "1px solid var(--line)",
+                    background: "var(--bg-base)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: "var(--ink)"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {acc.display_name}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>@{acc.username}</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--primary)" }}>
+                    {isSw ? "Ingia →" : "Sign in →"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleContinue} style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          {mode === "register" && (
+            <div className="auth-role-pills" style={{ marginBottom: 2 }}>
+              <button
+                type="button"
+                className={`auth-role-pill ${selectedRole === "customer" ? "active" : ""}`}
+                onClick={() => setSelectedRole("customer")}
+              >
+                <span>👤</span>
+                <span>{isSw ? "Mwanachama" : "Personal"}</span>
+              </button>
+              <button
+                type="button"
+                className={`auth-role-pill ${selectedRole === "manager" ? "active" : ""}`}
+                onClick={() => setSelectedRole("manager")}
+              >
+                <span>🏪</span>
+                <span>{isSw ? "Mfanyabiashara" : "Business"}</span>
+              </button>
+            </div>
+          )}
+          <input
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder={platform.placeholder}
+            style={{ padding: "11px 13px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13.5 }}
+            autoFocus
+          />
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder={isSw ? "Jina lako (hiari)" : "Display name (optional)"}
+            style={{ padding: "10px 13px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+          />
+          <button
+            type="submit"
+            className="button button-primary button-full"
+            disabled={busy}
+            style={{ marginTop: 4, padding: "11px 16px" }}
+          >
+            {busy ? "..." : isSw ? `Endelea na ${platform.label}` : `Continue with ${platform.label}`}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* Account Switcher Modal - Login or Switch to Any Account Anytime */
 function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogoutToAuth, lang }) {
   const isSw = lang === "sw";
@@ -631,6 +944,7 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
 
   useEffect(() => {
     getAllProfiles(25)
@@ -668,7 +982,7 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
   const handleFormLogin = async (e) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
-      setError(isSw ? "Weka username au email na nenosiri." : "Enter username or email and password.");
+      setError(isSw ? "Weka @username au email na nenosiri." : "Enter @username or email and password.");
       return;
     }
     setBusy(true);
@@ -688,15 +1002,15 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10050 }}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 18 }}>
-            🔄 {isSw ? "Badilisha au Ingia Akaunti" : "Switch or Login Account"}
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440, padding: "20px 18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 17 }}>
+            {isSw ? "Akaunti" : "Accounts"}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            style={{ border: "1px solid var(--line)", background: "var(--bg-base)", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", color: "var(--ink)" }}
+            style={{ border: "1px solid var(--line)", background: "var(--bg-base)", width: 30, height: 30, borderRadius: "50%", cursor: "pointer", color: "var(--ink)" }}
           >
             ✕
           </button>
@@ -711,10 +1025,10 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
               justifyContent: "space-between",
               gap: 10,
               padding: "10px 12px",
-              borderRadius: 12,
+              borderRadius: 14,
               background: "var(--primary-soft)",
               border: "1px solid var(--primary-border)",
-              marginBottom: 16
+              marginBottom: 12
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
@@ -724,7 +1038,7 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
                   {currentProfile.display_name}
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
-                  @{currentProfile.username} · <span style={{ color: "var(--primary)", fontWeight: 700 }}>{isSw ? "Ipo Hewani" : "Active"}</span>
+                  @{currentProfile.username} · <span style={{ color: "var(--primary)", fontWeight: 700 }}>{isSw ? "Hewani" : "Active"}</span>
                 </div>
               </div>
             </div>
@@ -739,59 +1053,13 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
           </div>
         )}
 
-        {/* Login Form for Any Account */}
-        <form
-          onSubmit={handleFormLogin}
-          style={{
-            padding: 14,
-            borderRadius: 14,
-            background: "var(--bg-base)",
-            border: "1px solid var(--line)",
-            marginBottom: 16
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 10, color: "var(--ink-heading)" }}>
-            🔑 {isSw ? "Ingia Kwenye Akaunti Yoyote (@username au Email)" : "Login to Any Account (@username or Email)"}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <input
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder={isSw ? "Andika @username au barua pepe..." : "Enter @username or email..."}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isSw ? "Nenosiri..." : "Password..."}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
-            />
-            {error && <div style={{ color: "#ef4444", fontSize: 12, fontWeight: 600 }}>{error}</div>}
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <button type="submit" className="button button-primary" disabled={busy} style={{ flex: 1, padding: "9px 14px", fontSize: 13 }}>
-                {busy ? "..." : isSw ? "Ingia Sasa" : "Login Now"}
-              </button>
-              <button
-                type="button"
-                className="button button-soft"
-                onClick={onLogoutToAuth}
-                style={{ padding: "9px 12px", fontSize: 12.5 }}
-              >
-                + {isSw ? "Sajili Mpya" : "New Account"}
-              </button>
-            </div>
-          </div>
-        </form>
-
         {/* Quick Switch List */}
         {combinedAccounts.length > 0 && (
-          <div>
-            <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
-              {isSw ? "Akaunti Zilizopo (Bonyeza Kuingia)" : "Available Accounts (Tap to Switch)"}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6 }}>
+              {isSw ? "Badilisha Haraka" : "Quick Switch"}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 165, overflowY: "auto" }}>
               {combinedAccounts.map((acc) => (
                 <div
                   key={acc.id}
@@ -800,26 +1068,26 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 10,
-                    padding: "8px 10px",
-                    borderRadius: 10,
+                    padding: "7px 10px",
+                    borderRadius: 11,
                     background: "var(--bg-base)",
                     border: "1px solid var(--line)"
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: 1 }}>
                     <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {acc.display_name}
                       </div>
-                      <div style={{ fontSize: 11.5, color: "var(--muted)" }}>@{acc.username}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>@{acc.username}</div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                     <button
                       type="button"
                       className="button button-primary"
-                      style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
+                      style={{ padding: "5px 12px", fontSize: 11.5, borderRadius: 8 }}
                       onClick={() => handleQuickLogin(acc)}
                       disabled={busy}
                     >
@@ -829,12 +1097,11 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
                       <button
                         type="button"
                         className="button button-soft"
-                        style={{ padding: "6px 8px", fontSize: 11, color: "var(--muted)" }}
+                        style={{ padding: "5px 8px", fontSize: 11, color: "var(--muted)" }}
                         onClick={() => {
                           removeSavedAccount(acc.id);
                           setSavedAccounts(getSavedAccounts());
                         }}
-                        title={isSw ? "Ondoa kwenye orodha" : "Remove"}
                       >
                         ✕
                       </button>
@@ -845,21 +1112,110 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
             </div>
           </div>
         )}
+
+        {/* Login Form for Any Account */}
+        <form
+          onSubmit={handleFormLogin}
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            background: "var(--bg-base)",
+            border: "1px solid var(--line)",
+            marginBottom: 12
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder={isSw ? "@username au barua pepe" : "@username or email"}
+              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={isSw ? "Nenosiri" : "Password"}
+              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
+            />
+            {error && <div style={{ color: "#ef4444", fontSize: 12, fontWeight: 600 }}>{error}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="submit" className="button button-primary" disabled={busy} style={{ flex: 1, padding: "9px 14px", fontSize: 13 }}>
+                {busy ? "..." : isSw ? "Ingia" : "Login"}
+              </button>
+              <button
+                type="button"
+                className="button button-soft"
+                onClick={onLogoutToAuth}
+                style={{ padding: "9px 12px", fontSize: 12.5 }}
+              >
+                + {isSw ? "Mpya" : "New"}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Social Platform Quick Login */}
+        <div>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
+            {isSw ? "Au ingia kupitia" : "Or continue with"}
+          </div>
+          <div className="auth-social-mini-grid">
+            {AUTH_PLATFORMS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="auth-social-chip"
+                onClick={() => setSelectedPlatform(p)}
+                title={p.label}
+              >
+                {p.icon}
+                <span>{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {selectedPlatform && (
+        <PlatformAuthModal
+          platform={selectedPlatform}
+          quickAccounts={combinedAccounts}
+          onClose={() => setSelectedPlatform(null)}
+          onComplete={(sess, prof) => {
+            setSelectedPlatform(null);
+            onSelectAccount(sess, prof);
+          }}
+          lang={lang}
+        />
+      )}
     </div>
   );
 }
 
-/* Authentication Screen */
-function AuthScreen({ lang, setLang, dark, setDark, onAuthSuccess }) {
+/* Modernized Authentication & Welcome Screen (Mobile-First & Desktop) */
+function AuthScreen({
+  lang,
+  setLang,
+  dark,
+  setDark,
+  onAuthSuccess,
+  isMobileLayout,
+  layoutPreference,
+  setLayoutPreference
+}) {
   const t = useTranslation(lang);
+  const isSw = lang === "sw";
   const [mode, setMode] = useState("login");
   const [role, setRole] = useState("customer"); // 'customer' | 'manager'
   const [form, setForm] = useState({ ...blankAuth });
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState(() => getSavedAccounts());
   const [platformAccounts, setPlatformAccounts] = useState([]);
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
 
   useEffect(() => {
     getAllProfiles(15)
@@ -891,17 +1247,38 @@ function AuthScreen({ lang, setLang, dark, setDark, onAuthSuccess }) {
   const submit = async (e) => {
     e.preventDefault();
     setMessage("");
-    if (!form.email || !form.password || (mode === "register" && (!form.displayName || !form.username || !form.location))) {
-      return setMessage("Tafadhali jaza taarifa zote zinazohitajika.");
+    const identifier = (form.email || form.username || "").trim();
+    if (!identifier || !form.password) {
+      return setMessage(isSw ? "Jaza @username/email na nenosiri." : "Enter @username/email and password.");
     }
-    if (mode === "register" && form.password.length < 4) {
-      return setMessage("Nenosiri liwe na angalau herufi 4.");
+    if (mode === "register") {
+      if (!form.displayName.trim() && !form.username.trim()) {
+        return setMessage(isSw ? "Jaza jina lako au @username." : "Enter your name or @username.");
+      }
+      if (form.password.length < 4) {
+        return setMessage(isSw ? "Nenosiri liwe angalau herufi 4." : "Password must be at least 4 characters.");
+      }
     }
     setBusy(true);
     try {
-      const result = mode === "login"
-        ? await loginUser(form.email, form.password)
-        : await registerUser({ ...form, role });
+      const derivedUsername =
+        form.username.trim() ||
+        identifier.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "") ||
+        form.displayName.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+      const derivedDisplayName = form.displayName.trim() || derivedUsername;
+
+      const result =
+        mode === "login"
+          ? await loginUser(identifier, form.password)
+          : await registerUser({
+              ...form,
+              email: identifier,
+              displayName: derivedDisplayName,
+              username: derivedUsername,
+              location: form.location || "Dar es Salaam",
+              whatsapp: form.whatsapp || form.phone || "",
+              role
+            });
       if (result?.session && onAuthSuccess) {
         onAuthSuccess(result.session, result.profile || null);
       }
@@ -912,7 +1289,6 @@ function AuthScreen({ lang, setLang, dark, setDark, onAuthSuccess }) {
     }
   };
 
-
   const tanzaniaRegions = [
     "Dar es Salaam",
     "Arusha",
@@ -921,362 +1297,377 @@ function AuthScreen({ lang, setLang, dark, setDark, onAuthSuccess }) {
     "Mbeya",
     "Morogoro",
     "Tanga",
-    "Kilimanjaro (Moshi)",
-    "Zanzibar (Mjini Magharibi)",
+    "Kilimanjaro",
+    "Zanzibar",
     "Iringa",
-    "Tabora",
-    "Kigoma",
-    "Shinyanga",
-    "Kagera (Bukoba)",
-    "Mtwara",
-    "Ruvuma (Songea)",
-    "Singida",
-    "Mara (Musoma)",
-    "Manyara",
-    "Njombe",
-    "Katavi",
-    "Songwe",
-    "Geita",
-    "Simiyu",
-    "Nairobi (Kenya)",
-    "Kampala (Uganda)",
-    "Kigali (Rwanda)"
+    "Nairobi",
+    "Kampala",
+    "Kigali"
   ];
 
+  const toggleLayoutMode = () => {
+    if (!setLayoutPreference) return;
+    setLayoutPreference(isMobileLayout ? "desktop" : "mobile");
+  };
+
   return (
-    <main className="auth-page-shell" id="auth-page">
-      <AmbientBackground />
-      <section className="auth-hero-art">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Brand />
-          <div style={{ display: "flex", gap: 10 }}>
-            <LanguageToggle lang={lang} setLang={setLang} />
-            <ThemeToggle dark={dark} setDark={setDark} />
-          </div>
-        </div>
+    <div id="app-root-shell" className={isMobileLayout ? "layout-mode-mobile" : "layout-mode-desktop"}>
+      <main className={`auth-page-shell ${isMobileLayout ? "auth-mobile-mode" : ""}`} id="auth-page">
+        <AmbientBackground />
 
-        <div style={{ position: "relative", zIndex: 2, margin: "auto 0" }}>
-          <p className="eyebrow" style={{ color: "#ffffff" }}>✦ THE CIRCLE</p>
-          <h1 style={{ fontSize: "clamp(32px, 4vw, 52px)", color: "#ffffff", lineHeight: 1.15, margin: "14px 0 16px" }}>
-            Watu Wako.<br />
-            <em style={{ fontFamily: "'Playfair Display', serif", color: "#fbbf24" }}>Biashara Yako.</em><br />
-            Duara Lako.
-          </h1>
-          <p style={{ maxWidth: 420, fontSize: 15, color: "rgba(255,255,255,0.9)", lineHeight: 1.6 }}>
-            Ungana na marafiki, tangaza biashara na uza bidhaa zako kwa urahisi.
-          </p>
-        </div>
-
-        <div className="auth-art-glow" />
-      </section>
-
-      <section style={{ display: "grid", placeItems: "center", padding: "24px", zIndex: 1 }}>
-        <div className="auth-form-card" id="auth-form-container" style={{ maxWidth: 480, width: "100%" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        {/* Desktop Left Visual Showcase */}
+        <section className="auth-hero-art">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 2 }}>
             <Brand />
-            <LanguageToggle lang={lang} setLang={setLang} />
-          </div>
-          <div style={{ display: "flex", borderBottom: "1px solid var(--line)", marginBottom: 18 }}>
-            <button
-              type="button"
-              onClick={() => { setMode("login"); setMessage(""); }}
-              style={{
-                flex: 1,
-                padding: "10px 0",
-                background: "none",
-                border: "none",
-                borderBottom: mode === "login" ? "2px solid var(--primary)" : "none",
-                fontWeight: mode === "login" ? 700 : 500,
-                color: mode === "login" ? "var(--primary)" : "var(--muted)",
-                cursor: "pointer",
-                fontSize: 14
-              }}
-            >
-              Ingia Kwenye Akaunti
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode("register"); setMessage(""); }}
-              style={{
-                flex: 1,
-                padding: "10px 0",
-                background: "none",
-                border: "none",
-                borderBottom: mode === "register" ? "2px solid var(--primary)" : "none",
-                fontWeight: mode === "register" ? 700 : 500,
-                color: mode === "register" ? "var(--primary)" : "var(--muted)",
-                cursor: "pointer",
-                fontSize: 14
-              }}
-            >
-              Jiunge na Mtandao (Usajili)
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {setLayoutPreference && (
+                <button
+                  type="button"
+                  className="device-mode-toggle-btn"
+                  onClick={toggleLayoutMode}
+                  style={{ background: "rgba(255,255,255,0.16)", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+                >
+                  {isMobileLayout ? "💻 Desktop" : "📱 Mobile"}
+                </button>
+              )}
+              <LanguageToggle lang={lang} setLang={setLang} />
+              <ThemeToggle dark={dark} setDark={setDark} />
+            </div>
           </div>
 
-          <form onSubmit={submit} id="auth-form">
-            {mode === "register" && (
-              <>
-                {/* 1. Anajiunga kama nani? */}
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                    1. Je, unajiunga kama nani? *
-                  </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <div
+          <div style={{ position: "relative", zIndex: 2, margin: "auto 0" }}>
+            <div className="auth-hero-pill-tag">✦ THE CIRCLE · DUARA</div>
+            <h1 style={{ fontSize: "clamp(30px, 3.8vw, 48px)", color: "#ffffff", lineHeight: 1.12, margin: "12px 0 18px" }}>
+              Watu Wako.<br />
+              <em style={{ fontFamily: "'Playfair Display', serif", color: "#fbbf24" }}>Biashara Yako.</em><br />
+              Duara Lako.
+            </h1>
+
+            <div className="auth-hero-feature-chips">
+              <span className="auth-hero-chip">💬 Chat & Simu</span>
+              <span className="auth-hero-chip">🛍️ Smart Shop</span>
+              <span className="auth-hero-chip">📢 Ads & Reels</span>
+              <span className="auth-hero-chip">💳 Mobile Wallet</span>
+            </div>
+          </div>
+
+          <div style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: "rgba(255,255,255,0.85)" }}>
+            <span>🇹🇿 Tanzania & East Africa</span>
+            <span>·</span>
+            <span>Salama & Haraka</span>
+          </div>
+
+          <div className="auth-art-glow" />
+        </section>
+
+        {/* Right / Center Modern Auth Card */}
+        <section className="auth-form-stage">
+          {/* Mobile Compact Top Bar */}
+          <div className="auth-mobile-topbar">
+            <Brand />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {setLayoutPreference && (
+                <button
+                  type="button"
+                  className="device-mode-toggle-btn"
+                  onClick={toggleLayoutMode}
+                  style={{ padding: "5px 10px", fontSize: 11 }}
+                >
+                  {isMobileLayout ? "💻" : "📱"}
+                </button>
+              )}
+              <LanguageToggle lang={lang} setLang={setLang} />
+              <ThemeToggle dark={dark} setDark={setDark} />
+            </div>
+          </div>
+
+          {/* Mobile Compact Hero Banner */}
+          <div className="auth-mobile-hero-banner">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div>
+                <span className="auth-mobile-kicker">✦ THE CIRCLE</span>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", margin: "2px 0 0" }}>
+                  Watu Wako · <span style={{ color: "#fbbf24" }}>Biashara Yako</span>
+                </h2>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, fontSize: 11, fontWeight: 700 }}>
+                <span style={{ background: "rgba(255,255,255,0.18)", padding: "4px 9px", borderRadius: 999, color: "#fff" }}>
+                  🛍️ Shop
+                </span>
+                <span style={{ background: "rgba(255,255,255,0.18)", padding: "4px 9px", borderRadius: 999, color: "#fff" }}>
+                  💬 Chat
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="auth-form-card" id="auth-form-container">
+            {/* Segmented Pill Mode Switcher */}
+            <div className="auth-segmented-tabs">
+              <button
+                type="button"
+                className={`auth-seg-btn ${mode === "login" ? "active" : ""}`}
+                onClick={() => {
+                  setMode("login");
+                  setMessage("");
+                }}
+              >
+                {isSw ? "Ingia" : "Sign In"}
+              </button>
+              <button
+                type="button"
+                className={`auth-seg-btn ${mode === "register" ? "active" : ""}`}
+                onClick={() => {
+                  setMode("register");
+                  setMessage("");
+                }}
+              >
+                {isSw ? "Jisajili" : "Create Account"}
+              </button>
+            </div>
+
+            {/* 1-Tap Quick Accounts Avatar Carousel (Compact & Modern) */}
+            {quickAccounts.length > 0 && (
+              <div className="auth-quick-avatars-bar">
+                <div className="auth-quick-avatars-label">
+                  <span>⚡ {isSw ? "Ingia kwa 1-Click:" : "1-Tap Login:"}</span>
+                </div>
+                <div className="auth-quick-avatars-scroll">
+                  {quickAccounts.map((acc) => (
+                    <button
+                      key={acc.id}
+                      type="button"
+                      className="auth-quick-avatar-pill"
+                      onClick={() => handleQuickAccountSelect(acc)}
+                      title={`@${acc.username}`}
+                    >
+                      <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
+                      <span className="auth-quick-avatar-name">
+                        {(acc.display_name || acc.username || "User").split(" ")[0]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Main Login / Registration Form */}
+            <form onSubmit={submit} id="auth-form" className="auth-modern-form">
+              {mode === "register" && (
+                <>
+                  {/* Compact Role Toggle Pills */}
+                  <div className="auth-role-pills">
+                    <button
+                      type="button"
+                      className={`auth-role-pill ${role === "customer" ? "active" : ""}`}
                       onClick={() => setRole("customer")}
-                      style={{
-                        padding: "12px",
-                        borderRadius: 10,
-                        border: role === "customer" ? "2px solid #18a66a" : "1px solid var(--line)",
-                        background: role === "customer" ? "#18a66a15" : "transparent",
-                        cursor: "pointer",
-                        textAlign: "center",
-                        transition: "all 0.2s"
-                      }}
                     >
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>🛒</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: role === "customer" ? "#18a66a" : "inherit" }}>
-                        Mteja / Mtangazaji
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                        Post Ads & Bidhaa mtandaoni
-                      </div>
-                    </div>
-
-                    <div
+                      <span>👤</span>
+                      <span>{isSw ? "Mwanachama" : "Personal"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`auth-role-pill ${role === "manager" ? "active" : ""}`}
                       onClick={() => setRole("manager")}
-                      style={{
-                        padding: "12px",
-                        borderRadius: 10,
-                        border: role === "manager" ? "2px solid #075e54" : "1px solid var(--line)",
-                        background: role === "manager" ? "#075e5415" : "transparent",
-                        cursor: "pointer",
-                        textAlign: "center",
-                        transition: "all 0.2s"
-                      }}
                     >
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>💼</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: role === "manager" ? "#075e54" : "inherit" }}>
-                        Manager wa Duka (Mfanyabiashara)
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                        WhatsApp Catalogue & Oda
-                      </div>
+                      <span>🏪</span>
+                      <span>{isSw ? "Mfanyabiashara / Duka" : "Business / Shop"}</span>
+                    </button>
+                  </div>
+
+                  {/* Name & @username */}
+                  <div className="auth-grid-2">
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">👤</span>
+                      <input
+                        id="input-fullname"
+                        value={form.displayName}
+                        onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+                        placeholder={isSw ? "Jina kamili" : "Full name"}
+                        required
+                      />
+                    </div>
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">@</span>
+                      <input
+                        id="input-username"
+                        value={form.username}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "")
+                          })
+                        }
+                        placeholder="username"
+                        required
+                      />
                     </div>
                   </div>
-                </div>
 
-                {/* 2. Majina Kamili & Username */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                  <div className="form-group">
-                    <label htmlFor="input-fullname">Majina Kamili: *</label>
-                    <input
-                      id="input-fullname"
-                      value={form.displayName}
-                      onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                      placeholder="Mfano: Juma Bakari"
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="input-username">Jina la Mtumiaji (@username): *</label>
-                    <input
-                      id="input-username"
-                      value={form.username}
-                      onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
-                      placeholder="juma_bakari"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* 3. Mahali Anapoishi */}
-                <div className="form-group" style={{ marginBottom: 12 }}>
-                  <label htmlFor="input-location">Mahali Unapoishi (Mkoa / Wilaya): *</label>
-                  <input
-                    id="input-location"
-                    list="tanzania-regions-list"
-                    value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
-                    placeholder="Chagua au andika mkoa, mf. Dar es Salaam, Kariakoo"
-                    required
-                  />
-                  <datalist id="tanzania-regions-list">
-                    {tanzaniaRegions.map((r) => (
-                      <option key={r} value={r} />
-                    ))}
-                  </datalist>
-                </div>
-
-                {/* 4. Namba ya Simu & WhatsApp */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                  <div className="form-group">
-                    <label htmlFor="input-phone">Simu ya Mobile Money: *</label>
-                    <input
-                      id="input-phone"
-                      type="tel"
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      placeholder="0754 123 456"
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="input-whatsapp">Namba ya WhatsApp: *</label>
-                    <input
-                      id="input-whatsapp"
-                      type="tel"
-                      value={form.whatsapp}
-                      onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                      placeholder="255754123456"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Specific questions for Manager / Business owner */}
-                {role === "manager" && (
-                  <div
-                    style={{
-                      background: "rgba(7, 94, 84, 0.08)",
-                      border: "1px solid rgba(7, 94, 84, 0.25)",
-                      borderRadius: 10,
-                      padding: "12px",
-                      marginBottom: 12
-                    }}
-                  >
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#075e54", marginBottom: 8 }}>
-                      Taarifa za Biashara / Duka lako (WhatsApp Catalogue):
+                  {/* Phone & Location */}
+                  <div className="auth-grid-2">
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">📱</span>
+                      <input
+                        id="input-phone"
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value, whatsapp: e.target.value })}
+                        placeholder={isSw ? "Simu / WhatsApp" : "Phone / WhatsApp"}
+                      />
                     </div>
-                    <div className="form-group" style={{ marginBottom: 8 }}>
-                      <label htmlFor="input-bizname">Jina la Duka / Biashara:</label>
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">📍</span>
+                      <input
+                        id="input-location"
+                        list="tanzania-regions-list"
+                        value={form.location}
+                        onChange={(e) => setForm({ ...form, location: e.target.value })}
+                        placeholder={isSw ? "Mkoa" : "City / Region"}
+                      />
+                      <datalist id="tanzania-regions-list">
+                        {tanzaniaRegions.map((r) => (
+                          <option key={r} value={r} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  {/* Business Name (only when Business role is active) */}
+                  {role === "manager" && (
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">🏪</span>
                       <input
                         id="input-bizname"
                         value={form.businessName}
                         onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-                        placeholder="Mfano: Kariakoo Smart Gadgets"
+                        placeholder={isSw ? "Jina la Duka au Biashara yako" : "Shop or Business Name"}
                       />
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="input-category">Aina ya Bidhaa Unazouza:</label>
-                      <select
-                        id="input-category"
-                        value={form.category}
-                        onChange={(e) => setForm({ ...form, category: e.target.value })}
-                        style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid var(--line)" }}
-                      >
-                        <option value="Vifaa vya Kielektroniki & Simu">Vifaa vya Kielektroniki & Simu</option>
-                        <option value="Mavazi, Nguo & Mitindo">Mavazi, Nguo & Mitindo</option>
-                        <option value="Viatu, Mikoba & Urembo">Viatu, Mikoba & Urembo</option>
-                        <option value="Vyakula, Kilimo & Nafaka">Vyakula, Kilimo & Nafaka</option>
-                        <option value="Vifaa vya Nyumbani & Samani">Vifaa vya Nyumbani & Samani</option>
-                        <option value="Magari, Pikipiki & Vipuri">Magari, Pikipiki & Vipuri</option>
-                        <option value="Huduma za Kibiashara">Huduma za Kibiashara</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
 
-            <div className="form-group" style={{ marginBottom: 12 }}>
-              <label htmlFor="input-email">Barua Pepe (Email): *</label>
-              <input
-                id="input-email"
-                type="text"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="barua_pepe@domain.com au username"
-                required
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label htmlFor="input-password">
-                Nenosiri la Akaunti: *
-              </label>
-              <input
-                id="input-password"
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Weka nenosiri..."
-                required
-              />
-            </div>
-
-            <ErrorBox message={message} />
-
-            <button
-              id="btn-auth-submit"
-              className="button button-primary button-full"
-              disabled={busy}
-              style={{ marginTop: 14 }}
-            >
-              {busy ? "Inachakata..." : mode === "login" ? "Ingia kwenye Akaunti" : "Kamilisha Usajili wa Akaunti"}
-            </button>
-          </form>
-
-          {mode === "login" && quickAccounts.length > 0 && (
-            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
-                {lang === "sw" ? "Akaunti Zilizopo (Bonyeza Kuingia Moja kwa Moja)" : "Quick Login Accounts"}
+              {/* Email or @username */}
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon">✉️</span>
+                <input
+                  id="input-email"
+                  type="text"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder={isSw ? "Barua pepe au @username" : "Email or @username"}
+                  required
+                />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 190, overflowY: "auto" }}>
-                {quickAccounts.map((acc) => (
-                  <div
-                    key={acc.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      padding: "7px 10px",
-                      borderRadius: 10,
-                      background: "var(--bg-base)",
-                      border: "1px solid var(--line)"
-                    }}
+
+              {/* Password with Show/Hide Toggle */}
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon">🔒</span>
+                <input
+                  id="input-password"
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder={isSw ? "Nenosiri" : "Password"}
+                  required
+                />
+                <button
+                  type="button"
+                  className="auth-pw-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+
+              <ErrorBox message={message} />
+
+              <button
+                id="btn-auth-submit"
+                className="button button-primary button-full auth-submit-btn"
+                disabled={busy}
+              >
+                {busy
+                  ? "..."
+                  : mode === "login"
+                  ? isSw
+                    ? "Ingia Kwenye Duara →"
+                    : "Sign In →"
+                  : isSw
+                  ? "Fungua Akaunti Sasa →"
+                  : "Create Account →"}
+              </button>
+            </form>
+
+            {/* Social / Platform Login Options */}
+            <div className="auth-social-section">
+              <div className="auth-divider-line">
+                <span>{isSw ? "Au endelea na" : "Or continue with"}</span>
+              </div>
+
+              <div className="auth-social-grid">
+                {AUTH_PLATFORMS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    id={`btn-social-${p.id.toLowerCase()}`}
+                    className="auth-social-btn"
+                    onClick={() => setSelectedPlatform(p)}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                      <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {acc.display_name}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--muted)" }}>@{acc.username}</div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      style={{ padding: "5px 12px", fontSize: 11.5, borderRadius: 8 }}
-                      onClick={() => handleQuickAccountSelect(acc)}
-                    >
-                      {lang === "sw" ? "Ingia" : "Login"}
-                    </button>
-                  </div>
+                    <span className="auth-social-icon">{p.icon}</span>
+                    <span>{p.label}</span>
+                  </button>
                 ))}
               </div>
             </div>
-          )}
 
-          <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--muted)" }}>
-            {mode === "login" ? "Huna akaunti bado?" : "Tayari una akaunti?"}{" "}
-            <button
-              type="button"
-              id="btn-toggle-auth-mode"
-              className="text-button"
-              onClick={() => {
-                setMode(mode === "login" ? "register" : "login");
-                setMessage("");
-              }}
-            >
-              {mode === "login" ? "Jiunge na Mtandao Hapa" : "Ingia Hapa"}
-            </button>
-          </p>
-        </div>
-      </section>
-    </main>
+            <p style={{ textAlign: "center", marginTop: 14, fontSize: 12.5, color: "var(--muted)" }}>
+              {mode === "login"
+                ? isSw
+                  ? "Huna akaunti?"
+                  : "New here?"
+                : isSw
+                ? "Una akaunti tayari?"
+                : "Already have an account?"}{" "}
+              <button
+                type="button"
+                id="btn-toggle-auth-mode"
+                className="text-button"
+                onClick={() => {
+                  setMode(mode === "login" ? "register" : "login");
+                  setMessage("");
+                }}
+              >
+                {mode === "login"
+                  ? isSw
+                    ? "Jisajili"
+                    : "Sign Up"
+                  : isSw
+                  ? "Ingia"
+                  : "Sign In"}
+              </button>
+            </p>
+          </div>
+        </section>
+
+        {selectedPlatform && (
+          <PlatformAuthModal
+            platform={selectedPlatform}
+            quickAccounts={quickAccounts}
+            role={role}
+            mode={mode}
+            onClose={() => setSelectedPlatform(null)}
+            onComplete={(sess, prof) => {
+              setSelectedPlatform(null);
+              if (onAuthSuccess) onAuthSuccess(sess, prof);
+            }}
+            lang={lang}
+          />
+        )}
+      </main>
+    </div>
   );
 }
 
@@ -1622,11 +2013,13 @@ function MobileBottomNav({
 }
 
 
-/* Stories / Status Rail */
+/* Stories / Status Rail - Sleek & Collapsible */
 function StatusRail({ profile, lang }) {
   const t = useTranslation(lang);
+  const isSw = lang === "sw";
   const [statuses, setStatuses] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [content, setContent] = useState("");
   const [file, setFile] = useState(null);
   const [background, setBackground] = useState("#10b981");
@@ -1654,6 +2047,7 @@ function StatusRail({ profile, lang }) {
       await createStatus(profile.id, content.trim(), background, file);
       setContent("");
       setFile(null);
+      setComposerOpen(false);
       await loadStatuses();
     } catch (err) {
       console.warn(err);
@@ -1686,30 +2080,22 @@ function StatusRail({ profile, lang }) {
 
   return (
     <section className="stories-card" id="stories-section">
-      <div className="stories-header">
-        <div>
-          <p className="eyebrow">{t.storiesEyebrow}</p>
-          <h3 style={{ fontSize: 18 }}>{t.friendsStatus}</h3>
-        </div>
-        <div className="live-indicator">
-          <span className="live-pulse" />
-          <span>{t.livePill}</span>
-        </div>
-      </div>
-
       <div className="story-track">
         <button
           type="button"
           id="btn-add-story"
           className="story-pill-item add-story-btn"
-          onClick={() => document.getElementById("story-quick-input")?.focus()}
+          onClick={() => {
+            setComposerOpen(!composerOpen);
+            setTimeout(() => document.getElementById("story-quick-input")?.focus(), 60);
+          }}
         >
           <div className="story-ring-wrap">
             <div className="story-ring-inner">
-              <span className="add-story-plus">+</span>
+              <span className="add-story-plus">{composerOpen ? "✕" : "+"}</span>
             </div>
           </div>
-          <span className="story-user-label">{t.addYours}</span>
+          <span className="story-user-label">{isSw ? "Weka Story" : "Add Story"}</span>
         </button>
 
         {statuses.map((status) => {
@@ -1733,46 +2119,48 @@ function StatusRail({ profile, lang }) {
         })}
       </div>
 
-      <form className="story-inline-composer" style={{ background }} onSubmit={publish}>
-        <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="sm" />
-        <input
-          id="story-quick-input"
-          className="story-inline-input"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={t.setStatusPlaceholder}
-          maxLength={300}
-        />
-        <label className="tool-chip" style={{ background: "rgba(255,255,255,0.2)", color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}>
-          📷
-          <input type="file" accept="image/*,video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-        </label>
-        <button
-          type="button"
-          className="tool-chip"
-          style={{ background: "rgba(255,255,255,0.2)", color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
-          onClick={() => setShowEmoji(!showEmoji)}
-        >
-          😊
-        </button>
-        <input
-          type="color"
-          className="story-color-picker"
-          value={background}
-          onChange={(e) => setBackground(e.target.value)}
-          title="Pick background color"
-        />
-        <button
-          id="btn-post-story"
-          type="submit"
-          className="button"
-          style={{ background: "#ffffff", color: "var(--primary-dark)", padding: "7px 16px", borderRadius: 10 }}
-          disabled={busy}
-        >
-          {busy ? "..." : t.postStory}
-        </button>
-      </form>
-      {showEmoji && <EmojiPicker onPick={(emoji) => setContent((val) => `${val}${emoji}`)} />}
+      {composerOpen && (
+        <form className="story-inline-composer" style={{ background }} onSubmit={publish}>
+          <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="sm" />
+          <input
+            id="story-quick-input"
+            className="story-inline-input"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={isSw ? "Andika hali yako..." : "Share a story..."}
+            maxLength={300}
+          />
+          <label className="tool-chip" style={{ background: "rgba(255,255,255,0.2)", color: "#fff", borderColor: "rgba(255,255,255,0.4)", padding: "6px 10px" }}>
+            📷
+            <input type="file" accept="image/*,video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          </label>
+          <button
+            type="button"
+            className="tool-chip"
+            style={{ background: "rgba(255,255,255,0.2)", color: "#fff", borderColor: "rgba(255,255,255,0.4)", padding: "6px 10px" }}
+            onClick={() => setShowEmoji(!showEmoji)}
+          >
+            😊
+          </button>
+          <input
+            type="color"
+            className="story-color-picker"
+            value={background}
+            onChange={(e) => setBackground(e.target.value)}
+            title="Color"
+          />
+          <button
+            id="btn-post-story"
+            type="submit"
+            className="button"
+            style={{ background: "#ffffff", color: "var(--primary-dark)", padding: "6px 14px", borderRadius: 10, fontSize: 12.5 }}
+            disabled={busy}
+          >
+            {busy ? "..." : isSw ? "Chapisha" : "Post"}
+          </button>
+        </form>
+      )}
+      {composerOpen && showEmoji && <EmojiPicker onPick={(emoji) => setContent((val) => `${val}${emoji}`)} />}
 
       {/* Story Full Screen Modal */}
       {selected && (
@@ -5923,6 +6311,9 @@ export default function App() {
         dark={dark}
         setDark={setDark}
         onAuthSuccess={handleAuthSuccess}
+        isMobileLayout={isMobileLayout}
+        layoutPreference={layoutPreference}
+        setLayoutPreference={setLayoutPreference}
       />
     );
   }

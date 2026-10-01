@@ -638,29 +638,40 @@ export function MainFeed({
         {/* Status / Stories Rail */}
         {StatusRail && <StatusRail profile={profile} lang={lang} />}
 
-        {/* Sleek Mobile-First Post Creation Composer */}
+        {/* Sleek Compact Mobile-First Post Composer */}
         <section className="composer-card duara-composer-card" id="main-feed-composer">
-          <div className="composer-top">
-            <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="md" />
-            <div className="composer-user-info" style={{ flex: 1, minWidth: 0 }}>
-              <span className="composer-user-name">{profile.display_name}</span>
-              <span className="composer-user-sub">@{profile.username}</span>
-            </div>
-          </div>
-
           <form onSubmit={submitPost} id="create-post-form">
-            <textarea
-              id="post-textarea"
-              className={`composer-textarea ${composerExpanded || content ? "expanded" : ""}`}
-              value={content}
-              onFocus={() => setComposerExpanded(true)}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={t.composerPlaceholder}
-              maxLength={600}
-            />
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <Avatar name={profile.display_name} avatarUrl={profile.avatar_url} size="sm" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <textarea
+                  id="post-textarea"
+                  className={`composer-textarea ${composerExpanded || content || file ? "expanded" : "compact"}`}
+                  value={content}
+                  onFocus={() => setComposerExpanded(true)}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={lang === "sw" ? "Andika chapisho..." : "What's happening?"}
+                  maxLength={600}
+                  rows={composerExpanded || content || file ? 3 : 1}
+                />
+              </div>
+              {!composerExpanded && !content && !file && (
+                <label className="tool-chip" style={{ flexShrink: 0, padding: "7px 11px" }}>
+                  <span>📷</span>
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={(e) => {
+                      setFile(e.target.files?.[0] || null);
+                      setComposerExpanded(true);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
 
             {file && (
-              <div className="composer-file-pill">
+              <div className="composer-file-pill" style={{ marginTop: 10 }}>
                 <span>{file.type.startsWith("video/") ? "🎬" : "🖼️"}</span>
                 <span className="composer-file-name">{file.name}</span>
                 <button
@@ -673,48 +684,50 @@ export function MainFeed({
               </div>
             )}
 
-            <div className="composer-divider" />
+            {(composerExpanded || content || file) && (
+              <>
+                <div className="composer-divider" />
+                <div className="composer-bottom">
+                  <div className="composer-tools-group">
+                    <label className="tool-chip" id="btn-upload-media">
+                      <span>📷</span> <span>{t.photoVideo}</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      id="btn-post-emoji"
+                      className="tool-chip"
+                      onClick={() => setShowEmoji(!showEmoji)}
+                    >
+                      <span>😊</span>
+                    </button>
+                  </div>
 
-            <div className="composer-bottom">
-              <div className="composer-tools-group">
-                <label className="tool-chip" id="btn-upload-media">
-                  <span>📷</span> <span>{t.photoVideo}</span>
-                  <input
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  />
-                </label>
-                <button
-                  type="button"
-                  id="btn-post-emoji"
-                  className="tool-chip"
-                  onClick={() => setShowEmoji(!showEmoji)}
-                >
-                  <span>😊</span> <span>{t.emoji}</span>
-                </button>
-              </div>
-
-              <div className="composer-submit-group">
-                <span className="char-counter">{content.length}/600</span>
-                <button
-                  type="submit"
-                  id="btn-publish-post"
-                  className="button button-primary composer-submit-btn"
-                  disabled={busy}
-                >
-                  {busy ? t.sharingBtn : t.shareBtn}
-                </button>
-              </div>
-            </div>
-
-            {showEmoji && <EmojiPicker onPick={(emoji) => setContent((val) => `${val}${emoji}`)} />}
+                  <div className="composer-submit-group">
+                    <button
+                      type="submit"
+                      id="btn-publish-post"
+                      className="button button-primary composer-submit-btn"
+                      disabled={busy}
+                      style={{ padding: "8px 18px", fontSize: 13 }}
+                    >
+                      {busy ? "..." : t.shareBtn}
+                    </button>
+                  </div>
+                </div>
+                {showEmoji && <EmojiPicker onPick={(emoji) => setContent((val) => `${val}${emoji}`)} />}
+              </>
+            )}
           </form>
 
           <ErrorBox message={message} />
         </section>
 
-        {/* Followed Creators Story / Quick Filter Rail */}
+        {/* Followed Creators Quick Filter Rail */}
         {followedProfiles.length > 0 && (
           <div className="followed-creators-rail" id="followed-creators-rail">
             <button
@@ -758,8 +771,7 @@ export function MainFeed({
               }}
             >
               <span>🌍</span>
-              <span>{lang === "sw" ? "Duara Zote" : "For You"}</span>
-              <span className="feed-tab-badge">{posts.length}</span>
+              <span>{lang === "sw" ? "Duara" : "For You"}</span>
             </button>
 
             <button
@@ -773,7 +785,6 @@ export function MainFeed({
             >
               <span>🌟</span>
               <span>{lang === "sw" ? "Unaowafuata" : "Following"}</span>
-              <span className="feed-tab-badge">{followedIds.length}</span>
             </button>
 
             <button
@@ -786,38 +797,10 @@ export function MainFeed({
               }}
             >
               <span>🎬</span>
-              <span>{lang === "sw" ? "Picha & Video" : "Media"}</span>
+              <span>{lang === "sw" ? "Media" : "Media"}</span>
             </button>
           </div>
         </div>
-
-        {/* Sub-bar options when in Following Mode */}
-        {feedMode === "following" && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "4px 8px 12px",
-              fontSize: 13,
-              color: "var(--muted)"
-            }}
-          >
-            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={includeMyPosts}
-                onChange={(e) => setIncludeMyPosts(e.target.checked)}
-                style={{ accentColor: "var(--primary)" }}
-              />
-              <span>{lang === "sw" ? "Jumuisha machapisho yangu kwenye orodha" : "Include my own posts"}</span>
-            </label>
-
-            <button type="button" className="text-button" onClick={refreshFeed}>
-              🔄 {t.refresh}
-            </button>
-          </div>
-        )}
 
         {/* Feed Posts List */}
         {filteredPosts.length > 0 ? (
