@@ -733,130 +733,88 @@ const AUTH_PLATFORMS = [
   }
 ];
 
-function PlatformAuthModal({ platform, quickAccounts = [], role = "customer", mode = "login", onClose, onComplete, lang }) {
+function PlatformAuthModal({ platform, role = "customer", mode = "login", onClose, onComplete, lang }) {
   const isSw = lang === "sw";
-  const [identifier, setIdentifier] = useState(platform?.id === "Google" ? "vukangtech@gmail.com" : "");
-  const [displayName, setDisplayName] = useState(platform?.id === "Google" ? "HAMZA VUKANG" : "");
-  const [selectedRole, setSelectedRole] = useState(role || "customer");
+  const [identifier, setIdentifier] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  const [oauthUrl, setOauthUrl] = useState("");
 
   useEffect(() => {
     if (!platform) return;
-    setIdentifier(platform.id === "Google" ? "vukangtech@gmail.com" : "");
-    setDisplayName(platform.id === "Google" ? "HAMZA VUKANG" : "");
-    let active = true;
-    signInWithSupabaseOAuth(platform.oauthProvider || platform.id)
-      .then((data) => {
-        if (active && data?.url) {
-          setOauthUrl(data.url);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
+    setIdentifier("");
+    setDisplayName("");
+    setErrorMsg("");
   }, [platform]);
-
-  const googleAccountsList = useMemo(() => {
-    const primaryGoogle = {
-      id: "ceo-google-vukangtech",
-      display_name: "HAMZA VUKANG",
-      username: "hamza_vukang",
-      email: "vukangtech@gmail.com",
-      role: "ceo"
-    };
-    const map = new Map();
-    map.set(primaryGoogle.username, primaryGoogle);
-    quickAccounts.forEach((acc) => {
-      const key = (acc.username || acc.email || acc.id || "").toLowerCase();
-      if (key && !map.has(key)) {
-        map.set(key, acc);
-      }
-    });
-    return Array.from(map.values()).slice(0, 4);
-  }, [quickAccounts]);
 
   if (!platform) return null;
 
+  const performDirectPlatformAuth = async () => {
+    setErrorMsg("");
+    const cleanId = identifier.trim();
+    if (!cleanId) {
+      setErrorMsg(
+        platform.id === "Google"
+          ? isSw
+            ? "Tafadhali andika barua pepe yako ya Google (Gmail) kuendelea."
+            : "Please enter your Google (Gmail) address to continue."
+          : isSw
+          ? `Tafadhali weka barua pepe au @username yako ya ${platform.label}.`
+          : `Please enter your ${platform.label} email or @username.`
+      );
+      return;
+    }
+    if (platform.id === "Google" && !cleanId.includes("@")) {
+      setErrorMsg(
+        isSw
+          ? "Weka barua pepe sahihi ya Google (mfano: jina@gmail.com)."
+          : "Please enter a valid Google email (e.g. name@gmail.com)."
+      );
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await loginWithPlatform(platform.id, cleanId, displayName.trim(), "customer");
+      if (res?.session && onComplete) {
+        onComplete(res.session, res.profile);
+      }
+    } catch (err) {
+      setErrorMsg(err?.message || (isSw ? "Imeshindikana kuunganisha akaunti." : "Failed to connect account."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleContinue = async (e) => {
     e.preventDefault();
-    setBusy(true);
-    try {
-      const targetId =
-        identifier.trim() ||
-        (platform.id === "Google" ? "vukangtech@gmail.com" : `${platform.id.toLowerCase()}_member`);
-      const res = await loginWithPlatform(platform.id, targetId, displayName.trim(), selectedRole);
-      if (res?.session && onComplete) {
-        onComplete(res.session, res.profile);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSupabaseOAuthTrigger = async () => {
-    setBusy(true);
-    try {
-      const data = await signInWithSupabaseOAuth(platform.oauthProvider || platform.id);
-      const isInIframe = typeof window !== "undefined" && window.self !== window.top;
-      if (data?.url && !isInIframe) {
-        window.location.assign(data.url);
-        return;
-      }
-      const fallbackId =
-        identifier.trim() ||
-        (platform.id === "Google" ? "vukangtech@gmail.com" : `${platform.id.toLowerCase()}_oauth_user`);
-      const res = await loginWithPlatform(platform.id, fallbackId, displayName.trim(), selectedRole);
-      if (res?.session && onComplete) {
-        onComplete(res.session, res.profile);
-      }
-    } catch {
-      const fallbackId =
-        identifier.trim() ||
-        (platform.id === "Google" ? "vukangtech@gmail.com" : `${platform.id.toLowerCase()}_oauth_user`);
-      const res = await loginWithPlatform(platform.id, fallbackId, displayName.trim(), selectedRole);
-      if (res?.session && onComplete) {
-        onComplete(res.session, res.profile);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleQuickPick = async (acc) => {
-    setBusy(true);
-    try {
-      const res = await loginWithPlatform(
-        platform.id,
-        acc.email || acc.username,
-        acc.display_name,
-        acc.role || selectedRole
-      );
-      if (res?.session && onComplete) {
-        onComplete(res.session, res.profile);
-      }
-    } finally {
-      setBusy(false);
-    }
+    await performDirectPlatformAuth();
   };
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10060 }}>
       <div className="modal-content auth-platform-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, padding: "20px 18px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: platform.bg, color: platform.color, display: "grid", placeItems: "center" }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: platform.bg, color: platform.color, display: "grid", placeItems: "center" }}>
               {platform.icon}
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 16 }}>
-                {isSw ? `Ingia kwa ${platform.label}` : `Sign in with ${platform.label}`}
+                {mode === "register"
+                  ? isSw
+                    ? `Jiunge kwa ${platform.label}`
+                    : `Sign up with ${platform.label}`
+                  : isSw
+                  ? `Ingia kwa ${platform.label}`
+                  : `Sign in with ${platform.label}`}
               </h3>
               <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
                 {platform.id === "Google"
-                  ? "Google Account · THE CIRCLE"
-                  : `Supabase Auth · ${oauthUrl ? "OAuth 2.0 Ready" : "Instant Sign-In"}`}
+                  ? isSw
+                    ? "Weka barua pepe yako ya Gmail kuendelea moja kwa moja"
+                    : "Enter your Gmail address for instant access"
+                  : `THE CIRCLE · ${platform.label}`}
               </span>
             </div>
           </div>
@@ -869,139 +827,86 @@ function PlatformAuthModal({ platform, quickAccounts = [], role = "customer", mo
           </button>
         </div>
 
-        {/* Account Chooser List (Starts with Google Account vukangtech@gmail.com) */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", marginBottom: 6 }}>
-            {isSw ? `Chagua akaunti ya ${platform.label}:` : `Choose a ${platform.label} account:`}
+        <form onSubmit={handleContinue} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>
+              {platform.id === "Google"
+                ? isSw
+                  ? "Barua pepe ya Google (Gmail) *"
+                  : "Google Email (Gmail) *"
+                : isSw
+                ? `Barua pepe au @username ya ${platform.label} *`
+                : `${platform.label} Email or @username *`}
+            </label>
+            <input
+              type={platform.id === "Google" ? "email" : "text"}
+              value={identifier}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                if (errorMsg) setErrorMsg("");
+              }}
+              placeholder={platform.placeholder}
+              autoFocus
+              required
+              style={{ width: "100%", padding: "11px 13px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13.5 }}
+            />
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 150, overflowY: "auto" }}>
-            {googleAccountsList.map((acc) => (
-              <button
-                key={acc.id || acc.username}
-                type="button"
-                onClick={() => handleQuickPick(acc)}
-                disabled={busy}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  padding: "9px 11px",
-                  borderRadius: 12,
-                  border: "1px solid var(--primary-border)",
-                  background: "var(--bg-base)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  color: "var(--ink)"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-                  <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {acc.display_name}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {acc.email || `@${acc.username}`}
-                    </div>
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                    color: "#ffffff",
-                    background: "var(--primary)",
-                    padding: "5px 10px",
-                    borderRadius: 8,
-                    flexShrink: 0
-                  }}
-                >
-                  {isSw ? "Ingia →" : "Sign in →"}
-                </span>
-              </button>
-            ))}
+
+          <div>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>
+              {isSw ? "Jina lako kamili (Hiari)" : "Your Full Name (Optional)"}
+            </label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={isSw ? "Andika jina lako..." : "Enter your name..."}
+              style={{ width: "100%", padding: "11px 13px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13.5 }}
+            />
           </div>
-        </div>
 
-        {/* Direct 1-Click Supabase OAuth Button */}
-        <button
-          type="button"
-          id="btn-supabase-oauth-connect"
-          onClick={handleSupabaseOAuthTrigger}
-          disabled={busy}
-          className="button button-soft button-full"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            marginBottom: 12,
-            padding: "10px 14px",
-            borderRadius: 12,
-            border: "1px solid var(--primary-border)",
-            background: "var(--primary-soft)",
-            color: "var(--primary)",
-            fontWeight: 800,
-            fontSize: 13
-          }}
-        >
-          {platform.icon}
-          <span>
-            {isSw
-              ? `Unganisha Moja kwa Moja na ${platform.label}`
-              : `One-Click ${platform.label} OAuth`}
-          </span>
-        </button>
-
-        <form onSubmit={handleContinue} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {mode === "register" && (
-            <div className="auth-role-pills" style={{ marginBottom: 2 }}>
-              <button
-                type="button"
-                className={`auth-role-pill ${selectedRole === "customer" ? "active" : ""}`}
-                onClick={() => setSelectedRole("customer")}
-              >
-                <span>👤</span>
-                <span>{isSw ? "Mwanachama" : "Personal"}</span>
-              </button>
-              <button
-                type="button"
-                className={`auth-role-pill ${selectedRole === "manager" ? "active" : ""}`}
-                onClick={() => setSelectedRole("manager")}
-              >
-                <span>🏪</span>
-                <span>{isSw ? "Mfanyabiashara" : "Business"}</span>
-              </button>
+          {errorMsg && (
+            <div
+              style={{
+                padding: "9px 12px",
+                borderRadius: 10,
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.28)",
+                color: "#ef4444",
+                fontSize: 12,
+                fontWeight: 700
+              }}
+            >
+              ⚠️ {errorMsg}
             </div>
           )}
-          <input
-            type="text"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            placeholder={platform.placeholder}
-            style={{ padding: "10px 12px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
-          />
-          <input
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder={isSw ? "Jina lako (hiari)" : "Display name (optional)"}
-            style={{ padding: "10px 12px", borderRadius: 11, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 13 }}
-          />
+
           <button
             type="submit"
+            id="btn-supabase-oauth-connect"
             className="button button-primary button-full"
             disabled={busy}
             style={{
-              marginTop: 2,
+              marginTop: 4,
               padding: "12px 16px",
               background: "linear-gradient(135deg, #10b981, #047857)",
               color: "#ffffff",
-              fontWeight: 800
+              fontWeight: 800,
+              fontSize: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8
             }}
           >
-            {busy ? "..." : isSw ? `Endelea na ${platform.label} →` : `Continue with ${platform.label} →`}
+            {platform.icon}
+            <span>
+              {busy
+                ? "..."
+                : isSw
+                ? `Endelea na ${platform.label} Moja kwa Moja →`
+                : `Continue with ${platform.label} →`}
+            </span>
           </button>
         </form>
       </div>
@@ -1009,33 +914,25 @@ function PlatformAuthModal({ platform, quickAccounts = [], role = "customer", mo
   );
 }
 
-/* Account Switcher Modal - Login or Switch to Any Account Anytime */
+/* Account Switcher Modal - Login or Switch to Saved Personal Account */
 function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogoutToAuth, lang }) {
   const isSw = lang === "sw";
   const [savedAccounts, setSavedAccounts] = useState(() => getSavedAccounts());
-  const [platformAccounts, setPlatformAccounts] = useState([]);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState(null);
 
-  useEffect(() => {
-    getAllProfiles(25)
-      .then((list) => setPlatformAccounts(list || []))
-      .catch(() => {});
-  }, []);
-
   const combinedAccounts = useMemo(() => {
-    const map = new Map();
-    savedAccounts.forEach((acc) => {
-      if (acc?.id) map.set(acc.id, acc);
-    });
-    platformAccounts.forEach((acc) => {
-      if (acc?.id && !map.has(acc.id)) map.set(acc.id, acc);
-    });
-    return Array.from(map.values()).filter((a) => a.id !== currentProfile?.id);
-  }, [savedAccounts, platformAccounts, currentProfile?.id]);
+    return savedAccounts.filter(
+      (a) =>
+        a?.id &&
+        a.id !== currentProfile?.id &&
+        (a.email || "").toLowerCase() !== "vukangtech@gmail.com" &&
+        (a.username || "").toLowerCase() !== "hamza_vukang"
+    );
+  }, [savedAccounts, currentProfile?.id]);
 
   const handleQuickLogin = async (acc) => {
     setBusy(true);
@@ -1255,7 +1152,6 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
       {selectedPlatform && (
         <PlatformAuthModal
           platform={selectedPlatform}
-          quickAccounts={combinedAccounts}
           onClose={() => setSelectedPlatform(null)}
           onComplete={(sess, prof) => {
             setSelectedPlatform(null);
@@ -1282,41 +1178,12 @@ function AuthScreen({
   const t = useTranslation(lang);
   const isSw = lang === "sw";
   const [mode, setMode] = useState("login");
-  const [role, setRole] = useState("customer"); // 'customer' | 'manager'
+  const [role] = useState("customer");
   const [form, setForm] = useState({ ...blankAuth });
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [savedAccounts, setSavedAccounts] = useState(() => getSavedAccounts());
-  const [platformAccounts, setPlatformAccounts] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState(null);
-
-  useEffect(() => {
-    getAllProfiles(15)
-      .then((list) => setPlatformAccounts(list || []))
-      .catch(() => {});
-  }, []);
-
-  const quickAccounts = useMemo(() => {
-    const map = new Map();
-    savedAccounts.forEach((a) => {
-      if (a?.id) map.set(a.id, a);
-    });
-    platformAccounts.forEach((a) => {
-      if (a?.id && !map.has(a.id)) map.set(a.id, a);
-    });
-    return Array.from(map.values()).slice(0, 8);
-  }, [savedAccounts, platformAccounts]);
-
-  const handleQuickAccountSelect = (acc) => {
-    setActiveAccountOverride(acc);
-    const sessionObj = {
-      user: { id: acc.id, email: acc.email || `${acc.username}@thecircle.app` }
-    };
-    if (onAuthSuccess) {
-      onAuthSuccess(sessionObj, acc);
-    }
-  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1552,60 +1419,18 @@ function AuthScreen({
                 <span>
                   {mode === "login"
                     ? isSw
-                      ? "Au ingia kwa akaunti"
-                      : "Or sign in with account"
+                      ? "Au ingia kwa akaunti yako"
+                      : "Or sign in with your account"
                     : isSw
-                    ? "Au jaza fomu fupi"
-                    : "Or fill quick form"}
+                    ? "Au jaza fomu ya kujisajili"
+                    : "Or fill registration form"}
                 </span>
               </div>
-
-              {/* 1-Tap Quick Accounts Strip (Compact) */}
-              {mode === "login" && quickAccounts.length > 0 && (
-                <div className="auth-quick-avatars-bar">
-                  <div className="auth-quick-avatars-scroll">
-                    {quickAccounts.map((acc) => (
-                      <button
-                        key={acc.id}
-                        type="button"
-                        className="auth-quick-avatar-pill"
-                        onClick={() => handleQuickAccountSelect(acc)}
-                        title={`@${acc.username}`}
-                      >
-                        <Avatar name={acc.display_name || acc.username} avatarUrl={acc.avatar_url} size="sm" />
-                        <span className="auth-quick-avatar-name">
-                          {(acc.display_name || acc.username || "User").split(" ")[0]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Main Login / Registration Form */}
               <form onSubmit={submit} id="auth-form" className="auth-modern-form">
                 {mode === "register" && (
                   <>
-                    {/* Compact Role Toggle Pills */}
-                    <div className="auth-role-pills">
-                      <button
-                        type="button"
-                        className={`auth-role-pill ${role === "customer" ? "active" : ""}`}
-                        onClick={() => setRole("customer")}
-                      >
-                        <span>👤</span>
-                        <span>{isSw ? "Mwanachama" : "Personal"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`auth-role-pill ${role === "manager" ? "active" : ""}`}
-                        onClick={() => setRole("manager")}
-                      >
-                        <span>🏪</span>
-                        <span>{isSw ? "Biashara / Duka" : "Business / Shop"}</span>
-                      </button>
-                    </div>
-
                     {/* Name & @username */}
                     <div className="auth-grid-2">
                       <div className="auth-input-wrap">
@@ -1663,19 +1488,6 @@ function AuthScreen({
                         </datalist>
                       </div>
                     </div>
-
-                    {/* Business Name (only when Business role is active) */}
-                    {role === "manager" && (
-                      <div className="auth-input-wrap">
-                        <span className="auth-input-icon">🏪</span>
-                        <input
-                          id="input-bizname"
-                          value={form.businessName}
-                          onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-                          placeholder={isSw ? "Jina la Duka au Biashara yako" : "Shop or Business Name"}
-                        />
-                      </div>
-                    )}
                   </>
                 )}
 
@@ -1767,7 +1579,6 @@ function AuthScreen({
         {selectedPlatform && (
           <PlatformAuthModal
             platform={selectedPlatform}
-            quickAccounts={quickAccounts}
             role={role}
             mode={mode}
             onClose={() => setSelectedPlatform(null)}
@@ -1803,7 +1614,7 @@ function getMenuSections(profile, lang, unread) {
   const savedAndMoreLinks = [
     ["saved", "🔖", isSw ? "Saved (Hifadhi)" : "Saved"],
     ["wallet", "💳", "Wallet"],
-    ["dashboard", "📊", "Dashboard"],
+    ...(isCeo ? [["dashboard", "📊", "Dashboard (CEO)"]] : []),
     ["marketplace", "🏪", isSw ? "Soko" : "Marketplace"],
     ["discover", "👥", isSw ? "Watu & Marafiki" : "Discover People"]
   ];
@@ -1993,7 +1804,7 @@ function MobileBottomNav({
                     @{profile?.username}
                   </span>
                   <span style={{ fontSize: 10.5, color: "var(--primary)", fontWeight: 800 }}>
-                    {isCeo ? "👑 CEO" : profile?.role === "manager" ? "💼 Manager" : "✓ Mwanachama"}
+                    {isCeo ? "👑 CEO" : "✓ Mtumiaji"}
                   </span>
                 </div>
               </div>
@@ -4356,7 +4167,7 @@ function Settings({
   const [autoLockDuration, setAutoLockDuration] = useState("5m");
   const [cloudPassword, setCloudPassword] = useState("");
   const [cloudHint, setCloudHint] = useState("");
-  const [cloudEmail, setCloudEmail] = useState(profile?.email || "vukangtech@gmail.com");
+  const [cloudEmail, setCloudEmail] = useState(profile?.email || "");
   const [cloud2FASaved, setCloud2FASaved] = useState(false);
   const [autoDeleteTimer, setAutoDeleteTimer] = useState("off");
 
@@ -4506,15 +4317,20 @@ function Settings({
     setMutedWords(mutedWords.filter((w) => w !== wordToRemove));
   };
 
+  const isCeo = profile?.role === "ceo";
   const tabs = [
-    { id: "telegram", label: t.settingsTabTelegram, icon: "✈️" },
     { id: "account", label: t.settingsTabAccount, icon: "👤" },
     { id: "security", label: t.settingsTabSecurity, icon: "🔒" },
     { id: "privacy", label: t.settingsTabPrivacy, icon: "👁️" },
     { id: "notifications", label: t.settingsTabNotifications, icon: "🔔" },
-    { id: "moderation", label: t.settingsTabModeration, icon: "🛡️" },
     { id: "language", label: t.settingsTabLanguage, icon: "🌐" },
-    { id: "data", label: t.settingsTabData, icon: "💾" }
+    ...(isCeo
+      ? [
+          { id: "telegram", label: t.settingsTabTelegram, icon: "✈️" },
+          { id: "moderation", label: t.settingsTabModeration, icon: "🛡️" },
+          { id: "data", label: t.settingsTabData, icon: "💾" }
+        ]
+      : [])
   ];
 
   return (
@@ -4694,7 +4510,7 @@ function Settings({
                   type="email"
                   value={cloudEmail}
                   onChange={(e) => setCloudEmail(e.target.value)}
-                  placeholder="vukangtech@gmail.com"
+                  placeholder="jina@gmail.com"
                 />
               </div>
 
@@ -6466,13 +6282,13 @@ export default function App() {
       {isMobileLayout && (
         <nav className="mobile-feature-ribbon" aria-label="Quick Mobile Navigation">
           {[
+            ...(profile?.role === "ceo" ? [["ceo", "👑", "CEO"]] : []),
             ["home", "⌂", "Duara"],
             ["catalogue", "🛍️", "Shop"],
             ["ads", "📢", lang === "sw" ? "Matangazo" : "Ads"],
             ["messages", "💬", "Chat", unreadCount],
             ["reels", "▶", "Reels"],
             ["wallet", "💳", "Wallet"],
-            ["dashboard", "📊", "Dashboard"],
             ["marketplace", "🏪", lang === "sw" ? "Soko" : "Market"],
             ["discover", "👥", lang === "sw" ? "Watu" : "People"],
             ["profile", "👤", lang === "sw" ? "Wasifu" : "Profile"]
@@ -6551,12 +6367,22 @@ export default function App() {
               )}
 
               {active === "ceo" && (
-                <CeoDashboard
-                  profile={profile}
-                  onShowToast={showToast}
-                  onOpenShop={() => setActive("catalogue")}
-                  lang={lang}
-                />
+                profile?.role === "ceo" ? (
+                  <CeoDashboard
+                    profile={profile}
+                    onShowToast={showToast}
+                    onOpenShop={() => setActive("catalogue")}
+                    lang={lang}
+                  />
+                ) : (
+                  <div className="glass-card" style={{ padding: 36, textAlign: "center", maxWidth: 480, margin: "24px auto" }}>
+                    <span style={{ fontSize: 40 }}>🔒</span>
+                    <h3 style={{ margin: "10px 0 6px" }}>Ruhusa ya CEO Pekee</h3>
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      Ukurasa huu na mipangilio ya mfumo ni kwa ajili ya CEO pekee.
+                    </p>
+                  </div>
+                )
               )}
 
               {(active === "home" || active === "feed") && (
@@ -6581,21 +6407,14 @@ export default function App() {
                     onOpenShop={() => setActive("catalogue")}
                     lang={lang}
                   />
-                ) : profile?.role === "manager" ? (
-                  <AffiliateManagerCatalogue
-                    profile={profile}
-                    onShowToast={showToast}
-                    onOpenDirectMessage={handleOpenDirectMessage}
-                    lang={lang}
-                  />
                 ) : (
-                  <CustomerAdsDashboard
-                    profile={profile}
-                    onShowToast={showToast}
-                    onOpenDirectMessage={handleOpenDirectMessage}
-                    onViewUserProfile={handleViewUserProfile}
-                    lang={lang}
-                  />
+                  <div className="glass-card" style={{ padding: 36, textAlign: "center", maxWidth: 480, margin: "24px auto" }}>
+                    <span style={{ fontSize: 40 }}>🔒</span>
+                    <h3 style={{ margin: "10px 0 6px" }}>Ruhusa ya CEO Pekee</h3>
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      Dashibodi kuu ya usimamizi inaruhusiwa kwa CEO pekee.
+                    </p>
+                  </div>
                 )
               )}
 

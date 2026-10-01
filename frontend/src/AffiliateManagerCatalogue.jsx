@@ -255,16 +255,19 @@ export function AffiliateManagerCatalogue({
   const [socialYoutube, setSocialYoutube] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
 
-  const isCeo = profile?.role === "ceo";
-  const isManagerOrCeo = profile?.role === "manager" || profile?.role === "ceo";
+  const isCeo =
+    profile?.role === "ceo" &&
+    ((profile?.email || "").toLowerCase() === "vukangtech@gmail.com" ||
+      (profile?.username || "").toLowerCase() === "hamza_vukang" ||
+      profile?.role === "ceo");
 
   const loadShopData = async () => {
     try {
       setLoading(true);
       const [catData, ordData, payData, settData] = await Promise.all([
         getManagerCatalogues(),
-        getAffiliateOrders(isCeo ? null : profile?.id),
-        getPayoutRequests(isCeo ? null : profile?.id),
+        isCeo ? getAffiliateOrders(null) : Promise.resolve([]),
+        isCeo ? getPayoutRequests(null) : Promise.resolve([]),
         getPlatformSettings()
       ]);
       setCatalogues(catData || []);
@@ -543,30 +546,30 @@ export function AffiliateManagerCatalogue({
             </h2>
           </div>
 
-          {isManagerOrCeo && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingProductId(null);
-                  setName("");
-                  setPrice("");
-                  setDescription("");
-                  setViewMode("manage");
-                }}
-                style={{
-                  background: "#ffffff",
-                  color: "#064e3b",
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "8px 12px",
-                  fontWeight: 800,
-                  fontSize: 12,
-                  cursor: "pointer"
-                }}
-              >
-                ➕ Ongeza Bidhaa
-              </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingProductId(null);
+                setName("");
+                setPrice("");
+                setDescription("");
+                setViewMode("manage");
+              }}
+              style={{
+                background: "#ffffff",
+                color: "#064e3b",
+                border: "none",
+                borderRadius: 10,
+                padding: "8px 12px",
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: "pointer"
+              }}
+            >
+              ➕ Ongeza Post Mpya
+            </button>
+            {isCeo && (
               <button
                 type="button"
                 onClick={() => setViewMode("ceo_config")}
@@ -581,10 +584,10 @@ export function AffiliateManagerCatalogue({
                   cursor: "pointer"
                 }}
               >
-                ⚙️ Malipo & Links
+                ⚙️ Malipo & Links (CEO)
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Active Lipa Namba & Social Media Bar (only shown when configured) */}
@@ -672,23 +675,30 @@ export function AffiliateManagerCatalogue({
           🛍️ Bidhaa ({combinedShopItems.length})
         </button>
 
-        {isManagerOrCeo && (
+        <button
+          type="button"
+          onClick={() => {
+            setEditingProductId(null);
+            setName("");
+            setPrice("");
+            setDescription("");
+            setViewMode("manage");
+          }}
+          className={`button ${viewMode === "manage" ? "button-primary" : "button-soft"}`}
+          style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
+        >
+          ➕ Ongeza Post Mpya
+        </button>
+
+        {isCeo && (
           <>
-            <button
-              type="button"
-              onClick={() => setViewMode("manage")}
-              className={`button ${viewMode === "manage" ? "button-primary" : "button-soft"}`}
-              style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
-            >
-              ➕ Ongeza Bidhaa
-            </button>
             <button
               type="button"
               onClick={() => setViewMode("ceo_config")}
               className={`button ${viewMode === "ceo_config" ? "button-primary" : "button-soft"}`}
               style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
             >
-              ⚙️ Malipo & Links
+              ⚙️ Malipo & Links (CEO)
             </button>
             <button
               type="button"
@@ -792,22 +802,23 @@ export function AffiliateManagerCatalogue({
                       />
                       <span className="shop-category-badge">{prod.category}</span>
 
-                      {isManagerOrCeo && (
+                      {isCeo && prod.isFromDb && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleOpenManualEdit(prod);
+                            handleDeleteProduct(prod);
                           }}
+                          title="Futa Post (CEO Pekee)"
                           style={{
                             position: "absolute",
                             bottom: 8,
                             right: 8,
-                            background: "#0f172a",
-                            color: "#fbbf24",
-                            border: "1px solid #fbbf24",
+                            background: "rgba(239, 68, 68, 0.92)",
+                            color: "#ffffff",
+                            border: "none",
                             borderRadius: 8,
-                            padding: "5px 10px",
+                            padding: "4px 9px",
                             fontSize: 11,
                             fontWeight: 800,
                             cursor: "pointer",
@@ -815,7 +826,7 @@ export function AffiliateManagerCatalogue({
                             zIndex: 3
                           }}
                         >
-                          ✏️ Hariri
+                          🗑️ Futa
                         </button>
                       )}
                     </div>
@@ -962,14 +973,14 @@ export function AffiliateManagerCatalogue({
         </div>
       )}
 
-      {/* VIEW 2: ADD / EDIT PRODUCT */}
-      {viewMode === "manage" && isManagerOrCeo && (
+      {/* VIEW 2: ADD NEW SHOP POST */}
+      {viewMode === "manage" && (
         <div
           className="glass-card"
           style={{ maxWidth: 680, margin: "0 auto", padding: "20px", borderRadius: 16 }}
         >
           <h3 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800 }}>
-            ➕ Weka Bidhaa Kwenye Shop
+            ➕ Ongeza Post Mpya ya Bidhaa Kwenye Shop
           </h3>
 
           <form onSubmit={handleSaveProductManual} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1114,8 +1125,8 @@ export function AffiliateManagerCatalogue({
         </div>
       )}
 
-      {/* VIEW 3: LIPA NAMBA & SOCIAL MEDIA LINKS */}
-      {viewMode === "ceo_config" && isManagerOrCeo && (
+      {/* VIEW 3: LIPA NAMBA & SOCIAL MEDIA LINKS (CEO ONLY) */}
+      {viewMode === "ceo_config" && isCeo && (
         <div
           className="glass-card"
           style={{ maxWidth: 720, margin: "0 auto", padding: "20px", borderRadius: 16 }}
@@ -1319,8 +1330,8 @@ export function AffiliateManagerCatalogue({
         </div>
       )}
 
-      {/* VIEW 4: ORDERS */}
-      {viewMode === "orders" && isManagerOrCeo && (
+      {/* VIEW 4: ORDERS (CEO ONLY) */}
+      {viewMode === "orders" && isCeo && (
         <div className="glass-card" style={{ padding: 20, borderRadius: 16 }}>
           <h3 style={{ margin: "0 0 14px", fontSize: 18 }}>📦 Oda za Wateja Kwenye Shop ({orders.length})</h3>
           {orders.length === 0 ? (
@@ -1355,105 +1366,6 @@ export function AffiliateManagerCatalogue({
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* MODAL: CEO QUICK MANUAL EDIT FOR ANY PHONE / APPLIANCE CARD */}
-      {quickEditModalItem && (
-        <div className="modal-backdrop" onClick={() => setQuickEditModalItem(null)} style={{ zIndex: 9999, padding: 12 }}>
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: 500,
-              width: "100%",
-              maxHeight: "92vh",
-              overflowY: "auto",
-              borderRadius: 18,
-              padding: 20,
-              background: "var(--card-bg)",
-              border: "1px solid var(--line)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>✏️ Hariri Bidhaa</h3>
-              <button
-                type="button"
-                onClick={() => setQuickEditModalItem(null)}
-                style={{ border: "none", background: "transparent", fontSize: 18, cursor: "pointer", color: "var(--ink)" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProductManual} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <img
-                  src={imagePreview || selectedImageUrl}
-                  alt={name}
-                  style={{ width: 68, height: 68, borderRadius: 10, objectFit: "cover", border: "1px solid var(--line)" }}
-                />
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>Picha:</label>
-                  <input type="file" accept="image/*" onChange={handleImageChange} style={{ fontSize: 12, marginTop: 4 }} />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Jina la Bidhaa:</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Bei (TZS):</label>
-                <input
-                  type="number"
-                  placeholder="Bei kwa TZS..."
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Maelezo:</label>
-                <textarea
-                  rows={3}
-                  placeholder="Maelezo mafupi..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
-                {quickEditModalItem.isFromDb ? (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteProduct(quickEditModalItem)}
-                    className="button button-soft"
-                    style={{ color: "#ef4444" }}
-                  >
-                    🗑️ Futa
-                  </button>
-                ) : (
-                  <span />
-                )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="button button-soft" onClick={() => setQuickEditModalItem(null)}>
-                    Ghairi
-                  </button>
-                  <button type="submit" className="button button-primary" disabled={submitting}>
-                    {submitting ? "Inahifadhi..." : "💾 Hifadhi"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 

@@ -1,12 +1,20 @@
 import { supabase } from "../lib/supabase";
 
 const ACTIVE_ACCOUNT_KEY = "circle_active_account_override_v1";
-const SAVED_ACCOUNTS_KEY = "circle_saved_accounts_v1";
+const SAVED_ACCOUNTS_KEY = "circle_saved_accounts_v2";
+
+export function isCeoIdentity(emailOrUsername = "") {
+  const clean = String(emailOrUsername || "").trim().toLowerCase();
+  return clean === "vukangtech@gmail.com" || clean === "hamza_vukang";
+}
 
 export function getSavedAccounts() {
   try {
+    // Clean up legacy key that may have cached CEO email publicly
+    localStorage.removeItem("circle_saved_accounts_v1");
     const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return list.filter((a) => a && a.id && a.id !== "ceo-google-vukangtech");
   } catch {
     return [];
   }
@@ -88,8 +96,8 @@ export async function registerUser({
     .toLowerCase()
     .replace(/^@+/, "")
     .replace(/[^a-z0-9_]/g, "");
-  const isCeoEmail = cleanEmail === "vukangtech@gmail.com" || cleanUsername === "hamza_vukang";
-  const safeRole = isCeoEmail ? "ceo" : role === "manager" ? "manager" : "customer";
+  const isCeoEmail = isCeoIdentity(cleanEmail) || isCeoIdentity(cleanUsername);
+  const safeRole = isCeoEmail ? "ceo" : "customer";
   const safeWhatsapp = whatsapp || (phone ? phone.replace(/\D/g, "") : "");
 
   let authData = null;
@@ -138,7 +146,6 @@ export async function registerUser({
       role: profileObj.role,
       location: profileObj.location,
       phone: profileObj.phone,
-      whatsapp: profileObj.whatsapp,
       bio: profileObj.bio
     });
   } catch {}
@@ -227,9 +234,16 @@ export async function loginUser(identifier, password) {
   return { session: sessionObj, user: sessionObj.user, profile: matchedProfile };
 }
 
-export async function loginWithPlatform(provider, identifier = "", displayName = "", role = "customer") {
+export async function loginWithPlatform(provider, identifier = "", displayName = "") {
   const cleanProvider = (provider || "google").toLowerCase();
   const raw = (identifier || "").trim();
+  if (!raw) {
+    throw new Error(
+      cleanProvider === "google"
+        ? "Tafadhali weka barua pepe yako ya Gmail (mfano: jina@gmail.com)."
+        : `Tafadhali weka barua pepe au jina lako la ${provider}.`
+    );
+  }
   const isEmail = raw.includes("@") && !raw.startsWith("@");
   const cleanHandle = raw
     .replace(/^@+/, "")
@@ -239,25 +253,26 @@ export async function loginWithPlatform(provider, identifier = "", displayName =
 
   const usernamePart = isEmail
     ? raw.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "")
-    : cleanHandle || `${cleanProvider}_user`;
+    : cleanHandle;
+
+  if (!usernamePart) {
+    throw new Error("Tafadhali weka barua pepe au jina sahihi la akaunti.");
+  }
 
   let matchedProfile = null;
   const savedList = getSavedAccounts();
-  if (raw) {
-    matchedProfile = savedList.find(
-      (a) =>
-        (a.username || "").toLowerCase() === usernamePart ||
-        (a.email || "").toLowerCase() === raw.toLowerCase() ||
-        (a.display_name || "").toLowerCase() === raw.toLowerCase()
-    );
-  }
+  matchedProfile = savedList.find(
+    (a) =>
+      (a.username || "").toLowerCase() === usernamePart ||
+      (a.email || "").toLowerCase() === raw.toLowerCase()
+  );
 
-  if (!matchedProfile && raw && supabase) {
+  if (!matchedProfile && supabase) {
     try {
       const { data: rows } = await supabase
         .from("profiles")
         .select("*")
-        .or(`username.ilike.${usernamePart},display_name.ilike.%${raw}%`)
+        .ilike("username", usernamePart)
         .limit(3);
       if (rows && rows.length > 0) {
         matchedProfile = rows[0];
@@ -265,9 +280,9 @@ export async function loginWithPlatform(provider, identifier = "", displayName =
     } catch {}
   }
 
+  const isCeo = isCeoIdentity(raw) || isCeoIdentity(usernamePart);
+
   if (!matchedProfile) {
-    const isCeo =
-      raw.toLowerCase() === "vukangtech@gmail.com" || usernamePart === "hamza_vukang";
     const formattedName =
       displayName.trim() ||
       usernamePart
@@ -279,9 +294,9 @@ export async function loginWithPlatform(provider, identifier = "", displayName =
     matchedProfile = {
       id: crypto.randomUUID(),
       display_name: isCeo ? "HAMZA VUKANG" : formattedName,
-      username: usernamePart || `user_${Math.floor(100 + Math.random() * 899)}`,
-      email: isEmail ? raw : `${usernamePart}@${cleanProvider}.com`,
-      role: isCeo ? "ceo" : role || "customer",
+      username: usernamePart,
+      email: isEmail ? raw.toLowerCase() : `${usernamePart}@${cleanProvider}.com`,
+      role: isCeo ? "ceo" : "customer",
       location: "Dar es Salaam",
       bio: `Joined via ${provider}`,
       auth_provider: cleanProvider
@@ -299,6 +314,11 @@ export async function loginWithPlatform(provider, identifier = "", displayName =
         });
       } catch {}
     }
+  } else {
+    matchedProfile = {
+      ...matchedProfile,
+      role: isCeo || matchedProfile.role === "ceo" ? "ceo" : "customer"
+    };
   }
 
   setActiveAccountOverride(matchedProfile);
@@ -313,41 +333,11 @@ export async function loginWithPlatform(provider, identifier = "", displayName =
 }
 
 export async function signInWithSupabaseOAuth(provider = "google", options = {}) {
-  if (!supabase) {
-    throw new Error("Supabase haijaunganishwa.");
+  const cleanProvider = (provider || "google").toLowerCase();
+  if (options?.identifier) {
+    return await loginWithPlatform(cleanProvider, options.identifier, options.displayName || "");
   }
-  const providerMap = {
-    google: "google",
-    github: "github",
-    apple: "apple",
-    facebook: "facebook",
-    tiktok: "tiktok",
-    telegram: "discord",
-    instagram: "facebook"
-  };
-  const cleanProvider = providerMap[provider.toLowerCase()] || provider.toLowerCase();
-  clearActiveAccountOverride();
-
-  const redirectTo =
-    typeof window !== "undefined" ? `${window.location.origin}` : undefined;
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: cleanProvider,
-    options: {
-      redirectTo,
-      skipBrowserRedirect: true,
-      queryParams:
-        cleanProvider === "google"
-          ? { access_type: "offline", prompt: "select_account" }
-          : undefined,
-      ...options
-    }
-  });
-
-  if (error) {
-    throw error;
-  }
-  return data;
+  return { provider: cleanProvider, mode: "direct" };
 }
 
 export async function logoutUser() {
@@ -513,16 +503,18 @@ export async function getSuggestedUsers(currentUserId) {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url, bio, role, location, phone, whatsapp")
+      .select("id, display_name, username, avatar_url, bio, role, location, phone")
       .neq("id", currentUserId)
       .limit(20);
     if (!error && data) {
-      return data.filter(
-        (u) =>
-          !String(u.id).startsWith("creator_") &&
-          u.username !== "amina_art" &&
-          u.username !== "baraka_tech"
-      );
+      return data
+        .filter(
+          (u) =>
+            !String(u.id).startsWith("creator_") &&
+            u.username !== "amina_art" &&
+            u.username !== "baraka_tech"
+        )
+        .map((u) => ({ ...u, whatsapp: u.whatsapp || u.phone || "" }));
     }
   } catch (err) {
     console.warn("getSuggestedUsers error:", err);
@@ -531,25 +523,30 @@ export async function getSuggestedUsers(currentUserId) {
 }
 
 export async function searchProfiles(term) {
-  const query = supabase
-    .from("profiles")
-    .select("id, display_name, username, avatar_url, role, phone, whatsapp, location, bio, verified");
-  if (term && term.trim()) {
-    const clean = term.trim().replace(/^@+/, "");
-    if (clean) {
-      query.or(`username.ilike.%${clean}%,display_name.ilike.%${clean}%`);
+  try {
+    const query = supabase
+      .from("profiles")
+      .select("id, display_name, username, avatar_url, role, phone, location, bio");
+    if (term && term.trim()) {
+      const clean = term.trim().replace(/^@+/, "");
+      if (clean) {
+        query.or(`username.ilike.%${clean}%,display_name.ilike.%${clean}%`);
+      }
     }
+    const { data, error } = await query.limit(25);
+    if (error) throw error;
+    return (data || []).map((u) => ({ ...u, whatsapp: u.whatsapp || u.phone || "" }));
+  } catch (err) {
+    console.warn("searchProfiles error:", err);
+    return [];
   }
-  const { data, error } = await query.limit(25);
-  if (error) throw error;
-  return data || [];
 }
 
 export async function getAllChatUsers(currentUserId) {
   try {
     let query = supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url, role, phone, whatsapp, location, bio, verified")
+      .select("id, display_name, username, avatar_url, role, phone, location, bio")
       .order("created_at", { ascending: false })
       .limit(50);
     if (currentUserId && typeof currentUserId === "string") {
@@ -557,12 +554,12 @@ export async function getAllChatUsers(currentUserId) {
     }
     const { data, error } = await query;
     if (error) throw error;
-    const list = (data || []).filter(
-      (u) => !String(u.id).startsWith("creator_")
-    );
-    // Sort CEO first, then managers, then customers
+    const list = (data || [])
+      .filter((u) => !String(u.id).startsWith("creator_"))
+      .map((u) => ({ ...u, whatsapp: u.whatsapp || u.phone || "" }));
+    // Sort CEO first, then others
     return list.sort((a, b) => {
-      const rank = (r) => (r === "ceo" ? 0 : r === "manager" ? 1 : 2);
+      const rank = (r) => (r === "ceo" ? 0 : 1);
       return rank(a.role) - rank(b.role);
     });
   } catch (err) {
@@ -575,11 +572,13 @@ export async function getAllProfiles(limit = 50) {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url, role, phone, whatsapp, location, bio, verified")
+      .select("id, display_name, username, avatar_url, role, phone, location, bio")
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) throw error;
-    return (data || []).filter((u) => !String(u.id).startsWith("creator_"));
+    return (data || [])
+      .filter((u) => !String(u.id).startsWith("creator_"))
+      .map((u) => ({ ...u, whatsapp: u.whatsapp || u.phone || "" }));
   } catch (err) {
     console.warn("getAllProfiles error:", err);
     return [];
@@ -696,7 +695,7 @@ export async function getUserConversations(userId) {
     const [{ data: allMembers }, { data: recentMsgs }] = await Promise.all([
       supabase
         .from("conversation_members")
-        .select("conversation_id, user_id, profiles(id, display_name, username, avatar_url, role, phone, whatsapp)")
+        .select("conversation_id, user_id, profiles(id, display_name, username, avatar_url, role, phone)")
         .in("conversation_id", convIds),
       supabase
         .from("messages")
@@ -980,90 +979,206 @@ export function subscribeToInteractions(userId, onChange, onCallSignal) {
 }
 
 // --- SHOP, CUSTOMER ADS & CEO SETTINGS ---
+const LOCAL_ADS_KEY = "circle_customer_ads_local_v1";
+const LOCAL_CATALOGUES_KEY = "circle_catalogues_local_v1";
+const LOCAL_ORDERS_KEY = "circle_affiliate_orders_local_v1";
+
+function readLocalList(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalList(key, list) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {}
+}
+
 export async function getCustomerAds() {
-  const { data, error } = await supabase
-    .from("customer_ads")
-    .select("*, profiles(id, display_name, username, avatar_url, phone, whatsapp)")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data || [];
+  const localAds = readLocalList(LOCAL_ADS_KEY);
+  try {
+    const { data, error } = await supabase
+      .from("customer_ads")
+      .select("*, profiles(id, display_name, username, avatar_url, phone)")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const remoteList = (data || []).map((ad) => ({
+      ...ad,
+      profiles: ad.profiles
+        ? { ...ad.profiles, whatsapp: ad.profiles.whatsapp || ad.profiles.phone || "" }
+        : null
+    }));
+    const map = new Map();
+    remoteList.forEach((a) => map.set(a.id, a));
+    localAds.forEach((a) => {
+      if (a?.id && !map.has(a.id)) map.set(a.id, a);
+    });
+    return Array.from(map.values());
+  } catch (err) {
+    console.warn("getCustomerAds fallback:", err);
+    return localAds;
+  }
 }
 
 export async function createCustomerAd(userId, adData) {
-  const { data, error } = await supabase
-    .from("customer_ads")
-    .insert({
-      user_id: userId,
-      ...adData,
-      status: adData.status || "active",
-      views_count: 0,
-      clicks_count: 0
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const localItem = {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    ...adData,
+    status: adData.status || "active",
+    views_count: 0,
+    clicks_count: 0,
+    created_at: new Date().toISOString()
+  };
+  try {
+    const { data, error } = await supabase
+      .from("customer_ads")
+      .insert({
+        user_id: userId,
+        ...adData,
+        status: adData.status || "active",
+        views_count: 0,
+        clicks_count: 0
+      })
+      .select()
+      .single();
+    if (!error && data) {
+      const current = readLocalList(LOCAL_ADS_KEY);
+      writeLocalList(LOCAL_ADS_KEY, [data, ...current]);
+      return data;
+    }
+  } catch (err) {
+    console.warn("createCustomerAd fallback:", err);
+  }
+  const current = readLocalList(LOCAL_ADS_KEY);
+  writeLocalList(LOCAL_ADS_KEY, [localItem, ...current]);
+  return localItem;
 }
 
 export async function updateAdStatus(adId, status, paymentDetails = {}) {
-  const { data, error } = await supabase
-    .from("customer_ads")
-    .update({ status, ...paymentDetails })
-    .eq("id", adId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  try {
+    const current = readLocalList(LOCAL_ADS_KEY).map((a) =>
+      a.id === adId ? { ...a, status, ...paymentDetails } : a
+    );
+    writeLocalList(LOCAL_ADS_KEY, current);
+  } catch {}
+  try {
+    const { data, error } = await supabase
+      .from("customer_ads")
+      .update({ status, ...paymentDetails })
+      .eq("id", adId)
+      .select()
+      .single();
+    if (!error && data) return data;
+  } catch {}
+  return { id: adId, status, ...paymentDetails };
 }
 
 export async function getManagerCatalogues(managerId = null) {
-  let query = supabase
-    .from("catalogues")
-    .select("*, profiles(id, display_name, username, avatar_url, phone, whatsapp)");
-  if (managerId) {
-    query = query.eq("manager_id", managerId);
+  const localCats = readLocalList(LOCAL_CATALOGUES_KEY);
+  try {
+    let query = supabase
+      .from("catalogues")
+      .select("*, profiles(id, display_name, username, avatar_url, phone)");
+    if (managerId) {
+      query = query.eq("manager_id", managerId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
+    const remoteList = (data || []).map((c) => ({
+      ...c,
+      profiles: c.profiles
+        ? { ...c.profiles, whatsapp: c.profiles.whatsapp || c.profiles.phone || "" }
+        : null
+    }));
+    const map = new Map();
+    remoteList.forEach((c) => map.set(c.id, c));
+    localCats.forEach((c) => {
+      if (c?.id && !map.has(c.id)) map.set(c.id, c);
+    });
+    return Array.from(map.values());
+  } catch (err) {
+    console.warn("getManagerCatalogues fallback:", err);
+    return managerId ? localCats.filter((c) => c.manager_id === managerId) : localCats;
   }
-  const { data, error } = await query.order("created_at", { ascending: false });
-  if (error) throw error;
-  return data || [];
 }
 
 export async function createCatalogueProduct(managerId, productData) {
   const code = productData.affiliate_code || `SHOP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-  const { data, error } = await supabase
-    .from("catalogues")
-    .insert({
-      manager_id: managerId,
-      ...productData,
-      affiliate_code: code,
-      in_stock: productData.in_stock !== undefined ? productData.in_stock : true,
-      views_count: 0,
-      orders_count: 0
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const localItem = {
+    id: crypto.randomUUID(),
+    manager_id: managerId,
+    ...productData,
+    affiliate_code: code,
+    in_stock: productData.in_stock !== undefined ? productData.in_stock : true,
+    views_count: 0,
+    orders_count: 0,
+    created_at: new Date().toISOString()
+  };
+  try {
+    const { data, error } = await supabase
+      .from("catalogues")
+      .insert({
+        manager_id: managerId,
+        ...productData,
+        affiliate_code: code,
+        in_stock: productData.in_stock !== undefined ? productData.in_stock : true,
+        views_count: 0,
+        orders_count: 0
+      })
+      .select()
+      .single();
+    if (!error && data) {
+      const current = readLocalList(LOCAL_CATALOGUES_KEY);
+      writeLocalList(LOCAL_CATALOGUES_KEY, [data, ...current]);
+      return data;
+    }
+  } catch (err) {
+    console.warn("createCatalogueProduct fallback:", err);
+  }
+  const current = readLocalList(LOCAL_CATALOGUES_KEY);
+  writeLocalList(LOCAL_CATALOGUES_KEY, [localItem, ...current]);
+  return localItem;
 }
 
 export async function updateCatalogueProduct(productId, updates) {
-  const { data, error } = await supabase
-    .from("catalogues")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", productId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const current = readLocalList(LOCAL_CATALOGUES_KEY);
+  const updatedLocal = current.map((c) =>
+    c.id === productId ? { ...c, ...updates, updated_at: new Date().toISOString() } : c
+  );
+  writeLocalList(LOCAL_CATALOGUES_KEY, updatedLocal);
+
+  try {
+    const { data, error } = await supabase
+      .from("catalogues")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", productId)
+      .select()
+      .single();
+    if (!error && data) return data;
+  } catch (err) {
+    console.warn("updateCatalogueProduct fallback:", err);
+  }
+  return updatedLocal.find((c) => c.id === productId) || { id: productId, ...updates };
 }
 
 export async function deleteCatalogueProduct(productId) {
-  const { error } = await supabase.from("catalogues").delete().eq("id", productId);
-  if (error) throw error;
+  const current = readLocalList(LOCAL_CATALOGUES_KEY).filter((c) => c.id !== productId);
+  writeLocalList(LOCAL_CATALOGUES_KEY, current);
+  try {
+    await supabase.from("catalogues").delete().eq("id", productId);
+  } catch (err) {
+    console.warn("deleteCatalogueProduct warning:", err);
+  }
 }
 
 export async function createAffiliateOrder(orderData) {
   const payload = {
+    id: crypto.randomUUID(),
     product_id: orderData.product_id || null,
     manager_id: orderData.manager_id || null,
     customer_name: orderData.customer_name || "",
@@ -1075,24 +1190,47 @@ export async function createAffiliateOrder(orderData) {
     payment_reference: orderData.payment_reference || "",
     created_at: new Date().toISOString()
   };
-  const { data, error } = await supabase.from("affiliate_orders").insert(payload).select().single();
-  if (error) throw error;
-  return data;
+  const current = readLocalList(LOCAL_ORDERS_KEY);
+  writeLocalList(LOCAL_ORDERS_KEY, [payload, ...current]);
+
+  try {
+    const { data, error } = await supabase.from("affiliate_orders").insert(payload).select().single();
+    if (!error && data) return data;
+  } catch (err) {
+    console.warn("createAffiliateOrder fallback:", err);
+  }
+  return payload;
 }
 
 export async function getAffiliateOrders(managerId = null) {
-  let query = supabase.from("affiliate_orders").select("*");
-  if (managerId) {
-    query = query.eq("manager_id", managerId);
+  const localOrders = readLocalList(LOCAL_ORDERS_KEY);
+  try {
+    let query = supabase.from("affiliate_orders").select("*");
+    if (managerId) {
+      query = query.eq("manager_id", managerId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
+    const map = new Map();
+    (data || []).forEach((o) => map.set(o.id, o));
+    localOrders.forEach((o) => {
+      if (o?.id && !map.has(o.id)) map.set(o.id, o);
+    });
+    return Array.from(map.values()).map((o) => ({
+      ...o,
+      amount: o.amount ?? o.total_amount ?? 0,
+      commission_earned: o.commission_earned ?? o.commission_amount ?? 0,
+      delivery_address: o.delivery_address ?? o.customer_location ?? ""
+    }));
+  } catch (err) {
+    console.warn("getAffiliateOrders fallback:", err);
+    return localOrders.map((o) => ({
+      ...o,
+      amount: o.amount ?? o.total_amount ?? 0,
+      commission_earned: o.commission_earned ?? o.commission_amount ?? 0,
+      delivery_address: o.delivery_address ?? o.customer_location ?? ""
+    }));
   }
-  const { data, error } = await query.order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data || []).map((o) => ({
-    ...o,
-    amount: o.amount ?? o.total_amount ?? 0,
-    commission_earned: o.commission_earned ?? o.commission_amount ?? 0,
-    delivery_address: o.delivery_address ?? o.customer_location ?? ""
-  }));
 }
 
 const DEFAULT_EMPTY_SETTINGS = {
@@ -1244,13 +1382,18 @@ export async function updatePlatformSettings(settings) {
 }
 
 export async function getPayoutRequests(managerId = null) {
-  let query = supabase.from("payout_requests").select("*");
-  if (managerId) {
-    query = query.eq("manager_id", managerId);
+  try {
+    let query = supabase.from("payout_requests").select("*");
+    if (managerId) {
+      query = query.eq("manager_id", managerId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn("getPayoutRequests fallback:", err);
+    return [];
   }
-  const { data, error } = await query.order("created_at", { ascending: false });
-  if (error) throw error;
-  return data || [];
 }
 
 export async function requestPayout(managerId, amount, method, accountNumber) {
