@@ -1,5 +1,15 @@
-import React, { useState, useRef } from "react";
-import { updateProfile, uploadImage, getFeed } from "./api/api";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  updateProfile,
+  uploadImage,
+  getFeed,
+  getFollowStats,
+  getFollowers,
+  getFollowing,
+  subscribeToFollows,
+  followUser,
+  getFollowedUserIds
+} from "./api/api";
 import { useTranslation } from "./lib/translations";
 
 const AVATAR_PRESETS = [
@@ -56,7 +66,9 @@ export function UserProfile({
   setActive,
   PostCard,
   onLogout,
-  onSwitchAccount
+  onSwitchAccount,
+  onOpenDirectMessage,
+  onViewUserProfile
 }) {
   const t = useTranslation(lang);
   const fileInputRef = useRef(null);
@@ -70,6 +82,61 @@ export function UserProfile({
   const [pronouns, setPronouns] = useState(profile?.pronouns || "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [coverGradient, setCoverGradient] = useState(profile?.cover_url || COVER_PRESETS[0].gradient);
+
+  // Real-time followers and following state
+  const [followStats, setFollowStats] = useState({
+    followersCount: 0,
+    followingCount: 0,
+    followers: [],
+    following: []
+  });
+  const [followModalOpen, setFollowModalOpen] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState("followers"); // 'followers' | 'following'
+  const [loadingFollows, setLoadingFollows] = useState(false);
+  const [myFollowedIds, setMyFollowedIds] = useState([]);
+
+  const loadFollowData = async () => {
+    if (!profile?.id) return;
+    try {
+      const stats = await getFollowStats(profile.id);
+      setFollowStats(stats);
+      setMyFollowedIds((stats.following || []).map((u) => u.id));
+    } catch (err) {
+      console.warn("loadFollowData error:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadFollowData();
+    const unsub = subscribeToFollows(profile?.id, () => {
+      loadFollowData();
+    });
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [profile?.id]);
+
+  const handleToggleFollowUser = async (targetUser) => {
+    if (!targetUser?.id || !profile?.id) return;
+    const isNowFollowing = myFollowedIds.includes(targetUser.id);
+    const nextState = !isNowFollowing;
+    setMyFollowedIds((current) =>
+      nextState ? [...current, targetUser.id] : current.filter((id) => id !== targetUser.id)
+    );
+    try {
+      await followUser(profile.id, targetUser.id, isNowFollowing);
+      if (onShowToast) {
+        onShowToast(
+          nextState
+            ? `✓ Unamfuata ${targetUser.display_name || targetUser.username}`
+            : `Umeacha kumfuata ${targetUser.display_name || targetUser.username}`
+        );
+      }
+      loadFollowData();
+    } catch (err) {
+      console.warn("handleToggleFollowUser error:", err);
+    }
+  };
 
   // UI modes
   const [isEditingBio, setIsEditingBio] = useState(false);
@@ -617,16 +684,42 @@ export function UserProfile({
               {lang === "sw" ? "Picha & Video" : "Media Files"}
             </span>
           </div>
+          <div
+            className="profile-stat-box"
+            onClick={() => {
+              setFollowModalTab("followers");
+              setFollowModalOpen(true);
+            }}
+            style={{ cursor: "pointer", transition: "transform 0.15s ease" }}
+            title={lang === "sw" ? "Bofya kuona orodha ya wafuasi wako" : "Click to view your followers"}
+          >
+            <span className="profile-stat-num" style={{ color: "var(--primary)" }}>
+              {followStats.followersCount}
+            </span>
+            <span className="profile-stat-label">
+              👥 {lang === "sw" ? "Wafuasi" : "Followers"}
+            </span>
+          </div>
+          <div
+            className="profile-stat-box"
+            onClick={() => {
+              setFollowModalTab("following");
+              setFollowModalOpen(true);
+            }}
+            style={{ cursor: "pointer", transition: "transform 0.15s ease" }}
+            title={lang === "sw" ? "Bofya kuona orodha ya unaowafuata" : "Click to view people you follow"}
+          >
+            <span className="profile-stat-num" style={{ color: "var(--primary)" }}>
+              {followStats.followingCount}
+            </span>
+            <span className="profile-stat-label">
+              👣 {lang === "sw" ? "Unaowafuata" : "Following"}
+            </span>
+          </div>
           <div className="profile-stat-box">
             <span className="profile-stat-num">{totalReactions}</span>
             <span className="profile-stat-label">
               {lang === "sw" ? "Hisia & Likes" : "Total Reactions"}
-            </span>
-          </div>
-          <div className="profile-stat-box">
-            <span className="profile-stat-num" style={{ color: "#059669" }}>✓</span>
-            <span className="profile-stat-label">
-              {lang === "sw" ? "Hali: Hai" : "Status: Active"}
             </span>
           </div>
         </div>

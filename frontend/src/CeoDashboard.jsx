@@ -6,7 +6,8 @@ import {
   getPayoutRequests,
   updatePayoutStatus,
   getPlatformSettings,
-  updatePlatformSettings
+  updatePlatformSettings,
+  getAllPaymentTransactions
 } from "./api/api";
 
 export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) {
@@ -14,11 +15,12 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   const [catalogues, setCatalogues] = useState([]);
   const [orders, setOrders] = useState([]);
   const [payouts, setPayouts] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("settings"); // 'settings' | 'overview' | 'payouts' | 'all_ads'
+  const [activeTab, setActiveTab] = useState("settings"); // 'settings' | 'payments' | 'overview' | 'payouts' | 'all_ads'
 
-  // Manual CEO Settings State (No fake defaults)
+  // Manual CEO Settings State
   const [commissionRate, setCommissionRate] = useState("10");
   const [adPostingFee, setAdPostingFee] = useState("5000");
   const [adBoostFee, setAdBoostFee] = useState("15000");
@@ -35,6 +37,12 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   const [bankNumber, setBankNumber] = useState("");
   const [bankName, setBankName] = useState("");
 
+  // Live Payment Gateway Configuration (Ready for AzamPay, Selcom, ClickPesa, ZenoPay, Flutterwave)
+  const [gatewayProvider, setGatewayProvider] = useState("AzamPay / Selcom / ClickPesa");
+  const [gatewayMerchantId, setGatewayMerchantId] = useState("");
+  const [gatewayPublicKey, setGatewayPublicKey] = useState("");
+  const [gatewayWebhookUrl, setGatewayWebhookUrl] = useState("");
+
   // Manual Social Media Accounts for CEO
   const [socialWhatsapp, setSocialWhatsapp] = useState("");
   const [socialInstagram, setSocialInstagram] = useState("");
@@ -48,17 +56,19 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   const loadCeoData = async () => {
     try {
       setLoading(true);
-      const [adsData, catData, ordData, payData, settData] = await Promise.all([
+      const [adsData, catData, ordData, payData, settData, txData] = await Promise.all([
         getCustomerAds(),
         getManagerCatalogues(),
         getAffiliateOrders(),
         getPayoutRequests(),
-        getPlatformSettings()
+        getPlatformSettings(),
+        getAllPaymentTransactions()
       ]);
       setAds(adsData || []);
       setCatalogues(catData || []);
       setOrders(ordData || []);
       setPayouts(payData || []);
+      setPayments(txData || []);
       setSettings(settData);
 
       if (settData) {
@@ -68,6 +78,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
 
         const pn = settData.payment_numbers || {};
         const sl = settData.social_links || pn.social_links || {};
+        const gw = pn.gateway_config || {};
 
         setMpesaNumber(pn.mpesa || "");
         setMpesaName(pn.mpesa_name || "");
@@ -79,6 +90,11 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         setHaloName(pn.halopesa_name || "");
         setBankNumber(pn.bank || "");
         setBankName(pn.bank_name || "");
+
+        setGatewayProvider(gw.provider || "AzamPay / Selcom / ClickPesa");
+        setGatewayMerchantId(gw.merchant_id || "");
+        setGatewayPublicKey(gw.public_key || "");
+        setGatewayWebhookUrl(gw.webhook_url || "");
 
         setSocialWhatsapp(sl.whatsapp || profile?.whatsapp || "");
         setSocialInstagram(sl.instagram || "");
@@ -126,7 +142,13 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
           halopesa: haloNumber.trim(),
           halopesa_name: haloName.trim(),
           bank: bankNumber.trim(),
-          bank_name: bankName.trim()
+          bank_name: bankName.trim(),
+          gateway_config: {
+            provider: gatewayProvider,
+            merchant_id: gatewayMerchantId.trim(),
+            public_key: gatewayPublicKey.trim(),
+            webhook_url: gatewayWebhookUrl.trim()
+          }
         },
         social_links: {
           whatsapp: socialWhatsapp.trim(),
@@ -138,7 +160,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         }
       });
       if (onShowToast) {
-        onShowToast("✓ Lipa Namba, Mitandao ya Kijamii na Mipangilio ya CEO imehifadhiwa!");
+        onShowToast("✓ Lipa Namba, Payment Gateway na Mipangilio ya CEO imehifadhiwa!");
       }
       loadCeoData();
     } catch (err) {
@@ -149,7 +171,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   };
 
   const totalTurnover = orders.reduce((s, o) => s + (Number(o.amount) || 0), 0);
-  const totalAdsRevenue = ads.reduce((s, a) => s + (Number(a.paid_amount) || 0), 0);
+  const totalPaymentsVolume = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const pendingPayouts = payouts.filter((p) => p.status === "pending");
 
   return (
@@ -169,7 +191,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 20 }}>👑</span>
             <h2 style={{ margin: 0, fontSize: "clamp(18px, 3vw, 22px)", fontWeight: 800, color: "#fff" }}>
-              CEO Dashboard
+              CEO Dashboard & Mfumo wa Malipo
             </h2>
           </div>
 
@@ -206,7 +228,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
                 cursor: "pointer"
               }}
             >
-              🔄
+              🔄 Onyesha Upya
             </button>
           </div>
         </div>
@@ -223,25 +245,25 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
           }}
         >
           <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Mauzo</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Mauzo & Oda</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#38bdf8", marginTop: 2 }}>
               TZS {totalTurnover.toLocaleString()}
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Bidhaa</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Miamala Iliyothibitishwa</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#4ade80", marginTop: 2 }}>
-              {catalogues.length}
+              TZS {totalPaymentsVolume.toLocaleString()} ({payments.length})
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Matangazo</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Bidhaa & Matangazo</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#facc15", marginTop: 2 }}>
-              {ads.length}
+              {catalogues.length} Shop · {ads.length} Ads
             </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>Payouts</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Maombi ya Payouts</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#f87171", marginTop: 2 }}>
               {pendingPayouts.length}
             </div>
@@ -252,7 +274,8 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, borderBottom: "1px solid var(--line)" }}>
         {[
-          { id: "settings", label: "⚙️ Malipo & Links" },
+          { id: "settings", label: "⚙️ Lipa Namba & Gateway" },
+          { id: "payments", label: `💳 Miamala (${payments.length})` },
           { id: "overview", label: `📦 Oda (${orders.length})` },
           { id: "all_ads", label: `📢 Matangazo (${ads.length})` },
           { id: "payouts", label: `💸 Payouts (${pendingPayouts.length})` }
@@ -269,18 +292,18 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         ))}
       </div>
 
-      {/* TAB 1: SETTINGS (LIPA NAMBA & SOCIAL MEDIA LINKS) */}
+      {/* TAB 1: SETTINGS (LIPA NAMBA, PAYMENT GATEWAY & SOCIAL MEDIA LINKS) */}
       {activeTab === "settings" && (
         <div className="glass-card" style={{ padding: 18, borderRadius: 16 }}>
           <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800 }}>
-            ⚙️ Malipo & Mitandao ya Kijamii
+            ⚙️ Mfumo wa Malipo (Lipa Namba, Gateway & Mitandao ya Kijamii)
           </h3>
 
           <form onSubmit={handleSaveSettings} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* 1. Lipa Namba Section */}
             <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
               <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--primary)" }}>
-                💳 1. Lipa Namba & Akaunti za Malipo
+                💳 1. Lipa Namba & Akaunti za Malipo za Biashara
               </h4>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -380,10 +403,72 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
               </div>
             </div>
 
-            {/* 2. Social Media Accounts Section */}
+            {/* 2. Live Mobile Money Gateway Integration */}
+            <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
+              <h4 style={{ margin: "0 0 8px", fontSize: 14, color: "var(--primary)" }}>
+                ⚡ 2. Muunganisho wa Payment Gateway ya Moja kwa Moja (USSD Push API)
+              </h4>
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--muted)" }}>
+                Tayari kuunganishwa na AzamPay, Selcom, ClickPesa, ZenoPay au Flutterwave kwa ajili ya kutuma USSD Push moja kwa moja kwenye simu ya mteja.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Mtoa Huduma (Gateway Provider):</label>
+                  <select
+                    value={gatewayProvider}
+                    onChange={(e) => setGatewayProvider(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "11px 12px",
+                      borderRadius: 10,
+                      border: "1px solid var(--line)",
+                      background: "var(--input-bg)",
+                      color: "var(--ink)",
+                      fontSize: 13.5
+                    }}
+                  >
+                    <option value="AzamPay Tanzania">AzamPay Tanzania</option>
+                    <option value="Selcom Pay">Selcom Pay</option>
+                    <option value="ClickPesa">ClickPesa</option>
+                    <option value="ZenoPay Tanzania">ZenoPay Tanzania</option>
+                    <option value="Flutterwave Mobile Money">Flutterwave Mobile Money</option>
+                    <option value="Direct Mobile Money">Direct Lipa Namba + USSD Push</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Merchant ID / App Name:</label>
+                  <input
+                    type="text"
+                    placeholder="Mfano: DUARA_MERCHANT_01"
+                    value={gatewayMerchantId}
+                    onChange={(e) => setGatewayMerchantId(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Public Key / Client ID (Hiari):</label>
+                  <input
+                    type="text"
+                    placeholder="Weka Public Key ya Gateway..."
+                    value={gatewayPublicKey}
+                    onChange={(e) => setGatewayPublicKey(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Payment Webhook / Checkout URL (Hiari):</label>
+                  <input
+                    type="url"
+                    placeholder="https://api.gateway.co.tz/v1/checkout"
+                    value={gatewayWebhookUrl}
+                    onChange={(e) => setGatewayWebhookUrl(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Social Media Accounts Section */}
             <div style={{ padding: 14, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
               <h4 style={{ margin: "0 0 10px", fontSize: 14, color: "var(--primary)" }}>
-                🔗 2. Mitandao ya Kijamii
+                🔗 3. Mitandao ya Kijamii ya Biashara
               </h4>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
@@ -444,10 +529,10 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
               </div>
             </div>
 
-            {/* 3. Ad Fees */}
+            {/* 4. Ad Fees */}
             <div style={{ padding: 16, borderRadius: 12, background: "var(--bg-base)", border: "1px solid var(--line)" }}>
               <h4 style={{ margin: "0 0 12px", fontSize: 15, color: "var(--primary)" }}>
-                📢 3. Gharama za Matangazo ya Wateja (TZS)
+                📢 4. Gharama za Matangazo ya Wateja (TZS)
               </h4>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -484,7 +569,74 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         </div>
       )}
 
-      {/* TAB 2: OVERVIEW (ORDERS & SHOP PRODUCTS) */}
+      {/* TAB 2: REAL-TIME PAYMENTS & TRANSACTIONS LOG */}
+      {activeTab === "payments" && (
+        <div className="glass-card" style={{ padding: 18 }}>
+          <h3 style={{ margin: "0 0 14px", fontSize: 16 }}>
+            💳 Rekodi za Miamala ya Malipo ({payments.length})
+          </h3>
+          {payments.length === 0 ? (
+            <p className="muted" style={{ fontSize: 13 }}>
+              Bado hakuna miamala ya malipo iliyofanyika. Mteja akilipa kwenye Shop, Matangazo au Wallet ataonekana hapa.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {payments.map((tx) => (
+                <div
+                  key={tx.id}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: "var(--bg-base)",
+                    border: "1px solid var(--line)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 10
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <strong style={{ fontSize: 14 }}>{tx.purpose || "Malipo"}</strong>
+                      {tx.reference && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            background: "rgba(16, 185, 129, 0.14)",
+                            color: "#10b981",
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            fontWeight: 800
+                          }}
+                        >
+                          Ref: {tx.reference}
+                        </span>
+                      )}
+                    </div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                      Mtandao: <strong>{tx.method}</strong>
+                      {tx.payer_phone ? ` • Simu: ${tx.payer_phone}` : ""}
+                      {" • "}
+                      {new Date(tx.created_at || Date.now()).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 900, fontSize: 15, color: "var(--primary)" }}>
+                      TZS {Number(tx.amount || 0).toLocaleString()}
+                    </div>
+                    <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>
+                      ✓ Imethibitishwa
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: OVERVIEW (ORDERS & SHOP PRODUCTS) */}
       {activeTab === "overview" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
           <div className="glass-card" style={{ padding: 18 }}>
@@ -509,7 +661,10 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
                   >
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{o.customer_name}</div>
-                      <div className="muted" style={{ fontSize: 11 }}>{o.customer_phone} • {o.delivery_address}</div>
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {o.customer_phone} • {o.delivery_address}
+                        {o.payment_reference ? ` • Ref: ${o.payment_reference}` : ""}
+                      </div>
                     </div>
                     <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 13 }}>
                       {Number(o.amount) > 0 ? `TZS ${Number(o.amount).toLocaleString()}` : "Oda"}
@@ -556,7 +711,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         </div>
       )}
 
-      {/* TAB 3: ALL ADS */}
+      {/* TAB 4: ALL ADS */}
       {activeTab === "all_ads" && (
         <div className="glass-card" style={{ padding: 18 }}>
           <h3 style={{ margin: "0 0 14px", fontSize: 16 }}>📢 Matangazo ya Wateja ({ads.length})</h3>
@@ -592,7 +747,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
         </div>
       )}
 
-      {/* TAB 4: PAYOUTS */}
+      {/* TAB 5: PAYOUTS */}
       {activeTab === "payouts" && (
         <div className="glass-card" style={{ padding: 18 }}>
           <h3 style={{ margin: "0 0 14px", fontSize: 16 }}>💸 Maombi ya Payout ({payouts.length})</h3>

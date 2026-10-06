@@ -186,7 +186,17 @@ create table if not exists public.reels (
   created_at timestamptz not null default now()
 );
 
--- 12. WALLET SYSTEM (TZS MOBILE MONEY)
+-- 12. USERS TABLE (MOCK PAYMENT & BALANCE TRACKING)
+create table if not exists public.users (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  username text,
+  user_balance numeric(14,2) not null default 0 check (user_balance >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- WALLET SYSTEM (TZS MOBILE MONEY)
 create table if not exists public.wallet_accounts (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   currency text not null default 'TZS',
@@ -414,6 +424,11 @@ begin
   values (new.id, 'TZS', 0)
   on conflict (user_id) do nothing;
 
+  -- Create users table record with user_balance
+  insert into public.users (id, email, username, user_balance)
+  values (new.id, new.email, clean_username, 0)
+  on conflict (id) do nothing;
+
   return new;
 end;
 $$;
@@ -424,6 +439,7 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- 19. ENABLE ROW LEVEL SECURITY
+alter table public.users enable row level security;
 alter table public.profiles enable row level security;
 alter table public.posts enable row level security;
 alter table public.follows enable row level security;
@@ -503,6 +519,11 @@ create policy "marketplace_read" on public.marketplace_listings for select to au
 create policy "marketplace_manage" on public.marketplace_listings for all to authenticated using (seller_id = auth.uid() or public.is_ceo());
 create policy "reels_read" on public.reels for select to authenticated using (true);
 create policy "reels_manage" on public.reels for all to authenticated using (creator_id = auth.uid() or public.is_ceo());
+
+-- Users (user_balance)
+create policy "users_read" on public.users for select to authenticated using (true);
+create policy "users_insert" on public.users for insert to authenticated with check (id = auth.uid() or public.is_ceo());
+create policy "users_update" on public.users for update to authenticated using (id = auth.uid() or public.is_ceo()) with check (id = auth.uid() or public.is_ceo());
 
 -- Wallet
 create policy "wallet_accounts_read" on public.wallet_accounts for select to authenticated using (user_id = auth.uid() or public.is_ceo());
@@ -595,6 +616,8 @@ alter publication supabase_realtime add table public.status_reactions;
 alter publication supabase_realtime add table public.status_comments;
 alter publication supabase_realtime add table public.customer_ads;
 alter publication supabase_realtime add table public.catalogues;
+alter publication supabase_realtime add table public.users;
+alter publication supabase_realtime add table public.follows;
 
 -- 22. STORAGE BUCKETS
 insert into storage.buckets (id, name, public)

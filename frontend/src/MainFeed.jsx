@@ -635,10 +635,7 @@ export function MainFeed({
   return (
     <div className="feed-container" id="main-feed-container">
       <div className="feed-column">
-        {/* Status / Stories Rail */}
-        {StatusRail && <StatusRail profile={profile} lang={lang} />}
-
-        {/* Sleek Compact Mobile-First Post Composer */}
+        {/* Sleek Compact Mobile-First Post Composer for Duara News */}
         <section className="composer-card duara-composer-card" id="main-feed-composer">
           <form onSubmit={submitPost} id="create-post-form">
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -650,7 +647,7 @@ export function MainFeed({
                   value={content}
                   onFocus={() => setComposerExpanded(true)}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder={lang === "sw" ? "Andika chapisho..." : "What's happening?"}
+                  placeholder={lang === "sw" ? "Andika habari / taarifa ya Duara..." : "Post Duara news or update..."}
                   maxLength={600}
                   rows={composerExpanded || content || file ? 3 : 1}
                 />

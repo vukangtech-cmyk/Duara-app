@@ -16,6 +16,7 @@ import {
   getNotifications,
   getPlatformSettings,
   getReels,
+  getSuggestedUsers,
   getUserConversations,
   getAllProfiles,
   getSavedAccounts,
@@ -27,6 +28,9 @@ import {
   getWallet,
   depositToWallet,
   withdrawFromWallet,
+  processMockPayment,
+  getUserBalance,
+  initiateLiveMobileMoneyPush,
   kickPost,
   loginUser,
   loginWithPlatform,
@@ -41,6 +45,7 @@ import {
   sendFriendRequest,
   sendMessage,
   subscribeToConversation,
+  subscribeToAllMessages,
   subscribeToInteractions,
   subscribeToRealtime,
   toggleLike,
@@ -53,6 +58,7 @@ import { CallModal } from "./CallModal";
 import { CustomerAdsDashboard } from "./CustomerAdsDashboard";
 import { AffiliateManagerCatalogue } from "./AffiliateManagerCatalogue";
 import { CeoDashboard } from "./CeoDashboard";
+import { AliExpressShop } from "./AliExpressShop";
 import { translations, useTranslation } from "./lib/translations";
 import "./App.css";
 
@@ -430,17 +436,24 @@ function TopHeader({
   profile,
   lang,
   unreadCount,
-  onOpenDirectMessage,
   onViewUserProfile,
   isMobileLayout,
   onOpenMobileMenu,
   onToggleLayoutMode,
-  onSwitchAccount
+  onSwitchAccount,
+  onOpenAuth
 }) {
   const isSw = lang === "sw";
   const [term, setTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [followedIds, setFollowedIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("followed_user_ids") || "[]");
+    } catch {
+      return [];
+    }
+  });
 
   const handleSearch = async (e) => {
     const val = e.target.value;
@@ -449,7 +462,7 @@ function TopHeader({
     if (clean.length >= 1) {
       setSearching(true);
       try {
-        const res = await searchProfiles(clean);
+        const res = await searchProfiles(clean, profile?.id);
         setSearchResults(res || []);
       } catch (err) {
         console.warn(err);
@@ -461,23 +474,7 @@ function TopHeader({
     }
   };
 
-  const cleanHandle = term.trim().replace(/^@+/, "").toLowerCase().replace(/\s+/g, "_");
-  const hasExactMatch = searchResults.some(
-    (p) => (p.username || "").toLowerCase() === cleanHandle
-  );
-  const displayList =
-    cleanHandle.length >= 2 && !hasExactMatch
-      ? [
-          ...searchResults,
-          {
-            id: `username_${cleanHandle}`,
-            username: cleanHandle,
-            display_name: `@${cleanHandle}`,
-            role: "customer",
-            location: "Tanzania"
-          }
-        ]
-      : searchResults;
+  const displayList = searchResults;
 
   return (
     <header className="top-header" id="app-top-header">
@@ -528,7 +525,14 @@ function TopHeader({
             >
               {searching && displayList.length === 0 && (
                 <div style={{ padding: "10px", fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
-                  {isSw ? "Inatafuta..." : "Searching..."}
+                  {isSw ? "Inatafuta akaunti zilizothibitishwa..." : "Searching verified accounts..."}
+                </div>
+              )}
+              {!searching && displayList.length === 0 && (
+                <div style={{ padding: "12px 10px", fontSize: 12, color: "var(--muted)", textAlign: "center", lineHeight: 1.45 }}>
+                  {isSw
+                    ? `Hakuna mtumiaji aliyesajiliwa na kuthibitishwa kwa "${term.trim()}".`
+                    : `No verified registered user found for "${term.trim()}".`}
                 </div>
               )}
               {displayList.map((p) => (
@@ -555,8 +559,9 @@ function TopHeader({
                   >
                     <Avatar name={p.display_name || p.username} avatarUrl={p.avatar_url} size="sm" />
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {p.display_name}
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <span>{p.display_name}</span>
+                        <span style={{ color: "#10b981", fontSize: 11 }} title="Akaunti Iliyothibitishwa">✓</span>
                       </div>
                       <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         @{p.username}
@@ -580,15 +585,21 @@ function TopHeader({
                       type="button"
                       className="button button-primary"
                       style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
-                      onClick={() => {
-                        if (onOpenDirectMessage) {
-                          onOpenDirectMessage(p.id, p.display_name || `@${p.username}`, "", p);
-                        }
+                      onClick={async () => {
+                        const isNow = !followedIds.includes(p.id);
+                        const updated = isNow ? [...followedIds, p.id] : followedIds.filter((x) => x !== p.id);
+                        setFollowedIds(updated);
+                        try {
+                          localStorage.setItem("followed_user_ids", JSON.stringify(updated));
+                          if (profile?.id && profile.id !== "guest-user") {
+                            await followUser(profile.id, p.id);
+                          }
+                        } catch {}
                         setTerm("");
                         setSearchResults([]);
                       }}
                     >
-                      💬 Message
+                      {followedIds.includes(p.id) ? "✓ Ume-follow" : "+ Follow"}
                     </button>
                   </div>
                 </div>
@@ -623,7 +634,7 @@ function TopHeader({
             <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: "#ef4444" }} />
           )}
         </button>
-        {onSwitchAccount && (
+        {onSwitchAccount && !profile?.is_guest && (
           <button
             type="button"
             className="theme-pill-btn"
@@ -634,15 +645,37 @@ function TopHeader({
             🔄
           </button>
         )}
-        <button
-          type="button"
-          id="btn-header-profile"
-          onClick={() => setActive("profile")}
-          style={{ border: "none", background: "none", padding: 0, cursor: "pointer" }}
-          title={profile?.display_name || "Profile"}
-        >
-          <Avatar name={profile?.display_name || "User"} avatarUrl={profile?.avatar_url} size="sm" />
-        </button>
+        {profile?.is_guest ? (
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={onOpenAuth}
+            style={{
+              padding: "7px 14px",
+              fontSize: 12,
+              borderRadius: 20,
+              fontWeight: 800,
+              background: "linear-gradient(135deg, #10b981, #059669)",
+              color: "#fff",
+              border: "none",
+              boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+              cursor: "pointer"
+            }}
+            title={isSw ? "Ingia kwenye akaunti yako" : "Sign In to your account"}
+          >
+            ✨ {isSw ? "Ingia / Jisajili" : "Sign In"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            id="btn-header-profile"
+            onClick={() => setActive("profile")}
+            style={{ border: "none", background: "none", padding: 0, cursor: "pointer" }}
+            title={profile?.display_name || "Profile"}
+          >
+            <Avatar name={profile?.display_name || "User"} avatarUrl={profile?.avatar_url} size="sm" />
+          </button>
+        )}
       </div>
     </header>
   );
@@ -1171,6 +1204,7 @@ function AuthScreen({
   dark,
   setDark,
   onAuthSuccess,
+  onSkipAsGuest,
   isMobileLayout,
   layoutPreference,
   setLayoutPreference
@@ -1571,6 +1605,28 @@ function AuthScreen({
                     ? "🔑 Una akaunti tayari? Ingia Hapa (Login)"
                     : "🔑 Already have an account? Sign In (Login)"}
                 </button>
+
+                {onSkipAsGuest && (
+                  <button
+                    type="button"
+                    id="btn-browse-as-guest"
+                    className="button button-soft button-full"
+                    onClick={onSkipAsGuest}
+                    style={{
+                      marginTop: 10,
+                      borderRadius: 12,
+                      padding: "10px",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      border: "1px solid var(--line)",
+                      background: "var(--input-bg)",
+                      color: "var(--ink)",
+                      cursor: "pointer"
+                    }}
+                  >
+                    🚀 {isSw ? "Endelea kama Mgeni (Bila Kujisajili)" : "Continue as Guest (No Registration)"}
+                  </button>
+                )}
               </form>
             </div>
           </div>
@@ -1600,11 +1656,11 @@ function getMenuSections(profile, lang, unread) {
   const isSw = lang === "sw";
 
   const coreLinks = [
-    ["home", "⌂", "Duara"],
-    ["catalogue", "🛍️", "Shop"],
-    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
-    ["messages", "💬", "Messages", unread],
+    ["shop", "🛍️", "Shop (AliExpress)"],
+    ["home", "🌐", "Duara (News)"],
     ["reels", "▶", "Reels"],
+    ["ads", "📢", isSw ? "Matangazo" : "Ads"],
+    ["wallet", "💳", "Wallet"],
     ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread]
   ];
   if (isCeo) {
@@ -1613,10 +1669,8 @@ function getMenuSections(profile, lang, unread) {
 
   const savedAndMoreLinks = [
     ["saved", "🔖", isSw ? "Saved (Hifadhi)" : "Saved"],
-    ["wallet", "💳", "Wallet"],
     ...(isCeo ? [["dashboard", "📊", "Dashboard (CEO)"]] : []),
-    ["marketplace", "🏪", isSw ? "Soko" : "Marketplace"],
-    ["discover", "👥", isSw ? "Watu & Marafiki" : "Discover People"]
+    ["discover", "👥", isSw ? "Watu & Creators" : "Discover People"]
   ];
 
   const accountAndSystemLinks = [
@@ -1744,10 +1798,10 @@ function MobileBottomNav({
   const isCeo = profile?.role === "ceo";
   const isSw = lang === "sw";
   const items = [
-    ["home", "⌂", "Duara"],
-    ["catalogue", "🛍️", "Shop"],
-    ["ads", "📢", "Ads"],
-    ["messages", "💬", "Chat", unread]
+    ["shop", "🛍️", "Shop"],
+    ["home", "🌐", "Duara"],
+    ["reels", "▶", "Reels"],
+    ["wallet", "💳", "Wallet"]
   ];
 
   const { coreLinks, savedAndMoreLinks, accountAndSystemLinks } = getMenuSections(profile, lang, unread);
@@ -2390,18 +2444,26 @@ function PostCard({ post, user, onRefresh, lang, onShowToast }) {
 const Home = MainFeed;
 export { MainFeed, Home };
 
-/* Suggestions Widget */
+/* Suggestions Widget (Verified Registered Users Only) */
 function Suggestions({ userId, lang, onViewUserProfile, onOpenDirectMessage }) {
   const t = useTranslation(lang);
+  const isSw = lang === "sw";
   const [term, setTerm] = useState("");
   const [results, setResults] = useState([]);
+  const [defaultVerified, setDefaultVerified] = useState([]);
   const [sent, setSent] = useState({});
+
+  useEffect(() => {
+    getSuggestedUsers(userId)
+      .then((list) => setDefaultVerified(list || []))
+      .catch(() => {});
+  }, [userId]);
 
   const search = async (e) => {
     const value = e.target.value;
     setTerm(value);
     if (value.trim().length >= 1) {
-      setResults(await searchProfiles(value.trim()));
+      setResults(await searchProfiles(value.trim(), userId));
     } else {
       setResults([]);
     }
@@ -2416,6 +2478,8 @@ function Suggestions({ userId, lang, onViewUserProfile, onOpenDirectMessage }) {
     }
   };
 
+  const listToRender = term.trim().length >= 1 ? results : defaultVerified;
+
   return (
     <div className="rail-card" id="rail-suggestions">
       <h3>{t.discoverPeople}</h3>
@@ -2426,7 +2490,14 @@ function Suggestions({ userId, lang, onViewUserProfile, onOpenDirectMessage }) {
         onChange={search}
         placeholder={t.searchPersonPlaceholder}
       />
-      {results.map((person) => (
+      {term.trim().length >= 1 && listToRender.length === 0 && (
+        <p className="muted" style={{ fontSize: 12.5, margin: "6px 0" }}>
+          {isSw
+            ? `Hakuna mtumiaji aliyesajiliwa na kuthibitishwa kwa "${term.trim()}".`
+            : `No verified registered user found for "${term.trim()}".`}
+        </p>
+      )}
+      {listToRender.map((person) => (
         <div className="suggestion-row" key={person.id}>
           <div
             style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}
@@ -2434,7 +2505,10 @@ function Suggestions({ userId, lang, onViewUserProfile, onOpenDirectMessage }) {
           >
             <Avatar name={person.display_name} avatarUrl={person.avatar_url} size="sm" />
             <div className="suggestion-info">
-              <span className="suggestion-name">{person.display_name}</span>
+              <span className="suggestion-name" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                {person.display_name}
+                <span style={{ color: "#10b981", fontSize: 11 }} title="Akaunti Iliyothibitishwa">✓</span>
+              </span>
               <span className="suggestion-handle">@{person.username}</span>
             </div>
           </div>
@@ -2444,6 +2518,7 @@ function Suggestions({ userId, lang, onViewUserProfile, onOpenDirectMessage }) {
                 type="button"
                 className="friend-btn"
                 onClick={() => onOpenDirectMessage(person.id, person.display_name, "", person)}
+                title="Tuma Ujumbe"
               >
                 💬
               </button>
@@ -2915,6 +2990,37 @@ function Wallet({ profile, lang }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [paymentNumbers, setPaymentNumbers] = useState({});
+  const [mockModalOpen, setMockModalOpen] = useState(false);
+  const [mockType, setMockType] = useState("debit");
+  const [mockAmount, setMockAmount] = useState("10000");
+  const [mockDesc, setMockDesc] = useState("Malipo ya Majaribio (Mock Payment Test)");
+  const [mockReceipt, setMockReceipt] = useState(null);
+  const [mockError, setMockError] = useState("");
+
+  const handleRunMockPayment = async (e) => {
+    if (e) e.preventDefault();
+    setMockError("");
+    setMockReceipt(null);
+    setBusy(true);
+    try {
+      const receipt = await processMockPayment({
+        userId: profile.id,
+        amount: Number(mockAmount),
+        type: mockType,
+        currency: "TZS",
+        description: mockDesc,
+        paymentMethod: "Mock Payment Gateway (Supabase users table)",
+        metadata: { payerName: profile.display_name || profile.username }
+      });
+      setMockReceipt(receipt);
+      setStatusMsg(`✓ Mock payment imekamilika! users.user_balance mpya: TZS ${receipt.user_balance.toLocaleString()}`);
+      await loadWallet();
+    } catch (err) {
+      setMockError(err.message || "Hitilafu kwenye malipo ya mock.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const loadWallet = async () => {
     try {
@@ -2941,8 +3047,8 @@ function Wallet({ profile, lang }) {
       short: "M-Pesa",
       color: "#e60000",
       bg: "rgba(230,0,0,0.08)",
-      till: paymentNumbers?.mpesa?.lipa_namba || paymentNumbers?.mpesa?.phone || "Inawekwa na CEO",
-      merchant: paymentNumbers?.mpesa?.name || "THE CIRCLE DUARA",
+      till: paymentNumbers?.mpesa || paymentNumbers?.mpesa?.lipa_namba || paymentNumbers?.mpesa?.phone || "Wasiliana na CEO",
+      merchant: paymentNumbers?.mpesa_name || paymentNumbers?.mpesa?.name || "CEO HAMZA VUKANG",
       code: "*150*00#"
     },
     {
@@ -2950,8 +3056,8 @@ function Wallet({ profile, lang }) {
       short: "Mixx / Tigo",
       color: "#00377d",
       bg: "rgba(0,55,125,0.08)",
-      till: paymentNumbers?.tigopesa?.lipa_namba || paymentNumbers?.tigopesa?.phone || "Inawekwa na CEO",
-      merchant: paymentNumbers?.tigopesa?.name || "THE CIRCLE DUARA",
+      till: paymentNumbers?.tigopesa || paymentNumbers?.tigopesa?.lipa_namba || paymentNumbers?.tigopesa?.phone || "Wasiliana na CEO",
+      merchant: paymentNumbers?.tigopesa_name || paymentNumbers?.tigopesa?.name || "CEO HAMZA VUKANG",
       code: "*150*01#"
     },
     {
@@ -2959,8 +3065,8 @@ function Wallet({ profile, lang }) {
       short: "Airtel",
       color: "#ff0000",
       bg: "rgba(255,0,0,0.08)",
-      till: paymentNumbers?.airtel?.lipa_namba || paymentNumbers?.airtel?.phone || "Inawekwa na CEO",
-      merchant: paymentNumbers?.airtel?.name || "THE CIRCLE DUARA",
+      till: paymentNumbers?.airtel || paymentNumbers?.airtel?.lipa_namba || paymentNumbers?.airtel?.phone || "Wasiliana na CEO",
+      merchant: paymentNumbers?.airtel_name || paymentNumbers?.airtel?.name || "CEO HAMZA VUKANG",
       code: "*150*60#"
     },
     {
@@ -2968,8 +3074,8 @@ function Wallet({ profile, lang }) {
       short: "HaloPesa",
       color: "#ff6600",
       bg: "rgba(255,102,0,0.08)",
-      till: paymentNumbers?.halopesa?.lipa_namba || paymentNumbers?.halopesa?.phone || "Inawekwa na CEO",
-      merchant: paymentNumbers?.halopesa?.name || "THE CIRCLE DUARA",
+      till: paymentNumbers?.halopesa || paymentNumbers?.halopesa?.lipa_namba || paymentNumbers?.halopesa?.phone || "Wasiliana na CEO",
+      merchant: paymentNumbers?.halopesa_name || paymentNumbers?.halopesa?.name || "CEO HAMZA VUKANG",
       code: "*150*88#"
     }
   ];
@@ -2977,7 +3083,7 @@ function Wallet({ profile, lang }) {
   const handleStartDeposit = () => {
     setModalMode("deposit");
     setAmount("20000");
-    setReference("MP" + Math.floor(10000000 + Math.random() * 90000000));
+    setReference("");
     setErrorMsg("");
     setStatusMsg("");
   };
@@ -2989,6 +3095,34 @@ function Wallet({ profile, lang }) {
     setStatusMsg("");
   };
 
+  const handleSendLiveUssdPushForDeposit = async () => {
+    setErrorMsg("");
+    if (!amount || Number(amount) < 500) {
+      setErrorMsg("Kiwango cha chini cha kuweka ni TZS 500.");
+      return;
+    }
+    if (!phone || phone.length < 9) {
+      setErrorMsg("Weka namba sahihi ya simu ya Tanzania.");
+      return;
+    }
+    setUssdPromptActive(true);
+    try {
+      const pushRes = await initiateLiveMobileMoneyPush({
+        userId: profile.id,
+        phone,
+        amount: Number(amount),
+        method: selectedMethod,
+        purpose: "Kuweka Pesa Kwenye Duara Wallet"
+      });
+      setReference(pushRes.reference);
+      setStatusMsg(`📲 Ombi la USSD Push limetumwa kwenye ${pushRes.phone}! Kumbukumbu: ${pushRes.reference}. Bonyeza 'Kamilisha Kuweka Pesa' baada ya kuthibitisha PIN.`);
+    } catch (err) {
+      setErrorMsg(err.message || "Imeshindikana kutuma USSD Push.");
+    } finally {
+      setUssdPromptActive(false);
+    }
+  };
+
   const handleTriggerUssdDeposit = () => {
     if (!amount || Number(amount) < 500) {
       setErrorMsg("Kiwango cha chini cha kuweka ni TZS 500.");
@@ -2998,6 +3132,10 @@ function Wallet({ profile, lang }) {
       setErrorMsg("Weka namba sahihi ya simu.");
       return;
     }
+    if (!reference || reference.trim().length < 4) {
+      setErrorMsg("Tafadhali weka Kumbukumbu Namba ya Muamala (Transaction ID / SMS) au bonyeza 'Tuma USSD Push' kwanza.");
+      return;
+    }
     completeDepositSubmission();
   };
 
@@ -3005,15 +3143,14 @@ function Wallet({ profile, lang }) {
     setBusy(true);
     setErrorMsg("");
     try {
-      const generatedRef = reference || "TX" + Date.now().toString().slice(-8);
-      await depositToWallet(profile.id, Number(amount), selectedMethod, phone, generatedRef);
+      await depositToWallet(profile.id, Number(amount), selectedMethod, phone, reference.trim());
       setStatusMsg(`✓ Umefanikiwa kuweka TZS ${Number(amount).toLocaleString()} kupitia ${selectedMethod}! Salio limesasishwa.`);
       setUssdPromptActive(false);
       await loadWallet();
       setTimeout(() => {
         setModalMode(null);
         setStatusMsg("");
-      }, 2500);
+      }, 2000);
     } catch (err) {
       setErrorMsg(err.message || "Hitilafu imetokea wakati wa kuweka pesa.");
       setUssdPromptActive(false);
@@ -3090,6 +3227,8 @@ function Wallet({ profile, lang }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, opacity: 0.95, flexWrap: "wrap" }}>
               <span>✓ Namba ya Simu: <strong>{profile?.phone || "Haijawekwa"}</strong></span>
               <span>•</span>
+              <span>Supabase users.user_balance: <strong>{Number(wallet?.user_balance ?? balance).toLocaleString()} TZS</strong></span>
+              <span>•</span>
               <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
                 {profile?.role === "ceo" ? "👑 CEO WALLET" : profile?.role === "manager" ? "💼 MANAGER WALLET" : "🛒 MTEJA WALLET"}
               </span>
@@ -3097,6 +3236,31 @@ function Wallet({ profile, lang }) {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              id="btn-wallet-mock-test"
+              onClick={() => {
+                setMockModalOpen(true);
+                setMockError("");
+                setMockReceipt(null);
+              }}
+              style={{
+                background: "rgba(255,255,255,0.22)",
+                color: "#ffffff",
+                border: "1px solid rgba(255,255,255,0.45)",
+                borderRadius: 12,
+                padding: "12px 18px",
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}
+            >
+              <span>🧪</span>
+              <span>Mock Payment (Test)</span>
+            </button>
             <button
               type="button"
               id="btn-wallet-deposit"
@@ -3352,42 +3516,44 @@ function Wallet({ profile, lang }) {
               />
             </div>
 
-            {/* Phone Number */}
-            <div style={{ marginBottom: 14 }}>
+            {/* Phone Number & USSD Push */}
+            <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
-                Namba ya Simu ya {selectedMethod}:
+                Namba ya Simu ya {selectedMethod}: *
               </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="0754 123 456"
-                style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)" }}
-              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Mfano: 0754123456"
+                  style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)" }}
+                />
+                <button
+                  type="button"
+                  className="button button-soft"
+                  onClick={handleSendLiveUssdPushForDeposit}
+                  disabled={busy || ussdPromptActive}
+                  style={{ fontSize: 12, padding: "10px 12px", flexShrink: 0 }}
+                >
+                  📲 Tuma USSD Push
+                </button>
+              </div>
             </div>
 
-            {/* USSD Prompt Simulation Box */}
-            {ussdPromptActive && (
-              <div
-                style={{
-                  background: "#020617",
-                  color: "#22c55e",
-                  padding: "14px",
-                  borderRadius: 10,
-                  border: "1px solid #16a34a",
-                  marginBottom: 14,
-                  textAlign: "center"
-                }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 800 }}>📱 Ombi la USSD Push Limetumwa kwenye Simu!</div>
-                <p style={{ fontSize: 12, color: "#94a3b8", margin: "6px 0" }}>
-                  Tafadhali thibitisha kwenye simu yako namba <strong>{phone}</strong> kwa kuweka PIN yako ya {selectedMethod}...
-                </p>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "#eab308" }}>
-                  Inakamilisha baada ya sekunde {ussdCountdown}...
-                </div>
-              </div>
-            )}
+            {/* Transaction ID / SMS Reference */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                Kumbukumbu Namba ya Muamala (Transaction ID / Bandika SMS): *
+              </label>
+              <input
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Weka Transaction ID au bandika SMS ya malipo..."
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontWeight: 700 }}
+              />
+            </div>
 
             {errorMsg && (
               <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
@@ -3417,7 +3583,7 @@ function Wallet({ profile, lang }) {
                 disabled={busy || ussdPromptActive}
                 style={{ flex: 2 }}
               >
-                {busy ? "Inachakata..." : ussdPromptActive ? "Inasubiri PIN..." : "Tuma USSD Push (Weka Pesa)"}
+                {busy ? "Inathibitisha..." : "✓ Kamilisha Kuweka Pesa"}
               </button>
             </div>
           </div>
@@ -3536,6 +3702,279 @@ function Wallet({ profile, lang }) {
           </div>
         </div>
       )}
+
+      {/* Mock Payment Processing Test Modal */}
+      {mockModalOpen && (
+        <div className="modal-backdrop" onClick={() => setMockModalOpen(false)} style={{ zIndex: 9999, padding: 12 }}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 500,
+              width: "100%",
+              borderRadius: 18,
+              padding: 22,
+              background: "var(--card-bg, #ffffff)",
+              border: "1px solid var(--line)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 22 }}>🧪</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Mock Payment Processing Function</h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--muted)" }}>
+                    Validates transaction & updates <code>users.user_balance</code> in Supabase
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMockModalOpen(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "1px solid var(--line)",
+                  background: "var(--input-bg)",
+                  color: "var(--ink)",
+                  cursor: "pointer"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: "var(--input-bg)",
+                border: "1px solid var(--line)",
+                borderRadius: 12,
+                padding: "12px 14px",
+                marginBottom: 16
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Salio la Sasa (users.user_balance):</span>
+                <strong style={{ fontSize: 17, color: "var(--primary)" }}>
+                  TZS {Number(wallet?.user_balance ?? balance).toLocaleString()}
+                </strong>
+              </div>
+            </div>
+
+            <form onSubmit={handleRunMockPayment}>
+              {/* Type Selector */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                  Aina ya Muamala (Transaction Type):
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMockType("debit")}
+                    style={{
+                      padding: "10px",
+                      borderRadius: 10,
+                      border: mockType === "debit" ? "2px solid #ef4444" : "1px solid var(--line)",
+                      background: mockType === "debit" ? "rgba(239, 68, 68, 0.1)" : "var(--card-bg)",
+                      color: mockType === "debit" ? "#ef4444" : "var(--ink)",
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      cursor: "pointer"
+                    }}
+                  >
+                    🔴 Debit (Lipa / Punguza)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMockType("credit")}
+                    style={{
+                      padding: "10px",
+                      borderRadius: 10,
+                      border: mockType === "credit" ? "2px solid #10b981" : "1px solid var(--line)",
+                      background: mockType === "credit" ? "rgba(16, 185, 129, 0.1)" : "var(--card-bg)",
+                      color: mockType === "credit" ? "#10b981" : "var(--ink)",
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      cursor: "pointer"
+                    }}
+                  >
+                    🟢 Credit (Weka / Ongeza)
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount with Presets */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                  Kiasi cha Muamala (Amount TZS): *
+                </label>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  {["5000", "15000", "30000", "50000"].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setMockAmount(v)}
+                      style={{
+                        flex: 1,
+                        padding: "6px 4px",
+                        borderRadius: 6,
+                        border: mockAmount === v ? "2px solid var(--primary)" : "1px solid var(--line)",
+                        background: mockAmount === v ? "var(--primary-soft)" : "var(--card-bg)",
+                        color: mockAmount === v ? "var(--primary)" : "inherit",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        cursor: "pointer"
+                      }}
+                    >
+                      {Number(v).toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  value={mockAmount}
+                  onChange={(e) => setMockAmount(e.target.value)}
+                  placeholder="Kiasi cha TZS (mf. 10000)"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid var(--line)",
+                    background: "var(--input-bg)",
+                    color: "var(--ink)",
+                    fontSize: 14,
+                    fontWeight: 700
+                  }}
+                />
+              </div>
+
+              {/* Description */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                  Maelezo ya Muamala (Purpose / Description):
+                </label>
+                <input
+                  type="text"
+                  value={mockDesc}
+                  onChange={(e) => setMockDesc(e.target.value)}
+                  placeholder="Maelezo..."
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid var(--line)",
+                    background: "var(--input-bg)",
+                    color: "var(--ink)",
+                    fontSize: 13
+                  }}
+                />
+              </div>
+
+              {/* Validation test helpers */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, color: "var(--muted)", width: "100%" }}>Jaribu majaribio ya validation:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMockAmount("0");
+                    setMockType("debit");
+                  }}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px dashed #ef4444",
+                    background: "transparent",
+                    color: "#ef4444",
+                    fontSize: 11,
+                    cursor: "pointer"
+                  }}
+                >
+                  ⚡ Jaribu Kiasi Sifuri (0 TZS)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMockAmount(String(Number(balance || 0) + 100000));
+                    setMockType("debit");
+                  }}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px dashed #ef4444",
+                    background: "transparent",
+                    color: "#ef4444",
+                    fontSize: 11,
+                    cursor: "pointer"
+                  }}
+                >
+                  ⚡ Jaribu Kuzidi Salio (Overdraft)
+                </button>
+              </div>
+
+              {mockError && (
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: "rgba(239, 68, 68, 0.12)",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    color: "#ef4444",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    marginBottom: 12
+                  }}
+                >
+                  🛑 {mockError}
+                </div>
+              )}
+
+              {mockReceipt && (
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    background: "rgba(16, 185, 129, 0.12)",
+                    border: "1px solid rgba(16, 185, 129, 0.35)",
+                    color: "var(--ink)",
+                    fontSize: 12,
+                    marginBottom: 12
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#10b981", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>✓ Muamala Umethibitishwa na user_balance Imesasishwa!</span>
+                  </div>
+                  <div>Kumbukumbu: <strong>{mockReceipt.reference}</strong></div>
+                  <div>Salio Lililopita: <strong>TZS {mockReceipt.previous_balance.toLocaleString()}</strong></div>
+                  <div>Salio Jipya (users.user_balance): <strong style={{ color: "#10b981" }}>TZS {mockReceipt.user_balance.toLocaleString()}</strong></div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                    Jedwali la Supabase: <code>public.users</code> • Safu wima: <code>user_balance</code>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+                <button
+                  type="button"
+                  className="button button-soft"
+                  onClick={() => setMockModalOpen(false)}
+                  disabled={busy}
+                >
+                  Funga
+                </button>
+                <button
+                  type="submit"
+                  className="button button-primary"
+                  disabled={busy}
+                >
+                  {busy ? "Inathibitisha muamala..." : "🧪 Tekeleza Mock Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3565,7 +4004,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
     try {
       const [convList, memberList] = await Promise.all([
         getUserConversations(profile.id).catch(() => []),
-        getAllProfiles(50).catch(() => [])
+        getAllProfiles(80, profile.id).catch(() => [])
       ]);
       setConversations(convList || []);
       const filtered = (memberList || []).filter((m) => m.id !== profile.id);
@@ -3578,7 +4017,19 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
 
   useEffect(() => {
     loadDirectoryAndConversations();
-  }, [profile.id]);
+    const stopGlobalListener = subscribeToAllMessages((payload) => {
+      const incoming = payload?.new;
+      if (!incoming) return;
+      loadDirectoryAndConversations();
+      if (conversationId && incoming.conversation_id === conversationId) {
+        setMessages((current) => (current.some((m) => m.id === incoming.id) ? current : [...current, incoming]));
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      }
+    });
+    return () => {
+      if (stopGlobalListener) stopGlobalListener();
+    };
+  }, [profile.id, conversationId]);
 
   const open = async (nextPerson, prefillText = "") => {
     if (!nextPerson || !nextPerson.id) return;
@@ -3593,7 +4044,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
       setBody(prefillText);
     }
     try {
-      const id = await findOrCreateDirectConversation(profile.id, nextPerson.id);
+      const id = await findOrCreateDirectConversation(profile.id, nextPerson.id, nextPerson);
       setConversationId(id);
       const msgs = await getMessages(id);
       setMessages(msgs || []);
@@ -3632,12 +4083,6 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
           const byHandle = allMembers.find((m) => (m.username || "").toLowerCase() === cleanName);
           if (byHandle) {
             targetProfile = byHandle;
-          } else {
-            targetProfile = {
-              id: initialChatTarget.userId || `user_${cleanName}`,
-              username: cleanName,
-              display_name: initialChatTarget.name
-            };
           }
         }
         if (!targetProfile) {
@@ -3661,17 +4106,8 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
     const clean = value.trim().replace(/^@+/, "");
     if (clean.length > 0) {
       try {
-        const res = await searchProfiles(clean);
+        const res = await searchProfiles(clean, profile.id);
         const filtered = (res || []).filter((p) => p.id !== profile.id);
-        const hasExact = filtered.some((p) => (p.username || "").toLowerCase() === clean.toLowerCase());
-        if (!hasExact && clean.length >= 2) {
-          filtered.push({
-            id: `username_${clean.toLowerCase()}`,
-            username: clean.toLowerCase(),
-            display_name: `@${clean.toLowerCase()}`,
-            role: "customer"
-          });
-        }
         setPeople(filtered);
       } catch {
         setPeople([]);
@@ -3717,7 +4153,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
     setBody("");
     setMessage("");
     try {
-      const sent = await sendMessage(conversationId, profile.id, text);
+      const sent = await sendMessage(conversationId, profile.id, text, null, person);
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
       loadDirectoryAndConversations();
@@ -3733,7 +4169,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
     setMessage("");
     try {
       const url = await uploadImage(profile.id, file, "post-media");
-      const sent = await sendMessage(conversationId, profile.id, "", url);
+      const sent = await sendMessage(conversationId, profile.id, "", url, person);
       setMessages((current) => (current.some((m) => m.id === sent.id) ? current : [...current, sent]));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
       loadDirectoryAndConversations();
@@ -3780,7 +4216,7 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {conversations.map((conv) => {
-                  const p = conv.otherUser;
+                  const p = conv.otherUser || conv.partner;
                   if (!p) return null;
                   const isSelected = person?.id === p.id;
                   return (
@@ -3871,10 +4307,11 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                   >
                     <Avatar name={p.display_name} avatarUrl={p.avatar_url} size="sm" />
                     <div className="suggestion-info" style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <span className="suggestion-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {p.display_name}
                         </span>
+                        <span style={{ color: "#10b981", fontSize: 11 }} title="Akaunti Iliyothibitishwa">✓</span>
                       </div>
                       <span className="suggestion-handle">@{p.username}</span>
                     </div>
@@ -3903,8 +4340,14 @@ function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitia
                 );
               })}
               {displayedContacts.length === 0 && (
-                <p className="muted" style={{ fontSize: 12, padding: "12px 6px", margin: 0 }}>
-                  {isSw ? "Andika @username kumtafuta." : "Search @username."}
+                <p className="muted" style={{ fontSize: 12, padding: "12px 6px", margin: 0, lineHeight: 1.5 }}>
+                  {term.trim()
+                    ? isSw
+                      ? `Hakuna mtumiaji aliyesajiliwa na kuthibitishwa kwa "${term.trim()}".`
+                      : `No verified registered user found for "${term.trim()}".`
+                    : isSw
+                    ? "Andika @username kumtafuta mtumiaji aliyethibitishwa."
+                    : "Search @username for a verified user."}
                 </p>
               )}
             </div>
@@ -5765,7 +6208,7 @@ function HelpSupport({ lang }) {
 }
 
 /* Discover Community View */
-function Discover({ profile, lang }) {
+function Discover({ profile, lang, onViewUserProfile, onOpenDirectMessage }) {
   const t = useTranslation(lang);
   return (
     <div className="feature-shell" id="discover-view">
@@ -5777,14 +6220,19 @@ function Discover({ profile, lang }) {
         </div>
       </div>
       <div style={{ maxWidth: 540 }}>
-        <Suggestions userId={profile.id} lang={lang} />
+        <Suggestions
+          userId={profile.id}
+          lang={lang}
+          onViewUserProfile={onViewUserProfile}
+          onOpenDirectMessage={onOpenDirectMessage}
+        />
       </div>
     </div>
   );
 }
 
 /* Friends Page */
-function Friends({ profile, lang }) {
+function Friends({ profile, lang, onViewUserProfile, onOpenDirectMessage }) {
   const t = useTranslation(lang);
   return (
     <div className="feature-shell" id="friends-view">
@@ -5797,7 +6245,12 @@ function Friends({ profile, lang }) {
       </div>
 
       <div style={{ maxWidth: 540, marginBottom: 24 }}>
-        <Suggestions userId={profile.id} lang={lang} />
+        <Suggestions
+          userId={profile.id}
+          lang={lang}
+          onViewUserProfile={onViewUserProfile}
+          onOpenDirectMessage={onOpenDirectMessage}
+        />
       </div>
 
       <div className="glass-card" style={{ maxWidth: 540, borderLeft: "4px solid var(--primary)" }}>
@@ -5872,25 +6325,14 @@ function PublicUserProfileView({ targetUser, currentUser, posts = [], onBack, on
               <Avatar name={targetUser.display_name || targetUser.username} avatarUrl={targetUser.avatar_url} size="lg" />
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="button button-primary"
-                style={{ padding: "8px 16px", fontSize: 13 }}
-                onClick={() =>
-                  onOpenDirectMessage &&
-                  onOpenDirectMessage(targetUser.id, targetUser.display_name || `@${targetUser.username}`, "", targetUser)
-                }
-              >
-                💬 Message
-              </button>
               {targetUser.id !== currentUser?.id && (
                 <button
                   type="button"
                   className={`button ${isFollowing ? "button-soft" : "button-primary"}`}
-                  style={{ padding: "8px 16px", fontSize: 13 }}
+                  style={{ padding: "8px 18px", fontSize: 13, fontWeight: 800, borderRadius: 12 }}
                   onClick={handleToggleFollow}
                 >
-                  {isFollowing ? (isSw ? "✓ Unamfuata" : "✓ Following") : (isSw ? "+ Fuata" : "+ Follow")}
+                  {isFollowing ? (isSw ? "✓ Unamfuata (Following)" : "✓ Following") : (isSw ? "+ Fuata (Follow)" : "+ Follow")}
                 </button>
               )}
             </div>
@@ -5967,11 +6409,24 @@ function PublicUserProfileView({ targetUser, currentUser, posts = [], onBack, on
   );
 }
 
+const GUEST_PROFILE = {
+  id: "guest-user",
+  username: "mgeni",
+  display_name: "Mgeni (Guest)",
+  avatar_url: "",
+  role: "guest",
+  location: "Dar es Salaam, Tanzania",
+  phone: "",
+  user_balance: 0,
+  is_guest: true
+};
+
 /* Main Application Entry */
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [active, setActive] = useState("home");
+  const [active, setActive] = useState("shop");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [posts, setPosts] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [booting, setBooting] = useState(true);
@@ -6241,20 +6696,10 @@ export default function App() {
     );
   }
 
-  if (!session || !profile) {
-    return (
-      <AuthScreen
-        lang={lang}
-        setLang={setLang}
-        dark={dark}
-        setDark={setDark}
-        onAuthSuccess={handleAuthSuccess}
-        isMobileLayout={isMobileLayout}
-        layoutPreference={layoutPreference}
-        setLayoutPreference={setLayoutPreference}
-      />
-    );
-  }
+  const currentProfile = profile || {
+    ...GUEST_PROFILE,
+    display_name: lang === "sw" ? "Mgeni (Guest)" : "Guest"
+  };
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
@@ -6262,34 +6707,49 @@ export default function App() {
     <div id="app-root-shell" className={isMobileLayout ? "layout-mode-mobile" : "layout-mode-desktop"}>
       <AmbientBackground activePage={active} />
 
+      {/* Non-blocking Auth Modal overlay for when user explicitly requests login */}
+      {authModalOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "var(--bg-base)", overflowY: "auto" }}>
+          <AuthScreen
+            lang={lang}
+            setLang={setLang}
+            dark={dark}
+            setDark={setDark}
+            onAuthSuccess={handleAuthSuccess}
+            onSkipAsGuest={() => setAuthModalOpen(false)}
+            isMobileLayout={isMobileLayout}
+            layoutPreference={layoutPreference}
+            setLayoutPreference={setLayoutPreference}
+          />
+        </div>
+      )}
+
       <TopHeader
         active={active}
         setActive={(page) => {
           setViewingUserProfile(null);
           setActive(page);
         }}
-        profile={profile}
+        profile={currentProfile}
         lang={lang}
         unreadCount={unreadCount}
-        onOpenDirectMessage={handleOpenDirectMessage}
         onViewUserProfile={handleViewUserProfile}
         isMobileLayout={isMobileLayout}
         onOpenMobileMenu={() => setMobileMenuOpen(true)}
         onToggleLayoutMode={handleToggleLayoutMode}
         onSwitchAccount={() => setAccountSwitcherOpen(true)}
+        onOpenAuth={() => setAuthModalOpen(true)}
       />
 
       {isMobileLayout && (
         <nav className="mobile-feature-ribbon" aria-label="Quick Mobile Navigation">
           {[
-            ...(profile?.role === "ceo" ? [["ceo", "👑", "CEO"]] : []),
-            ["home", "⌂", "Duara"],
-            ["catalogue", "🛍️", "Shop"],
-            ["ads", "📢", lang === "sw" ? "Matangazo" : "Ads"],
-            ["messages", "💬", "Chat", unreadCount],
+            ...(currentProfile?.role === "ceo" ? [["ceo", "👑", "CEO"]] : []),
+            ["shop", "🛍️", "Shop"],
+            ["home", "🌐", "Duara"],
             ["reels", "▶", "Reels"],
+            ["ads", "📢", lang === "sw" ? "Matangazo" : "Ads"],
             ["wallet", "💳", "Wallet"],
-            ["marketplace", "🏪", lang === "sw" ? "Soko" : "Market"],
             ["discover", "👥", lang === "sw" ? "Watu" : "People"],
             ["profile", "👤", lang === "sw" ? "Wasifu" : "Profile"]
           ].map(([id, icon, label, badge]) => (
@@ -6313,7 +6773,7 @@ export default function App() {
       <div className="app-shell">
         {!isMobileLayout && (
           <Sidebar
-            profile={profile}
+            profile={currentProfile}
             active={active}
             setActive={(page) => {
               setViewingUserProfile(null);
@@ -6338,10 +6798,9 @@ export default function App() {
           {viewingUserProfile ? (
             <PublicUserProfileView
               targetUser={viewingUserProfile}
-              currentUser={profile}
+              currentUser={currentProfile}
               posts={posts}
               onBack={() => setViewingUserProfile(null)}
-              onOpenDirectMessage={handleOpenDirectMessage}
               onShowToast={showToast}
               lang={lang}
             />
@@ -6349,29 +6808,29 @@ export default function App() {
             <>
               {active === "ads" && (
                 <CustomerAdsDashboard
-                  profile={profile}
+                  profile={currentProfile}
                   onShowToast={showToast}
-                  onOpenDirectMessage={handleOpenDirectMessage}
                   onViewUserProfile={handleViewUserProfile}
                   lang={lang}
                 />
               )}
 
-              {active === "catalogue" && (
-                <AffiliateManagerCatalogue
-                  profile={profile}
+              {(active === "shop" || active === "catalogue" || active === "marketplace") && (
+                <AliExpressShop
+                  profile={currentProfile}
                   onShowToast={showToast}
-                  onOpenDirectMessage={handleOpenDirectMessage}
+                  onViewUserProfile={handleViewUserProfile}
                   lang={lang}
+                  onOpenAuth={() => setAuthModalOpen(true)}
                 />
               )}
 
               {active === "ceo" && (
-                profile?.role === "ceo" ? (
+                currentProfile?.role === "ceo" ? (
                   <CeoDashboard
-                    profile={profile}
+                    profile={currentProfile}
                     onShowToast={showToast}
-                    onOpenShop={() => setActive("catalogue")}
+                    onOpenShop={() => setActive("shop")}
                     lang={lang}
                   />
                 ) : (
@@ -6387,24 +6846,22 @@ export default function App() {
 
               {(active === "home" || active === "feed") && (
                 <MainFeed
-                  profile={profile}
+                  profile={currentProfile}
                   posts={posts}
                   setPosts={setPosts}
                   onPost={onPost}
                   lang={lang}
                   onShowToast={showToast}
                   setActive={setActive}
-                  StatusRail={StatusRail}
                   onViewUserProfile={handleViewUserProfile}
-                  onOpenDirectMessage={handleOpenDirectMessage}
                 />
               )}
               {active === "dashboard" && (
-                profile?.role === "ceo" ? (
+                currentProfile?.role === "ceo" ? (
                   <CeoDashboard
-                    profile={profile}
+                    profile={currentProfile}
                     onShowToast={showToast}
-                    onOpenShop={() => setActive("catalogue")}
+                    onOpenShop={() => setActive("shop")}
                     lang={lang}
                   />
                 ) : (
@@ -6418,24 +6875,19 @@ export default function App() {
                 )
               )}
 
-              {active === "messages" && (
-                <Messages
-                  profile={profile}
+              {active === "friends" && (
+                <Friends
+                  profile={currentProfile}
                   lang={lang}
-                  onStartCall={handleStartCall}
-                  initialChatTarget={initialChatTarget}
-                  onClearInitialChatTarget={() => setInitialChatTarget(null)}
                   onViewUserProfile={handleViewUserProfile}
                 />
               )}
-              {active === "friends" && <Friends profile={profile} lang={lang} />}
-              {active === "marketplace" && <Marketplace lang={lang} />}
-              {active === "reels" && <Reels profile={profile} lang={lang} onShowToast={showToast} />}
+              {active === "reels" && <Reels profile={currentProfile} lang={lang} onShowToast={showToast} />}
               {active === "saved" && <SavedMedia lang={lang} setActive={setActive} onShowToast={showToast} />}
-              {active === "wallet" && <Wallet profile={profile} lang={lang} />}
+              {active === "wallet" && <Wallet profile={currentProfile} lang={lang} />}
               {active === "profile" && (
                 <UserProfile
-                  profile={profile}
+                  profile={currentProfile}
                   setProfile={setProfile}
                   posts={posts}
                   setPosts={setPosts}
@@ -6446,11 +6898,12 @@ export default function App() {
                   PostCard={PostCard}
                   onLogout={logout}
                   onSwitchAccount={() => setAccountSwitcherOpen(true)}
+                  onViewUserProfile={handleViewUserProfile}
                 />
               )}
               {active === "settings" && (
                 <Settings
-                  profile={profile}
+                  profile={currentProfile}
                   setProfile={setProfile}
                   dark={dark}
                   setDark={setDark}
@@ -6475,12 +6928,18 @@ export default function App() {
               {active === "notifications" && (
                 <Notifications
                   items={notifications}
-                  userId={profile.id}
+                  userId={currentProfile.id}
                   onRead={markRead}
                   lang={lang}
                 />
               )}
-              {active === "discover" && <Discover profile={profile} lang={lang} />}
+              {active === "discover" && (
+                <Discover
+                  profile={currentProfile}
+                  lang={lang}
+                  onViewUserProfile={handleViewUserProfile}
+                />
+              )}
             </>
           )}
         </main>
@@ -6494,7 +6953,7 @@ export default function App() {
         }}
         lang={lang}
         unread={unreadCount}
-        profile={profile}
+        profile={currentProfile}
         onLogout={logout}
         onSwitchAccount={() => setAccountSwitcherOpen(true)}
         dark={dark}
