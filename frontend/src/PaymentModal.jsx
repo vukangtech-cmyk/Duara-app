@@ -5,10 +5,11 @@ import {
   getActiveAccountOverride,
   recordPaymentTransaction,
   payWithWalletBalance,
+  payAdFromWallet,
+  depositToWallet,
   initiateLiveMobileMoneyPush,
   extractTransactionRefFromSms,
   validateTanzaniaPhone,
-  processMockPayment,
   getUserBalance
 } from "./api/api";
 
@@ -19,7 +20,9 @@ export function PaymentModal({
   amount = 5000,
   purpose = "Malipo ya Huduma / Bidhaa",
   onPaymentSuccess,
-  customPaymentInfo = null
+  customPaymentInfo = null,
+  adId = null,
+  isBoost = false
 }) {
   const [paymentMode, setPaymentMode] = useState("lipa_namba"); // 'lipa_namba' | 'ussd_push' | 'wallet' | 'mock_payment'
   const [method, setMethod] = useState("mpesa");
@@ -179,7 +182,9 @@ export function PaymentModal({
       }
       setBusy(true);
       try {
-        const res = await payWithWalletBalance(activeUser.id, effectiveAmount, purpose);
+        const res = adId
+          ? await payAdFromWallet(adId, isBoost)
+          : await payWithWalletBalance(activeUser.id, effectiveAmount, purpose);
         setTransactionRef(res.reference);
         setWalletBalance(res.balance);
         setSuccess(true);
@@ -204,52 +209,6 @@ export function PaymentModal({
       return;
     }
 
-    // Mode 4: Mock Payment Processing (Validates transaction & updates Supabase users.user_balance)
-    if (paymentMode === "mock_payment") {
-      if (!activeUser?.id) {
-        setErrorMsg("Tafadhali ingia kwenye akaunti yako ili kufanya Mock Payment.");
-        return;
-      }
-      setBusy(true);
-      try {
-        const receipt = await processMockPayment({
-          userId: activeUser.id,
-          amount: effectiveAmount,
-          type: mockAction,
-          currency: "TZS",
-          paymentMethod: "Mock Payment Gateway (Supabase users table)",
-          description: purpose,
-          metadata: {
-            payerName: activeUser.display_name || activeUser.username,
-            phone: phone || activeUser.phone
-          }
-        });
-        setMockReceipt(receipt);
-        setTransactionRef(receipt.reference);
-        setWalletBalance(receipt.user_balance);
-        setSuccess(true);
-        if (onPaymentSuccess) {
-          onPaymentSuccess({
-            method: "Mock Payment Gateway",
-            amount: effectiveAmount,
-            reference: receipt.reference,
-            payment_mode: "mock_payment",
-            user_balance: receipt.user_balance,
-            receipt
-          });
-        }
-        setTimeout(() => {
-          setSuccess(false);
-          onClose();
-        }, 1800);
-      } catch (err) {
-        setErrorMsg(err.message || "Hitilafu kwenye malipo ya mock.");
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
     // Mode 1 & 2: Lipa Namba or USSD Push verification
     const formattedPhone = validateTanzaniaPhone(phone);
     if (!formattedPhone) {
@@ -265,17 +224,9 @@ export function PaymentModal({
 
     setBusy(true);
     try {
-      const savedTx = await recordPaymentTransaction({
-        user_id: activeUser?.id,
-        payer_name: activeUser?.display_name || "Mteja",
-        phone: formattedPhone,
-        method: currentChannel.name,
-        payment_mode: paymentMode,
-        amount: effectiveAmount,
-        reference: extractedRef,
-        raw_sms: transactionRef.trim(),
-        purpose
-      });
+      if (!activeUser?.id) throw new Error("Tafadhali ingia kwenye akaunti yako kwanza.");
+      const req = await depositToWallet(activeUser.id, effectiveAmount, currentChannel.name, phone, extractedRef);
+      const savedTx = { reference: req.reference };
 
       setTransactionRef(savedTx.reference);
       setSuccess(true);
@@ -285,7 +236,8 @@ export function PaymentModal({
           amount: effectiveAmount,
           reference: savedTx.reference,
           phone: formattedPhone,
-          payment_mode: paymentMode
+          payment_mode: paymentMode,
+          pending: true
         });
       }
       setTimeout(() => {
@@ -413,8 +365,7 @@ export function PaymentModal({
               {[
                 { id: "lipa_namba", label: "📲 Lipa Namba" },
                 { id: "ussd_push", label: "⚡ USSD Push" },
-                { id: "wallet", label: `💳 Wallet (${walletBalance.toLocaleString()})` },
-                { id: "mock_payment", label: "🧪 Mock Pay" }
+                { id: "wallet", label: `💳 Wallet (${walletBalance.toLocaleString()})` }
               ].map((tab) => (
                 <button
                   key={tab.id}
