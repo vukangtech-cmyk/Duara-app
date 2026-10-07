@@ -8,6 +8,8 @@ import {
   getPlatformSettings,
   updatePlatformSettings,
   getAllPaymentTransactions,
+  verifyPaymentTransactionByCeo,
+  rejectPaymentTransactionByCeo,
   getTopupRequests,
   reviewTopupRequest,
   getPendingWithdrawals,
@@ -24,11 +26,20 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   const [loading, setLoading] = useState(true);
   const [topups, setTopups] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
+  const [txSearch, setTxSearch] = useState("");
+  const [txFilter, setTxFilter] = useState("pending"); // 'pending' | 'verified' | 'rejected' | 'all'
+  const [verifyingId, setVerifyingId] = useState(null);
+
   const loadWalletQueues = async () => {
     try {
-      const [t, w] = await Promise.all([getTopupRequests("pending"), getPendingWithdrawals()]);
-      setTopups(t);
-      setWithdrawals(w);
+      const [t, w, p] = await Promise.all([
+        getTopupRequests("pending").catch(() => []),
+        getPendingWithdrawals().catch(() => []),
+        getAllPaymentTransactions().catch(() => [])
+      ]);
+      setTopups(t || []);
+      setWithdrawals(w || []);
+      setPayments(p || []);
     } catch (err) {
       console.warn("wallet queues:", err);
     }
@@ -36,25 +47,58 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   useEffect(() => {
     loadWalletQueues();
   }, []);
+
   const handleTopup = async (id, approve) => {
     try {
       await reviewTopupRequest(id, approve);
-      if (onShowToast) onShowToast(approve ? "Malipo yamethibitishwa, salio limeongezwa." : "Ombi limekataliwa.");
+      if (onShowToast) onShowToast(approve ? "✓ Malipo yamethibitishwa na salio limeongezwa!" : "Ombi limekataliwa.");
     } catch (err) {
       if (onShowToast) onShowToast(err.message || "Imeshindikana.");
     }
     loadWalletQueues();
+    loadCeoData();
   };
+
   const handleWithdrawal = async (id, approve) => {
     try {
       await reviewWithdrawal(id, approve);
-      if (onShowToast) onShowToast(approve ? "Imewekwa kama imelipwa." : "Imekataliwa, pesa zimerudishwa.");
+      if (onShowToast) onShowToast(approve ? "✓ Imewekwa kama imelipwa!" : "Imekataliwa, pesa zimerudishwa.");
     } catch (err) {
       if (onShowToast) onShowToast(err.message || "Imeshindikana.");
     }
     loadWalletQueues();
+    loadCeoData();
   };
-  const [activeTab, setActiveTab] = useState("settings"); // 'settings' | 'payments' | 'overview' | 'payouts' | 'all_ads'
+
+  const handleVerifyPayment = async (txId, notes = "") => {
+    setVerifyingId(txId);
+    try {
+      await verifyPaymentTransactionByCeo(txId, notes || "Imethibitishwa na CEO");
+      if (onShowToast) onShowToast("✓ Muamala umethibitishwa kikamilifu na salio limeidhinishwa!");
+      await Promise.all([loadWalletQueues(), loadCeoData()]);
+    } catch (err) {
+      if (onShowToast) onShowToast("Hitilafu: " + (err.message || "Imeshindikana"));
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const handleRejectPayment = async (txId) => {
+    const reason = prompt("Weka sababu fupi ya kukataa muamala huu (mfano: Namba ya Kumbukumbu haipo au kiasi hakilingani):");
+    if (reason === null) return;
+    setVerifyingId(txId);
+    try {
+      await rejectPaymentTransactionByCeo(txId, reason || "Imekataliwa na CEO");
+      if (onShowToast) onShowToast("✓ Muamala umewekwa kama umekataliwa.");
+      await Promise.all([loadWalletQueues(), loadCeoData()]);
+    } catch (err) {
+      if (onShowToast) onShowToast("Hitilafu: " + (err.message || "Imeshindikana"));
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState("approvals"); // 'approvals' | 'settings' | 'payments' | 'overview' | 'payouts' | 'all_ads'
 
   // Manual CEO Settings State
   const [commissionRate, setCommissionRate] = useState("10");
@@ -308,70 +352,436 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, borderBottom: "1px solid var(--line)" }}>
-        {[
-          { id: "topups", label: `✅ Thibitisha Malipo (${topups.length + withdrawals.length})` },
-          { id: "settings", label: "⚙️ Lipa Namba & Gateway" },
-          { id: "payments", label: `💳 Miamala (${payments.length})` },
-          { id: "overview", label: `📦 Oda (${orders.length})` },
-          { id: "all_ads", label: `📢 Matangazo (${ads.length})` },
-          { id: "payouts", label: `💸 Payouts (${pendingPayouts.length})` }
-        ].map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setActiveTab(t.id)}
-            className={`button ${activeTab === t.id ? "button-primary" : "button-soft"}`}
-            style={{ padding: "8px 14px", fontSize: 12.5, flexShrink: 0 }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {(() => {
+        const pendingPayments = payments.filter((p) => p.status === "pending" || (!p.status && p.payment_mode !== "wallet"));
+        const totalPendingAction = pendingPayments.length + topups.length + withdrawals.length;
+        return (
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, borderBottom: "1px solid var(--line)" }}>
+            {[
+              { id: "approvals", label: `👑 Thibitisha Miamala ${totalPendingAction > 0 ? `(${totalPendingAction})` : ""}` },
+              { id: "settings", label: "⚙️ Lipa Namba & Gateway" },
+              { id: "payments", label: `💳 Miamala Yote (${payments.length})` },
+              { id: "overview", label: `📦 Oda (${orders.length})` },
+              { id: "all_ads", label: `📢 Matangazo (${ads.length})` },
+              { id: "payouts", label: `💸 Payouts (${pendingPayouts.length})` }
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={`button ${activeTab === t.id ? "button-primary" : "button-soft"}`}
+                style={{
+                  padding: "8px 14px",
+                  fontSize: 12.5,
+                  flexShrink: 0,
+                  position: "relative",
+                  fontWeight: activeTab === t.id ? 800 : 600
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
-      {activeTab === "topups" && (
-        <div className="glass-card" style={{ padding: 18 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: 16 }}>✅ Maombi ya Kuweka Pesa ({topups.length})</h3>
-          <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
-            Linganisha Kumbukumbu Namba na SMS ya muamala kwenye simu yako ya Lipa Namba kabla ya kuthibitisha.
-          </p>
-          {topups.length === 0 ? (
-            <p className="muted" style={{ fontSize: 13 }}>Hakuna maombi yanayosubiri.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {topups.map((r) => (
-                <div key={r.id} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontWeight: 800 }}>TZS {Number(r.amount).toLocaleString()} · {r.method}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Simu: {r.phone || "-"} · Ref: <strong>{r.reference}</strong></div>
-                  <div className="muted" style={{ fontSize: 11 }}>{new Date(r.created_at).toLocaleString()}</div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button type="button" className="button button-primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleTopup(r.id, true)}>Thibitisha</button>
-                    <button type="button" className="button button-soft" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleTopup(r.id, false)}>Kataa</button>
-                  </div>
-                </div>
-              ))}
+      {/* TAB: CEO APPROVALS & TRANSACTION VERIFICATION */}
+      {(activeTab === "approvals" || activeTab === "topups") && (() => {
+        const pendingPayments = payments.filter((p) => p.status === "pending" || (!p.status && p.payment_mode !== "wallet"));
+        const verifiedPayments = payments.filter((p) => p.status === "verified" || p.status === "completed");
+        const rejectedPayments = payments.filter((p) => p.status === "rejected");
+
+        // Filter based on search query
+        const matchesSearch = (item) => {
+          if (!txSearch.trim()) return true;
+          const q = txSearch.toLowerCase();
+          return (
+            String(item.reference || "").toLowerCase().includes(q) ||
+            String(item.payer_phone || item.phone || "").toLowerCase().includes(q) ||
+            String(item.payer_name || item.account_name || "").toLowerCase().includes(q) ||
+            String(item.purpose || item.description || "").toLowerCase().includes(q) ||
+            String(item.method || "").toLowerCase().includes(q)
+          );
+        };
+
+        const filteredPendingPayments = pendingPayments.filter(matchesSearch);
+        const filteredTopups = topups.filter(matchesSearch);
+        const filteredWithdrawals = withdrawals.filter(matchesSearch);
+        const filteredVerified = verifiedPayments.filter(matchesSearch);
+
+        return (
+          <div className="glass-card" style={{ padding: 18, borderRadius: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>
+                  👑 Uthibitisho wa Miamala ya Malipo (CEO Control Center)
+                </h3>
+                <p className="muted" style={{ fontSize: 12.5, margin: "3px 0 0" }}>
+                  Thibitisha malipo ya Lipa Namba, M-Pesa, Tigo Pesa, Airtel Money na maombi ya wallet. Mteja anapothibitishwa, salio linaingia kwenye akaunti yake mara moja.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  loadWalletQueues();
+                  loadCeoData();
+                  if (onShowToast) onShowToast("🔄 Orodha ya miamala imesasishwa!");
+                }}
+                className="button button-soft"
+                style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
+              >
+                🔄 Sasisha Orodha
+              </button>
             </div>
-          )}
-          <h3 style={{ margin: "22px 0 10px", fontSize: 16 }}>💸 Maombi ya Kutoa Pesa ({withdrawals.length})</h3>
-          {withdrawals.length === 0 ? (
-            <p className="muted" style={{ fontSize: 13 }}>Hakuna maombi yanayosubiri.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {withdrawals.map((w) => (
-                <div key={w.id} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontWeight: 800 }}>TZS {Number(w.amount).toLocaleString()}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>{w.description}</div>
-                  <div className="muted" style={{ fontSize: 11 }}>Ref: {w.reference} · {new Date(w.created_at).toLocaleString()}</div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button type="button" className="button button-primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleWithdrawal(w.id, true)}>Nimelipa</button>
-                    <button type="button" className="button button-soft" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleWithdrawal(w.id, false)}>Kataa & Rudisha</button>
-                  </div>
-                </div>
-              ))}
+
+            {/* Quick Search & Filter Controls */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+              <div style={{ flex: 1, minWidth: 220, position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Tafuta kwa Kumbukumbu Namba (Ref), Simu, au Jina..."
+                  value={txSearch}
+                  onChange={(e) => setTxSearch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: 10,
+                    border: "1px solid var(--line)",
+                    background: "var(--input-bg)",
+                    fontSize: 13
+                  }}
+                />
+                {txSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setTxSearch("")}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: "var(--muted)",
+                      cursor: "pointer"
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { id: "pending", label: `Inayosubiri (${pendingPayments.length + topups.length + withdrawals.length})` },
+                  { id: "verified", label: `Zilizothibitishwa (${verifiedPayments.length})` },
+                  { id: "all", label: `Miamala Yote (${payments.length})` }
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setTxFilter(f.id)}
+                    className={`button ${txFilter === f.id ? "button-primary" : "button-soft"}`}
+                    style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* SECTION 1: PENDING PAYMENTS (Direct Mobile Money & Lipa Namba) */}
+            {(txFilter === "pending" || txFilter === "all") && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>📱</span>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    Miamala ya Lipa Namba Inayosubiri Uthibitisho ({filteredPendingPayments.length})
+                  </h4>
+                </div>
+
+                {filteredPendingPayments.length === 0 ? (
+                  <div style={{ padding: 14, background: "var(--bg-base)", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 12.5, color: "var(--muted)", textAlign: "center" }}>
+                    ✓ Hakuna muamala mpya wa Lipa Namba unaosubiri uthibitisho.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {filteredPendingPayments.map((tx) => (
+                      <div
+                        key={tx.id}
+                        style={{
+                          border: "1px solid rgba(245, 158, 11, 0.4)",
+                          background: "var(--card-bg, #ffffff)",
+                          borderRadius: 14,
+                          padding: "14px 16px",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ background: "#fef3c7", color: "#b45309", padding: "3px 8px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
+                                ⏳ INASUBIRI CEO
+                              </span>
+                              <strong style={{ fontSize: 14 }}>{tx.purpose || "Malipo ya Huduma"}</strong>
+                            </div>
+
+                            <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>
+                              <div>Mtandao: <strong>{tx.method || "Mobile Money"}</strong></div>
+                              <div>Namba ya Simu: <strong>{tx.payer_phone || tx.phone || "Haijawekwa"}</strong> {tx.payer_name ? `(${tx.payer_name})` : ""}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                                <span>Kumbukumbu (Ref):</span>
+                                <code style={{ background: "var(--input-bg)", padding: "2px 6px", borderRadius: 6, fontWeight: 800, fontSize: 12.5, color: "var(--primary)" }}>
+                                  {tx.reference || "Bila Ref"}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (tx.reference) {
+                                      navigator.clipboard?.writeText(tx.reference);
+                                      if (onShowToast) onShowToast("✓ Ref imenakiliwa!");
+                                    }
+                                  }}
+                                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "0 4px" }}
+                                  title="Nakili Ref"
+                                >
+                                  📋
+                                </button>
+                              </div>
+                              <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                                Tarehe: {new Date(tx.created_at || Date.now()).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ textAlign: "right", minWidth: 140 }}>
+                            <div style={{ fontSize: 18, fontWeight: 900, color: "#10b981", marginBottom: 8 }}>
+                              TZS {Number(tx.amount || 0).toLocaleString()}
+                            </div>
+
+                            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyPayment(tx.id)}
+                                disabled={verifyingId === tx.id}
+                                className="button button-primary"
+                                style={{
+                                  padding: "7px 14px",
+                                  fontSize: 12.5,
+                                  borderRadius: 8,
+                                  fontWeight: 800,
+                                  background: "#10b981",
+                                  color: "#fff"
+                                }}
+                              >
+                                {verifyingId === tx.id ? "Inathibitisha..." : "✓ Thibitisha Muamala"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRejectPayment(tx.id)}
+                                disabled={verifyingId === tx.id}
+                                className="button button-soft"
+                                style={{
+                                  padding: "7px 12px",
+                                  fontSize: 12.5,
+                                  borderRadius: 8,
+                                  color: "#ef4444"
+                                }}
+                              >
+                                ✕ Kataa
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECTION 2: TOPUP REQUESTS */}
+            {(txFilter === "pending" || txFilter === "all") && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>📥</span>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    Maombi ya Kuweka Pesa kwenye Wallet ({filteredTopups.length})
+                  </h4>
+                </div>
+
+                {filteredTopups.length === 0 ? (
+                  <div style={{ padding: 14, background: "var(--bg-base)", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 12.5, color: "var(--muted)", textAlign: "center" }}>
+                    ✓ Hakuna maombi ya kuweka pesa yanayosubiri.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {filteredTopups.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          border: "1px solid var(--line)",
+                          borderRadius: 12,
+                          padding: "12px 14px",
+                          background: "var(--card-bg)"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: 14 }}>
+                              TZS {Number(r.amount).toLocaleString()} · {r.method}
+                            </div>
+                            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                              Simu: <strong>{r.phone || "-"}</strong> · Ref: <strong>{r.reference}</strong>
+                            </div>
+                            <div className="muted" style={{ fontSize: 11 }}>
+                              {new Date(r.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              className="button button-primary"
+                              style={{ padding: "6px 14px", fontSize: 12.5, background: "#10b981", color: "#fff" }}
+                              onClick={() => handleTopup(r.id, true)}
+                            >
+                              ✓ Thibitisha & Ongeza Salio
+                            </button>
+                            <button
+                              type="button"
+                              className="button button-soft"
+                              style={{ padding: "6px 14px", fontSize: 12.5, color: "#ef4444" }}
+                              onClick={() => handleTopup(r.id, false)}
+                            >
+                              ✕ Kataa
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECTION 3: WITHDRAWAL REQUESTS */}
+            {(txFilter === "pending" || txFilter === "all") && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>💸</span>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    Maombi ya Kutoa Pesa ({filteredWithdrawals.length})
+                  </h4>
+                </div>
+
+                {filteredWithdrawals.length === 0 ? (
+                  <div style={{ padding: 14, background: "var(--bg-base)", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 12.5, color: "var(--muted)", textAlign: "center" }}>
+                    ✓ Hakuna maombi ya kutoa pesa yanayosubiri.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {filteredWithdrawals.map((w) => (
+                      <div
+                        key={w.id}
+                        style={{
+                          border: "1px solid var(--line)",
+                          borderRadius: 12,
+                          padding: "12px 14px",
+                          background: "var(--card-bg)"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: 14 }}>
+                              TZS {Number(w.amount).toLocaleString()}
+                            </div>
+                            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{w.description}</div>
+                            <div className="muted" style={{ fontSize: 11 }}>
+                              Ref: {w.reference} · {new Date(w.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              className="button button-primary"
+                              style={{ padding: "6px 14px", fontSize: 12.5 }}
+                              onClick={() => handleWithdrawal(w.id, true)}
+                            >
+                              ✓ Nimelipa (Thibitisha)
+                            </button>
+                            <button
+                              type="button"
+                              className="button button-soft"
+                              style={{ padding: "6px 14px", fontSize: 12.5, color: "#ef4444" }}
+                              onClick={() => handleWithdrawal(w.id, false)}
+                            >
+                              ✕ Kataa & Rudisha Salio
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECTION 4: RECENT VERIFIED PAYMENTS */}
+            {(txFilter === "verified" || txFilter === "all") && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>✅</span>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    Miamala Iliyothibitishwa ({filteredVerified.length})
+                  </h4>
+                </div>
+
+                {filteredVerified.length === 0 ? (
+                  <div style={{ padding: 14, background: "var(--bg-base)", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 12.5, color: "var(--muted)", textAlign: "center" }}>
+                    Hakuna miamala iliyothibitishwa iliyopatikana.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {filteredVerified.slice(0, 15).map((v) => (
+                      <div
+                        key={v.id}
+                        style={{
+                          border: "1px solid var(--line)",
+                          borderRadius: 10,
+                          padding: "10px 14px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          background: "var(--bg-base)",
+                          flexWrap: "wrap",
+                          gap: 8
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{v.purpose || "Malipo"}</div>
+                          <div className="muted" style={{ fontSize: 11.5 }}>
+                            Ref: <strong>{v.reference}</strong> · {v.method} · {new Date(v.created_at || Date.now()).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span style={{ fontWeight: 800, fontSize: 13, color: "#10b981" }}>
+                            TZS {Number(v.amount || 0).toLocaleString()}
+                          </span>
+                          <span style={{ marginLeft: 8, fontSize: 11, background: "rgba(16,185,129,0.12)", color: "#10b981", padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>
+                            ✓ Imethibitishwa
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* TAB 1: SETTINGS (LIPA NAMBA, PAYMENT GATEWAY & SOCIAL MEDIA LINKS) */}
       {activeTab === "settings" && (
@@ -702,13 +1112,33 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
                       {new Date(tx.created_at || Date.now()).toLocaleString()}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div style={{ textAlign: "right", minWidth: 130 }}>
                     <div style={{ fontWeight: 900, fontSize: 15, color: "var(--primary)" }}>
                       TZS {Number(tx.amount || 0).toLocaleString()}
                     </div>
-                    <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>
-                      ✓ Imethibitishwa
-                    </span>
+                    {tx.status === "pending" || (!tx.status && tx.payment_mode !== "wallet") ? (
+                      <div style={{ marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: "#d97706", fontWeight: 700, display: "block" }}>
+                          ⏳ Inasubiri CEO
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyPayment(tx.id)}
+                          className="button button-primary"
+                          style={{ padding: "4px 10px", fontSize: 11, marginTop: 4, background: "#10b981", color: "#fff" }}
+                        >
+                          ✓ Thibitisha
+                        </button>
+                      </div>
+                    ) : tx.status === "rejected" ? (
+                      <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>
+                        ✕ Imekataliwa
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>
+                        ✓ Imethibitishwa
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}

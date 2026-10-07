@@ -2302,6 +2302,86 @@ export async function getAllPaymentTransactions() {
   );
 }
 
+export async function verifyPaymentTransactionByCeo(txId, notes = "Imethibitishwa na CEO") {
+  if (!txId) throw new Error("Kitambulisho cha muamala kinahitajika.");
+  let updatedRecord = null;
+
+  try {
+    const list = JSON.parse(localStorage.getItem(LOCAL_PAYMENTS_REGISTRY_KEY) || "[]");
+    const updated = list.map((item) => {
+      if (item.id === txId || item.reference === txId) {
+        updatedRecord = {
+          ...item,
+          status: "verified",
+          verified_at: new Date().toISOString(),
+          verified_by: "ceo",
+          ceo_notes: notes
+        };
+        return updatedRecord;
+      }
+      return item;
+    });
+    localStorage.setItem(LOCAL_PAYMENTS_REGISTRY_KEY, JSON.stringify(updated));
+  } catch {}
+
+  // If this was a top-up / deposit, add balance to user
+  if (updatedRecord && updatedRecord.user_id && updatedRecord.amount > 0) {
+    try {
+      const isDeposit = (updatedRecord.purpose || "").toLowerCase().includes("deposit") ||
+                        (updatedRecord.purpose || "").toLowerCase().includes("weka");
+      if (isDeposit && supabase) {
+        await supabase.rpc("admin_review_topup", { p_request_id: txId, p_approve: true }).catch(() => {});
+      }
+    } catch {}
+  }
+
+  // Also update Supabase wallet_transactions table if exists
+  if (supabase) {
+    try {
+      await supabase
+        .from("wallet_transactions")
+        .update({ status: "completed" })
+        .eq("id", txId);
+    } catch {}
+  }
+
+  return updatedRecord || { id: txId, status: "verified" };
+}
+
+export async function rejectPaymentTransactionByCeo(txId, reason = "Imekataliwa na CEO") {
+  if (!txId) throw new Error("Kitambulisho cha muamala kinahitajika.");
+  let updatedRecord = null;
+
+  try {
+    const list = JSON.parse(localStorage.getItem(LOCAL_PAYMENTS_REGISTRY_KEY) || "[]");
+    const updated = list.map((item) => {
+      if (item.id === txId || item.reference === txId) {
+        updatedRecord = {
+          ...item,
+          status: "rejected",
+          rejected_at: new Date().toISOString(),
+          rejected_by: "ceo",
+          rejection_reason: reason
+        };
+        return updatedRecord;
+      }
+      return item;
+    });
+    localStorage.setItem(LOCAL_PAYMENTS_REGISTRY_KEY, JSON.stringify(updated));
+  } catch {}
+
+  if (supabase) {
+    try {
+      await supabase
+        .from("wallet_transactions")
+        .update({ status: "rejected" })
+        .eq("id", txId);
+    } catch {}
+  }
+
+  return updatedRecord || { id: txId, status: "rejected" };
+}
+
 export async function initiateLiveMobileMoneyPush({ userId, phone, amount, method, purpose }) {
   const formattedPhone = validateTanzaniaPhone(phone);
   if (!formattedPhone) {

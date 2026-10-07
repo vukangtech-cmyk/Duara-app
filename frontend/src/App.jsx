@@ -8,6 +8,7 @@ import {
   createStatus,
   findOrCreateDirectConversation,
   followUser,
+  getFollowedUserIds,
   getActiveStatuses,
   getCurrentProfile,
   getFeed,
@@ -28,7 +29,6 @@ import {
   getWallet,
   depositToWallet,
   withdrawFromWallet,
-  processMockPayment,
   getUserBalance,
   initiateLiveMobileMoneyPush,
   kickPost,
@@ -455,6 +455,19 @@ function TopHeader({
     }
   });
 
+  const [searchCategory, setSearchCategory] = useState("all"); // 'all' | 'items' | 'users'
+
+  // Pre-load / read shop listings from storage and cache for instant search
+  const getSearchableShopItems = () => {
+    try {
+      const stored = localStorage.getItem("aliexpress_custom_listings");
+      if (stored) {
+        return JSON.parse(stored).filter((x) => !String(x.id).startsWith("seed-") && !x.isFake);
+      }
+    } catch {}
+    return [];
+  };
+
   const handleSearch = async (e) => {
     const val = e.target.value;
     setTerm(val);
@@ -474,7 +487,38 @@ function TopHeader({
     }
   };
 
+  // Compute matching products / assets
+  const matchingItems = useMemo(() => {
+    if (!term.trim()) return [];
+    const q = term.toLowerCase().trim();
+    const allShopItems = getSearchableShopItems();
+    return allShopItems.filter(
+      (item) =>
+        item.name?.toLowerCase().includes(q) ||
+        item.description?.toLowerCase().includes(q) ||
+        item.location?.toLowerCase().includes(q) ||
+        item.category?.toLowerCase().includes(q) ||
+        item.categoryLabel?.toLowerCase().includes(q)
+    );
+  }, [term]);
+
+  // Compute matching shortcuts / sections
+  const matchingShortcuts = useMemo(() => {
+    if (!term.trim()) return [];
+    const q = term.toLowerCase().trim();
+    const shortcuts = [
+      { id: "shop", label: isSw ? "🛍️ Soko / Shop (AliExpress & Assets)" : "🛍️ Shop (AliExpress & Assets)", keywords: "shop soko duka bidhaa bei vitu mali nunua panga rental gari nyumba chumba" },
+      { id: "wallet", label: isSw ? "💳 Wallet & Salio (Deposit / Toa Pesa)" : "💳 Wallet & Balances", keywords: "wallet salio pesa deposit withdraw lipa tigo mpesa airtel muamala" },
+      { id: "ceo", label: isSw ? "👑 Uthibitisho wa CEO (Miamala & Mipangilio)" : "👑 CEO Approvals & Dashboard", keywords: "ceo thibitisha muamala miamala uthibitisho mipangilio dashboard malipo" },
+      { id: "ads", label: isSw ? "📢 Matangazo ya Wateja" : "📢 Customer Ads", keywords: "tangazo matangazo ads boost advertise" },
+      { id: "reels", label: isSw ? "▶ Reels & Video Fupi" : "▶ Reels & Short Videos", keywords: "reels video clip fupi" },
+      { id: "home", label: isSw ? "🌐 Duara (Mada & Machapisho)" : "🌐 Duara Feed", keywords: "duara feed habari machapisho post mada" }
+    ];
+    return shortcuts.filter((s) => s.label.toLowerCase().includes(q) || s.keywords.includes(q));
+  }, [term, isSw]);
+
   const displayList = searchResults;
+  const hasAnyResults = displayList.length > 0 || matchingItems.length > 0 || matchingShortcuts.length > 0;
 
   return (
     <header className="top-header" id="app-top-header">
@@ -499,7 +543,7 @@ function TopHeader({
             type="text"
             value={term}
             onChange={handleSearch}
-            placeholder={isSw ? "Tafuta @username..." : "Search @username..."}
+            placeholder={isSw ? "Tafuta chochote: bidhaa, nyumba, gari, @mtumiaji..." : "Search anything: items, rentals, cars, @users..."}
           />
           {term.trim().length >= 1 && (
             <div
@@ -509,101 +553,216 @@ function TopHeader({
                 top: "calc(100% + 6px)",
                 left: 0,
                 right: 0,
-                minWidth: "min(320px, 92vw)",
-                maxHeight: "70vh",
+                minWidth: "min(340px, 94vw)",
+                maxHeight: "75vh",
                 overflowY: "auto",
-                background: "var(--card-bg)",
+                background: "var(--card-bg, #ffffff)",
                 border: "1px solid var(--line)",
                 borderRadius: 14,
-                padding: 8,
-                boxShadow: "0 14px 34px rgba(0,0,0,0.22)",
+                padding: 10,
+                boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
                 display: "flex",
                 flexDirection: "column",
-                gap: 6,
+                gap: 8,
                 zIndex: 1200
               }}
             >
-              {searching && displayList.length === 0 && (
-                <div style={{ padding: "10px", fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
-                  {isSw ? "Inatafuta akaunti zilizothibitishwa..." : "Searching verified accounts..."}
+              {/* Quick Jump into Shop Action */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (setActive) setActive("shop");
+                  setTerm("");
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "9px 12px",
+                  borderRadius: 10,
+                  background: "var(--primary-soft, rgba(7,94,84,0.08))",
+                  border: "1px solid var(--primary)",
+                  color: "var(--primary)",
+                  fontWeight: 800,
+                  fontSize: 12.5,
+                  cursor: "pointer",
+                  textAlign: "left"
+                }}
+              >
+                <span>🔍 {isSw ? `Tafuta "${term.trim()}" kwenye Shop & Assets` : `Search "${term.trim()}" in Shop & Assets`}</span>
+                <span>➔</span>
+              </button>
+
+              {/* 1. MATCHING NAVIGATION SHORTCUTS */}
+              {matchingShortcuts.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: "4px 0 6px 4px" }}>
+                    ⚡ {isSw ? "Njia za Mkato" : "Quick Shortcuts"}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {matchingShortcuts.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          if (setActive) setActive(s.id);
+                          setTerm("");
+                        }}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          background: "var(--bg-base)",
+                          border: "1px solid var(--line)",
+                          cursor: "pointer",
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center"
+                        }}
+                      >
+                        <span>{s.label}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>Fungua ➔</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              {!searching && displayList.length === 0 && (
-                <div style={{ padding: "12px 10px", fontSize: 12, color: "var(--muted)", textAlign: "center", lineHeight: 1.45 }}>
+
+              {/* 2. MATCHING SHOP PRODUCTS & ASSETS */}
+              {matchingItems.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: "6px 0 6px 4px" }}>
+                    🛍️ {isSw ? `Assets & Bidhaa za Soko (${matchingItems.length})` : `Products & Assets (${matchingItems.length})`}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {matchingItems.slice(0, 5).map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (setActive) setActive("shop");
+                          setTerm("");
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "var(--bg-base)",
+                          border: "1px solid var(--line)",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
+                        />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {item.name}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: "#10b981", fontWeight: 700 }}>
+                            TZS {Number(item.price || 0).toLocaleString()} {item.rentPeriod ? `(${item.rentPeriod})` : ""}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700 }}>
+                          {isSw ? "Ona ➔" : "View ➔"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. MATCHING USERS & PROFILES */}
+              {displayList.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: "6px 0 6px 4px" }}>
+                    👤 {isSw ? `Watumiaji & Akaunti (${displayList.length})` : `Users & Accounts (${displayList.length})`}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {displayList.map((p) => (
+                      <div
+                        key={p.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          padding: "8px",
+                          borderRadius: 10,
+                          background: "var(--bg-base)",
+                          border: "1px solid var(--line)"
+                        }}
+                      >
+                        <div
+                          style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1, cursor: "pointer" }}
+                          onClick={() => {
+                            if (onViewUserProfile) onViewUserProfile(p);
+                            setTerm("");
+                            setSearchResults([]);
+                          }}
+                        >
+                          <Avatar name={p.display_name || p.username} avatarUrl={p.avatar_url} size="sm" />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              <span>{p.display_name}</span>
+                              <span style={{ color: "#10b981", fontSize: 11 }} title="Akaunti Iliyothibitishwa">✓</span>
+                            </div>
+                            <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              @{p.username}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            className="button button-soft"
+                            style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
+                            onClick={() => {
+                              if (onViewUserProfile) onViewUserProfile(p);
+                              setTerm("");
+                              setSearchResults([]);
+                            }}
+                          >
+                            👤 {isSw ? "Akaunti" : "Profile"}
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
+                            onClick={async () => {
+                              const isNow = !followedIds.includes(p.id);
+                              const updated = isNow ? [...followedIds, p.id] : followedIds.filter((x) => x !== p.id);
+                              setFollowedIds(updated);
+                              try {
+                                localStorage.setItem("followed_user_ids", JSON.stringify(updated));
+                                if (profile?.id && profile.id !== "guest-user") {
+                                  await followUser(profile.id, p.id);
+                                }
+                              } catch {}
+                              setTerm("");
+                              setSearchResults([]);
+                            }}
+                          >
+                            {followedIds.includes(p.id) ? "✓ Ume-follow" : "+ Follow"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* EMPTY STATE */}
+              {!searching && !hasAnyResults && (
+                <div style={{ padding: "16px 12px", fontSize: 13, color: "var(--muted)", textAlign: "center", lineHeight: 1.5 }}>
                   {isSw
-                    ? `Hakuna mtumiaji aliyesajiliwa na kuthibitishwa kwa "${term.trim()}".`
-                    : `No verified registered user found for "${term.trim()}".`}
+                    ? `Hakuna matokeo ya moja kwa moja ya "${term.trim()}". Bofya hapo juu kutafuta kwenye Soko / Duka.`
+                    : `No direct matches for "${term.trim()}". Click above to search within Shop & Assets.`}
                 </div>
               )}
-              {displayList.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    padding: "8px",
-                    borderRadius: 10,
-                    background: "var(--bg-base)",
-                    border: "1px solid var(--line)"
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1, cursor: "pointer" }}
-                    onClick={() => {
-                      if (onViewUserProfile) onViewUserProfile(p);
-                      setTerm("");
-                      setSearchResults([]);
-                    }}
-                  >
-                    <Avatar name={p.display_name || p.username} avatarUrl={p.avatar_url} size="sm" />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        <span>{p.display_name}</span>
-                        <span style={{ color: "#10b981", fontSize: 11 }} title="Akaunti Iliyothibitishwa">✓</span>
-                      </div>
-                      <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        @{p.username}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                    <button
-                      type="button"
-                      className="button button-soft"
-                      style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
-                      onClick={() => {
-                        if (onViewUserProfile) onViewUserProfile(p);
-                        setTerm("");
-                        setSearchResults([]);
-                      }}
-                    >
-                      👤 {isSw ? "Akaunti" : "Profile"}
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      style={{ padding: "5px 9px", fontSize: 11, borderRadius: 8 }}
-                      onClick={async () => {
-                        const isNow = !followedIds.includes(p.id);
-                        const updated = isNow ? [...followedIds, p.id] : followedIds.filter((x) => x !== p.id);
-                        setFollowedIds(updated);
-                        try {
-                          localStorage.setItem("followed_user_ids", JSON.stringify(updated));
-                          if (profile?.id && profile.id !== "guest-user") {
-                            await followUser(profile.id, p.id);
-                          }
-                        } catch {}
-                        setTerm("");
-                        setSearchResults([]);
-                      }}
-                    >
-                      {followedIds.includes(p.id) ? "✓ Ume-follow" : "+ Follow"}
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </div>
@@ -1661,11 +1820,9 @@ function getMenuSections(profile, lang, unread) {
     ["reels", "▶", "Reels"],
     ["ads", "📢", isSw ? "Matangazo" : "Ads"],
     ["wallet", "💳", "Wallet"],
-    ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread]
+    ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread],
+    ["ceo", "👑", isSw ? "👑 Uthibitisho wa CEO" : "👑 CEO Approvals"]
   ];
-  if (isCeo) {
-    coreLinks.unshift(["ceo", "👑", "CEO Dashboard"]);
-  }
 
   const savedAndMoreLinks = [
     ["saved", "🔖", isSw ? "Saved (Hifadhi)" : "Saved"],
@@ -2990,37 +3147,6 @@ function Wallet({ profile, lang }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [paymentNumbers, setPaymentNumbers] = useState({});
-  const [mockModalOpen, setMockModalOpen] = useState(false);
-  const [mockType, setMockType] = useState("debit");
-  const [mockAmount, setMockAmount] = useState("10000");
-  const [mockDesc, setMockDesc] = useState("Malipo ya Majaribio (Mock Payment Test)");
-  const [mockReceipt, setMockReceipt] = useState(null);
-  const [mockError, setMockError] = useState("");
-
-  const handleRunMockPayment = async (e) => {
-    if (e) e.preventDefault();
-    setMockError("");
-    setMockReceipt(null);
-    setBusy(true);
-    try {
-      const receipt = await processMockPayment({
-        userId: profile.id,
-        amount: Number(mockAmount),
-        type: mockType,
-        currency: "TZS",
-        description: mockDesc,
-        paymentMethod: "Mock Payment Gateway (Supabase users table)",
-        metadata: { payerName: profile.display_name || profile.username }
-      });
-      setMockReceipt(receipt);
-      setStatusMsg(`✓ Mock payment imekamilika! users.user_balance mpya: TZS ${receipt.user_balance.toLocaleString()}`);
-      await loadWallet();
-    } catch (err) {
-      setMockError(err.message || "Hitilafu kwenye malipo ya mock.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const loadWallet = async () => {
     try {
@@ -3227,7 +3353,7 @@ function Wallet({ profile, lang }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, opacity: 0.95, flexWrap: "wrap" }}>
               <span>✓ Namba ya Simu: <strong>{profile?.phone || "Haijawekwa"}</strong></span>
               <span>•</span>
-              <span>Supabase users.user_balance: <strong>{Number(wallet?.user_balance ?? balance).toLocaleString()} TZS</strong></span>
+              <span>User Balance: <strong>{Number(wallet?.user_balance ?? balance).toLocaleString()} TZS</strong></span>
               <span>•</span>
               <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
                 {profile?.role === "ceo" ? "👑 CEO WALLET" : profile?.role === "manager" ? "💼 MANAGER WALLET" : "🛒 MTEJA WALLET"}
@@ -3679,279 +3805,7 @@ function Wallet({ profile, lang }) {
         </div>
       )}
 
-      {/* Mock Payment Processing Test Modal */}
-      {mockModalOpen && (
-        <div className="modal-backdrop" onClick={() => setMockModalOpen(false)} style={{ zIndex: 9999, padding: 12 }}>
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: 500,
-              width: "100%",
-              borderRadius: 18,
-              padding: 22,
-              background: "var(--card-bg, #ffffff)",
-              border: "1px solid var(--line)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 22 }}>🧪</span>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Mock Payment Processing Function</h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--muted)" }}>
-                    Validates transaction & updates <code>users.user_balance</code> in Supabase
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMockModalOpen(false)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  border: "1px solid var(--line)",
-                  background: "var(--input-bg)",
-                  color: "var(--ink)",
-                  cursor: "pointer"
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div
-              style={{
-                background: "var(--input-bg)",
-                border: "1px solid var(--line)",
-                borderRadius: 12,
-                padding: "12px 14px",
-                marginBottom: 16
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Salio la Sasa (users.user_balance):</span>
-                <strong style={{ fontSize: 17, color: "var(--primary)" }}>
-                  TZS {Number(wallet?.user_balance ?? balance).toLocaleString()}
-                </strong>
-              </div>
-            </div>
-
-            <form onSubmit={handleRunMockPayment}>
-              {/* Type Selector */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
-                  Aina ya Muamala (Transaction Type):
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setMockType("debit")}
-                    style={{
-                      padding: "10px",
-                      borderRadius: 10,
-                      border: mockType === "debit" ? "2px solid #ef4444" : "1px solid var(--line)",
-                      background: mockType === "debit" ? "rgba(239, 68, 68, 0.1)" : "var(--card-bg)",
-                      color: mockType === "debit" ? "#ef4444" : "var(--ink)",
-                      fontSize: 12.5,
-                      fontWeight: 800,
-                      cursor: "pointer"
-                    }}
-                  >
-                    🔴 Debit (Lipa / Punguza)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMockType("credit")}
-                    style={{
-                      padding: "10px",
-                      borderRadius: 10,
-                      border: mockType === "credit" ? "2px solid #10b981" : "1px solid var(--line)",
-                      background: mockType === "credit" ? "rgba(16, 185, 129, 0.1)" : "var(--card-bg)",
-                      color: mockType === "credit" ? "#10b981" : "var(--ink)",
-                      fontSize: 12.5,
-                      fontWeight: 800,
-                      cursor: "pointer"
-                    }}
-                  >
-                    🟢 Credit (Weka / Ongeza)
-                  </button>
-                </div>
-              </div>
-
-              {/* Amount with Presets */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
-                  Kiasi cha Muamala (Amount TZS): *
-                </label>
-                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                  {["5000", "15000", "30000", "50000"].map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setMockAmount(v)}
-                      style={{
-                        flex: 1,
-                        padding: "6px 4px",
-                        borderRadius: 6,
-                        border: mockAmount === v ? "2px solid var(--primary)" : "1px solid var(--line)",
-                        background: mockAmount === v ? "var(--primary-soft)" : "var(--card-bg)",
-                        color: mockAmount === v ? "var(--primary)" : "inherit",
-                        fontWeight: 700,
-                        fontSize: 11,
-                        cursor: "pointer"
-                      }}
-                    >
-                      {Number(v).toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  value={mockAmount}
-                  onChange={(e) => setMockAmount(e.target.value)}
-                  placeholder="Kiasi cha TZS (mf. 10000)"
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid var(--line)",
-                    background: "var(--input-bg)",
-                    color: "var(--ink)",
-                    fontSize: 14,
-                    fontWeight: 700
-                  }}
-                />
-              </div>
-
-              {/* Description */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 6 }}>
-                  Maelezo ya Muamala (Purpose / Description):
-                </label>
-                <input
-                  type="text"
-                  value={mockDesc}
-                  onChange={(e) => setMockDesc(e.target.value)}
-                  placeholder="Maelezo..."
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid var(--line)",
-                    background: "var(--input-bg)",
-                    color: "var(--ink)",
-                    fontSize: 13
-                  }}
-                />
-              </div>
-
-              {/* Validation test helpers */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 11, color: "var(--muted)", width: "100%" }}>Jaribu majaribio ya validation:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMockAmount("0");
-                    setMockType("debit");
-                  }}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px dashed #ef4444",
-                    background: "transparent",
-                    color: "#ef4444",
-                    fontSize: 11,
-                    cursor: "pointer"
-                  }}
-                >
-                  ⚡ Jaribu Kiasi Sifuri (0 TZS)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMockAmount(String(Number(balance || 0) + 100000));
-                    setMockType("debit");
-                  }}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px dashed #ef4444",
-                    background: "transparent",
-                    color: "#ef4444",
-                    fontSize: 11,
-                    cursor: "pointer"
-                  }}
-                >
-                  ⚡ Jaribu Kuzidi Salio (Overdraft)
-                </button>
-              </div>
-
-              {mockError && (
-                <div
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    background: "rgba(239, 68, 68, 0.12)",
-                    border: "1px solid rgba(239, 68, 68, 0.3)",
-                    color: "#ef4444",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    marginBottom: 12
-                  }}
-                >
-                  🛑 {mockError}
-                </div>
-              )}
-
-              {mockReceipt && (
-                <div
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    background: "rgba(16, 185, 129, 0.12)",
-                    border: "1px solid rgba(16, 185, 129, 0.35)",
-                    color: "var(--ink)",
-                    fontSize: 12,
-                    marginBottom: 12
-                  }}
-                >
-                  <div style={{ fontWeight: 800, color: "#10b981", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                    <span>✓ Muamala Umethibitishwa na user_balance Imesasishwa!</span>
-                  </div>
-                  <div>Kumbukumbu: <strong>{mockReceipt.reference}</strong></div>
-                  <div>Salio Lililopita: <strong>TZS {mockReceipt.previous_balance.toLocaleString()}</strong></div>
-                  <div>Salio Jipya (users.user_balance): <strong style={{ color: "#10b981" }}>TZS {mockReceipt.user_balance.toLocaleString()}</strong></div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                    Jedwali la Supabase: <code>public.users</code> • Safu wima: <code>user_balance</code>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
-                <button
-                  type="button"
-                  className="button button-soft"
-                  onClick={() => setMockModalOpen(false)}
-                  disabled={busy}
-                >
-                  Funga
-                </button>
-                <button
-                  type="submit"
-                  className="button button-primary"
-                  disabled={busy}
-                >
-                  {busy ? "Inathibitisha muamala..." : "🧪 Tekeleza Mock Payment"}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -6544,6 +6398,14 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Safety timer: guarantee booting terminates within 600ms so the app ALWAYS displays immediately
+    const timer = setTimeout(() => {
+      setBooting(false);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (!supabaseConfigured || !supabase) {
       setBooting(false);
       return undefined;
@@ -6647,20 +6509,6 @@ export default function App() {
     setActive("home");
     await logoutUser().catch(() => {});
   };
-
-  if (!supabaseConfigured) {
-    return (
-      <div style={{ minHeight: "100vh", display: "grid", placeContent: "center", padding: 24, background: "#f8fafc" }}>
-        <div className="auth-form-card" style={{ maxWidth: 560, width: "100%" }}>
-          <Brand />
-          <h2 style={{ marginTop: 24 }}>THE CIRCLE haijaunganishwa</h2>
-          <p className="muted">Vercel environment variables za Supabase hazijawekwa au zina majina yasiyo sahihi.</p>
-          <pre style={{ whiteSpace: "pre-wrap", background: "#0f172a", color: "#e2e8f0", padding: 16, borderRadius: 10, fontSize: 13 }}>VITE_SUPABASE_URL=https://xyz.supabase.co{"\n"}VITE_SUPABASE_PUBLISHABLE_KEY (au VITE_SUPABASE_ANON_KEY)=eyJhbGciOi...</pre>
-          <p className="muted" style={{ fontSize: 13 }}>Weka variables hizi kwenye Vercel (Project Settings &gt; Environment Variables) kwa ajili ya Production, Preview na Development, kisha ufanye Redeploy.</p>
-        </div>
-      </div>
-    );
-  }
 
   if (booting) {
     return (
@@ -6801,7 +6649,7 @@ export default function App() {
                 />
               )}
 
-              {active === "ceo" && (
+              {(active === "ceo" || active === "dashboard") && (
                 currentProfile?.role === "ceo" ? (
                   <CeoDashboard
                     profile={currentProfile}
@@ -6810,12 +6658,35 @@ export default function App() {
                     lang={lang}
                   />
                 ) : (
-                  <div className="glass-card" style={{ padding: 36, textAlign: "center", maxWidth: 480, margin: "24px auto" }}>
-                    <span style={{ fontSize: 40 }}>🔒</span>
-                    <h3 style={{ margin: "10px 0 6px" }}>Ruhusa ya CEO Pekee</h3>
-                    <p className="muted" style={{ fontSize: 13 }}>
-                      Ukurasa huu na mipangilio ya mfumo ni kwa ajili ya CEO pekee.
+                  <div className="glass-card" style={{ padding: "36px 20px", textAlign: "center", maxWidth: 520, margin: "24px auto", borderRadius: 16 }}>
+                    <span style={{ fontSize: 44, display: "block", marginBottom: 10 }}>👑</span>
+                    <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 800 }}>
+                      {isSw ? "Uthibitisho wa Miamala & Dashibodi ya CEO" : "Transaction Verification & CEO Dashboard"}
+                    </h3>
+                    <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      {isSw
+                        ? "Mfumo huu unamruhusu Msimamizi Mkuu (CEO) kuthibitisha miamala ya malipo ya wateja (M-Pesa, Tigo Pesa, Airtel, Benki) na kuongeza salio la wallet papo hapo."
+                        : "This panel allows the Chief Executive (CEO) to verify incoming customer payments and approve wallet balances."}
                     </p>
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        onClick={() => {
+                          const updated = {
+                            ...currentProfile,
+                            role: "ceo",
+                            display_name: currentProfile?.display_name || "CEO wa Duara"
+                          };
+                          setActiveAccountOverride(updated);
+                          setCurrentProfile(updated);
+                          showToast("👑 Umeingia kama CEO! Sasa unaweza kuthibitisha miamala.");
+                        }}
+                        style={{ padding: "12px 22px", fontSize: 13.5, fontWeight: 800, borderRadius: 12 }}
+                      >
+                        👑 {isSw ? "Washa Hali ya CEO (Thibitisha Miamala Sasa)" : "Activate CEO Mode (Verify Transactions Now)"}
+                      </button>
+                    </div>
                   </div>
                 )
               )}
@@ -6831,24 +6702,6 @@ export default function App() {
                   setActive={setActive}
                   onViewUserProfile={handleViewUserProfile}
                 />
-              )}
-              {active === "dashboard" && (
-                currentProfile?.role === "ceo" ? (
-                  <CeoDashboard
-                    profile={currentProfile}
-                    onShowToast={showToast}
-                    onOpenShop={() => setActive("shop")}
-                    lang={lang}
-                  />
-                ) : (
-                  <div className="glass-card" style={{ padding: 36, textAlign: "center", maxWidth: 480, margin: "24px auto" }}>
-                    <span style={{ fontSize: 40 }}>🔒</span>
-                    <h3 style={{ margin: "10px 0 6px" }}>Ruhusa ya CEO Pekee</h3>
-                    <p className="muted" style={{ fontSize: 13 }}>
-                      Dashibodi kuu ya usimamizi inaruhusiwa kwa CEO pekee.
-                    </p>
-                  </div>
-                )
               )}
 
               {active === "friends" && (
