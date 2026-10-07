@@ -1618,55 +1618,23 @@ export async function createReel(creatorId, file, caption) {
 }
 
 export async function getWallet(userId) {
-  let remoteAccount = null;
-  let remoteTx = [];
-  let remoteUserBalance = null;
+  let account = null;
+  let transactions = [];
   if (supabase && userId) {
     try {
-      const [{ data: account }, { data: transactions }, { data: userRec }] = await Promise.all([
+      const [{ data: acc }, { data: tx }] = await Promise.all([
         supabase.from("wallet_accounts").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(40),
-        supabase.from("users").select("id, user_balance").eq("id", userId).maybeSingle().catch(() => ({ data: null }))
+        supabase.from("wallet_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(40)
       ]);
-      remoteAccount = account || null;
-      remoteTx = transactions || [];
-      if (userRec?.user_balance !== undefined && userRec?.user_balance !== null) {
-        remoteUserBalance = Number(userRec.user_balance);
-      }
+      account = acc || null;
+      transactions = tx || [];
     } catch {}
   }
-
-  let localBalances = {};
-  let localTxMap = {};
-  try {
-    localBalances = JSON.parse(localStorage.getItem(LOCAL_WALLET_BALANCES_KEY) || "{}");
-    localTxMap = JSON.parse(localStorage.getItem(LOCAL_WALLET_TX_KEY) || "{}");
-  } catch {}
-
-  const userLocalTx = Array.isArray(localTxMap[userId]) ? localTxMap[userId] : [];
-  const mergedTxMap = new Map();
-  remoteTx.forEach((t) => mergedTxMap.set(t.id, t));
-  userLocalTx.forEach((t) => {
-    if (t?.id && !mergedTxMap.has(t.id)) mergedTxMap.set(t.id, t);
-  });
-  const mergedTransactions = Array.from(mergedTxMap.values()).sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-
-  const highestRemote = remoteUserBalance !== null
-    ? (remoteAccount?.balance != null ? Math.max(Number(remoteAccount.balance), remoteUserBalance) : remoteUserBalance)
-    : (remoteAccount?.balance != null ? Number(remoteAccount.balance) : null);
-
-  const finalBalance = highestRemote !== null
-    ? Math.max(highestRemote, Number(localBalances[userId] ?? 0))
-    : Number(localBalances[userId] ?? 0);
-
+  const balance = Number(account?.balance ?? 0);
   return {
-    account: remoteAccount
-      ? { ...remoteAccount, balance: finalBalance }
-      : { user_id: userId, balance: finalBalance, currency: "TZS" },
-    user_balance: finalBalance,
-    transactions: mergedTransactions
+    account: account ? { ...account, balance } : { user_id: userId, balance: 0, currency: "TZS" },
+    user_balance: balance,
+    transactions
   };
 }
 
@@ -2288,22 +2256,6 @@ export async function recordPaymentTransaction(paymentData) {
     localStorage.setItem(LOCAL_PAYMENTS_REGISTRY_KEY, JSON.stringify([record, ...existing].slice(0, 200)));
   } catch {}
 
-  if (supabase && record.user_id) {
-    try {
-      await supabase.from("wallet_transactions").insert({
-        id: record.id,
-        user_id: record.user_id,
-        type: paymentData.tx_type || "AD_PAYMENT",
-        amount: Math.max(record.amount, 1),
-        currency: "TZS",
-        status: "completed",
-        reference: record.reference,
-        description: `${record.purpose} • ${record.method} (${record.payer_phone || "Moja kwa moja"}) • Ref: ${record.reference}`,
-        created_at: record.created_at
-      });
-    } catch {}
-  }
-
   return record;
 }
 
@@ -2415,414 +2367,89 @@ export async function initiateLiveMobileMoneyPush({ userId, phone, amount, metho
   };
 }
 
+function rpcError(error, fallback) {
+  const msg = String(error?.message || "");
+  return new Error(msg && !/^(PGRST|permission denied)/i.test(msg) ? msg : fallback);
+}
+
 export async function payWithWalletBalance(userId, amount, purpose = "Malipo ya Huduma / Bidhaa") {
   const numAmount = Number(amount);
   if (!numAmount || numAmount <= 0) throw new Error("Kiasi cha malipo si sahihi.");
-
-  const walletData = await getWallet(userId);
-  const currentBalance = Number(walletData?.account?.balance || 0);
-  if (currentBalance < numAmount) {
-    throw new Error(
-      `Salio la Duara Wallet halitoshi! Salio lako ni TZS ${currentBalance.toLocaleString()}, kiasi kinachohitajika ni TZS ${numAmount.toLocaleString()}. Tafadhali weka pesa kwenye Wallet au lipa kwa Lipa Namba.`
-    );
-  }
-
-  const newBalance = currentBalance - numAmount;
-  const reference = `WL${Date.now().toString().slice(-8)}`;
-  const txObj = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    type: "AD_PAYMENT",
-    amount: numAmount,
-    currency: "TZS",
-    status: "completed",
-    reference,
-    description: `Malipo kwa Duara Wallet: ${purpose} (Ref: ${reference})`,
-    created_at: new Date().toISOString()
-  };
-
-  saveLocalWalletState(userId, newBalance, txObj);
-
-  if (supabase) {
-    try {
-      await supabase.from("wallet_accounts").upsert({ user_id: userId, balance: newBalance, currency: "TZS" });
-      await supabase.from("wallet_transactions").insert(txObj);
-      await supabase.from("users").upsert(
-        { id: userId, user_balance: newBalance, updated_at: new Date().toISOString() },
-        { onConflict: "id" }
-      ).catch(() => {});
-    } catch {}
-  }
-
-  await recordPaymentTransaction({
-    user_id: userId,
-    method: "Duara Wallet",
-    payment_mode: "wallet_balance",
-    amount: numAmount,
-    reference,
-    purpose,
-    tx_type: "AD_PAYMENT"
-  });
-
-  return { balance: newBalance, reference, transaction: txObj };
+  const { data, error } = await supabase.rpc("wallet_spend", { p_amount: numAmount, p_purpose: purpose });
+  if (error) throw rpcError(error, "Malipo ya Wallet yameshindikana.");
+  return { balance: Number(data.balance), reference: data.reference };
 }
 
+// Pay (or boost) an ad from the wallet. The fee is read server-side from platform_settings.
+export async function payAdFromWallet(adId, isBoost = false) {
+  const { data, error } = await supabase.rpc("wallet_pay_ad", { p_ad_id: adId, p_boost: !!isBoost });
+  if (error) throw rpcError(error, "Malipo ya tangazo yameshindikana.");
+  return { balance: Number(data.balance), reference: data.reference };
+}
+
+// Deposits are REQUESTS: the balance only changes after the CEO verifies the mobile-money payment.
 export async function depositToWallet(userId, amount, method, phone, reference) {
   const numAmount = Number(amount);
   if (!numAmount || numAmount <= 0) throw new Error("Weka kiasi sahihi cha kuweka!");
   const formattedPhone = validateTanzaniaPhone(phone);
-  if (!formattedPhone) {
-    throw new Error("Tafadhali weka namba sahihi ya simu uliyotumia kuweka pesa (mfano: 0754123456).");
-  }
+  if (!formattedPhone) throw new Error("Tafadhali weka namba sahihi ya simu uliyotumia kuweka pesa (mfano: 0754123456).");
   const cleanRef = extractTransactionRefFromSms(reference);
-  if (!cleanRef || cleanRef.length < 4) {
-    throw new Error("Tafadhali weka Kumbukumbu Namba sahihi ya muamala (Transaction ID / SMS ya uthibitisho).");
-  }
-
-  const walletData = await getWallet(userId);
-  const currentBalance = Number(walletData?.account?.balance || 0);
-  const newBalance = currentBalance + numAmount;
-
-  const txObj = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    type: "DEPOSIT",
-    amount: numAmount,
-    currency: "TZS",
-    status: "completed",
-    reference: cleanRef,
-    description: `Kuweka pesa kwa ${method} (${formattedPhone}) - Ref: ${cleanRef}`,
-    created_at: new Date().toISOString()
-  };
-
-  saveLocalWalletState(userId, newBalance, txObj);
-
-  if (supabase) {
-    try {
-      const { data: account } = await supabase.from("wallet_accounts").select("*").eq("user_id", userId).maybeSingle();
-      if (account) {
-        await supabase.from("wallet_accounts").update({ balance: newBalance }).eq("user_id", userId);
-      } else {
-        await supabase.from("wallet_accounts").insert({ user_id: userId, balance: newBalance, currency: "TZS" });
-      }
-      await supabase.from("wallet_transactions").insert(txObj);
-      await supabase.from("users").upsert(
-        { id: userId, user_balance: newBalance, updated_at: new Date().toISOString() },
-        { onConflict: "id" }
-      ).catch(() => {});
-    } catch {}
-  }
-
-  await recordPaymentTransaction({
-    user_id: userId,
-    phone: formattedPhone,
-    method,
-    payment_mode: "wallet_deposit",
-    amount: numAmount,
-    reference: cleanRef,
-    purpose: "Kuweka Pesa Kwenye Duara Wallet",
-    tx_type: "DEPOSIT"
+  if (!cleanRef || cleanRef.length < 4) throw new Error("Tafadhali weka Kumbukumbu Namba sahihi ya muamala (Transaction ID / SMS ya uthibitisho).");
+  const { data, error } = await supabase.rpc("wallet_request_topup", {
+    p_amount: numAmount, p_method: method, p_phone: formattedPhone, p_reference: cleanRef
   });
-
-  return { balance: newBalance, transaction: txObj };
+  if (error) throw rpcError(error, "Ombi la kuweka pesa limeshindikana.");
+  return { request_id: data, status: "pending", reference: cleanRef };
 }
 
+// Withdrawals hold the funds immediately; the CEO pays out manually and marks it completed.
 export async function withdrawFromWallet(userId, amount, method, phone, accountName = "") {
   const numAmount = Number(amount);
   if (!numAmount || numAmount <= 0) throw new Error("Weka kiasi sahihi cha kutoa!");
   const formattedPhone = validateTanzaniaPhone(phone);
-  if (!formattedPhone) {
-    throw new Error("Tafadhali weka namba sahihi ya simu ya kupokelea pesa (mfano: 0754123456).");
-  }
-
-  const walletData = await getWallet(userId);
-  const currentBalance = Number(walletData?.account?.balance || 0);
-  if (currentBalance < numAmount) {
-    throw new Error(
-      `Salio halitoshi! Una TZS ${Number(currentBalance).toLocaleString()}, lakini unajaribu kutoa TZS ${numAmount.toLocaleString()}.`
-    );
-  }
-  const newBalance = currentBalance - numAmount;
-  const withdrawRef = `WD${Date.now().toString().slice(-8)}`;
-  const txObj = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    type: "WITHDRAW",
-    amount: numAmount,
-    currency: "TZS",
-    status: "completed",
-    reference: withdrawRef,
-    description: `Kutoa pesa kwenda ${method} (${formattedPhone} - ${accountName || "Mtumiaji"})`,
-    created_at: new Date().toISOString()
-  };
-
-  saveLocalWalletState(userId, newBalance, txObj);
-
-  if (supabase) {
-    try {
-      await supabase.from("wallet_accounts").update({ balance: newBalance }).eq("user_id", userId);
-      await supabase.from("wallet_transactions").insert(txObj);
-      await supabase.from("users").upsert(
-        { id: userId, user_balance: newBalance, updated_at: new Date().toISOString() },
-        { onConflict: "id" }
-      ).catch(() => {});
-    } catch {}
-  }
-
-  return { balance: newBalance, transaction: txObj };
+  if (!formattedPhone) throw new Error("Tafadhali weka namba sahihi ya simu ya kupokelea pesa (mfano: 0754123456).");
+  const { data, error } = await supabase.rpc("wallet_request_withdrawal", {
+    p_amount: numAmount, p_method: method, p_phone: formattedPhone, p_account_name: accountName
+  });
+  if (error) throw rpcError(error, "Ombi la kutoa pesa limeshindikana.");
+  return { balance: Number(data.balance), reference: data.reference, status: "pending" };
 }
 
-/**
- * Retrieves the current 'user_balance' column from the Supabase 'users' table,
- * falling back to local/wallet state if offline.
- */
 export async function getUserBalance(userId) {
   if (!userId) return 0;
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("user_balance")
-        .eq("id", userId)
-        .maybeSingle();
-      if (!error && data && data.user_balance !== null && data.user_balance !== undefined) {
-        return Number(data.user_balance);
-      }
-    } catch {}
-  }
   const wallet = await getWallet(userId);
-  return Number(wallet?.user_balance ?? wallet?.account?.balance ?? 0);
+  return Number(wallet?.account?.balance ?? 0);
 }
 
-/**
- * Mock payment processing function that validates the transaction
- * and updates the 'user_balance' column in the Supabase 'users' table.
- *
- * Supports both object call: processMockPayment({ userId, amount, type, ... })
- * and positional call: processMockPayment(userId, amount, options)
- *
- * @param {Object|string} arg1 - Options object OR userId
- * @param {number} [arg2] - Amount (if positional)
- * @param {Object} [arg3] - Additional options (if positional)
- * @returns {Promise<Object>} Detailed validated transaction receipt with updated user_balance
- */
-export async function processMockPayment(arg1, arg2, arg3) {
-  let params = {};
-  if (typeof arg1 === "object" && arg1 !== null) {
-    params = { ...arg1 };
-  } else {
-    params = { userId: arg1, amount: arg2, ...(arg3 || {}) };
-  }
-
-  const {
-    userId,
-    amount,
-    type = "debit",
-    currency = "TZS",
-    paymentMethod = "Mock Mobile Money Gateway",
-    reference,
-    description = "Mock payment transaction",
-    metadata = {}
-  } = params;
-
-  // 1. TRANSACTION VALIDATION
-  // 1.1 User ID Validation
-  const cleanUserId = String(userId || "").trim();
-  if (!cleanUserId) {
-    throw new Error("Transaction Validation Error: 'userId' is required for payment processing.");
-  }
-
-  // 1.2 Amount Validation: must be a finite positive number > 0
-  const numAmount = Number(amount);
-  if (isNaN(numAmount) || !isFinite(numAmount) || numAmount <= 0) {
-    throw new Error(
-      `Transaction Validation Error: Invalid amount (${amount}). Transaction amount must be a positive number greater than 0.`
-    );
-  }
-
-  // 1.3 Transaction Type Validation & Normalization
-  const rawType = String(type || "debit").toLowerCase().trim();
-  const isCredit = ["credit", "deposit", "topup", "top_up", "refund", "add"].includes(rawType);
-  const isDebit = ["debit", "payment", "charge", "purchase", "deduct", "withdraw"].includes(rawType);
-  if (!isCredit && !isDebit) {
-    throw new Error(
-      `Transaction Validation Error: Invalid transaction type '${type}'. Supported types: 'credit' (deposit/top-up) or 'debit' (payment/charge).`
-    );
-  }
-  const normalizedType = isCredit ? "credit" : "debit";
-
-  // 1.4 Reference Validation & Clean generation
-  const cleanReference =
-    String(reference || "").trim() ||
-    `MOCK-${isCredit ? "DEP" : "PAY"}-${Date.now().toString().slice(-8)}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  // 2. FETCH CURRENT BALANCE FROM SUPABASE 'users' TABLE (or fallbacks)
-  let currentBalance = 0;
-  let userRecord = null;
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, user_balance, email, username")
-        .eq("id", cleanUserId)
-        .maybeSingle();
-
-      if (!error && data) {
-        userRecord = data;
-        if (data.user_balance !== null && data.user_balance !== undefined) {
-          currentBalance = Number(data.user_balance) || 0;
-        }
-      }
-    } catch (err) {
-      console.warn("processMockPayment: Error reading from Supabase 'users' table:", err);
-    }
-  }
-
-  // Fallback to wallet balance if user row is not yet populated
-  if (userRecord === null) {
-    try {
-      const localBalances = JSON.parse(localStorage.getItem(LOCAL_WALLET_BALANCES_KEY) || "{}");
-      if (localBalances[cleanUserId] !== undefined) {
-        currentBalance = Number(localBalances[cleanUserId]) || 0;
-      } else if (supabase) {
-        const { data: wAcc } = await supabase
-          .from("wallet_accounts")
-          .select("balance")
-          .eq("user_id", cleanUserId)
-          .maybeSingle();
-        if (wAcc?.balance !== null && wAcc?.balance !== undefined) {
-          currentBalance = Number(wAcc.balance) || 0;
-        }
-      }
-    } catch {}
-  }
-
-  // 3. BALANCE SUFFICIENCY VALIDATION (FOR DEBIT / PAYMENTS)
-  if (isDebit && currentBalance < numAmount) {
-    throw new Error(
-      `Transaction Validation Error: Insufficient funds. Current user_balance (${currentBalance.toLocaleString()} ${currency}) is less than required payment (${numAmount.toLocaleString()} ${currency}).`
-    );
-  }
-
-  // 4. CALCULATE NEW BALANCE
-  const newBalance = Number(
-    (isCredit ? currentBalance + numAmount : currentBalance - numAmount).toFixed(2)
-  );
-
-  // 5. UPDATE 'user_balance' COLUMN IN THE SUPABASE 'users' TABLE
-  let updatedInSupabase = false;
-  let supabaseRecord = null;
-
-  if (supabase) {
-    try {
-      // 5.1 Update 'user_balance' column
-      const { data: updateData, error: updateError } = await supabase
-        .from("users")
-        .update({
-          user_balance: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", cleanUserId)
-        .select()
-        .maybeSingle();
-
-      if (!updateError && updateData) {
-        updatedInSupabase = true;
-        supabaseRecord = updateData;
-      } else {
-        // 5.2 If user row did not exist yet, upsert into 'users' table with user_balance
-        const { data: upsertData, error: upsertError } = await supabase
-          .from("users")
-          .upsert(
-            {
-              id: cleanUserId,
-              user_balance: newBalance,
-              updated_at: new Date().toISOString()
-            },
-            { onConflict: "id" }
-          )
-          .select()
-          .maybeSingle();
-
-        if (!upsertError && upsertData) {
-          updatedInSupabase = true;
-          supabaseRecord = upsertData;
-        }
-      }
-    } catch (err) {
-      console.warn("processMockPayment: Supabase 'users' update error:", err);
-    }
-
-    // 5.3 Keep wallet_accounts & wallet_transactions synced
-    try {
-      await supabase
-        .from("wallet_accounts")
-        .upsert({ user_id: cleanUserId, balance: newBalance, currency }, { onConflict: "user_id" });
-
-      await supabase.from("wallet_transactions").insert({
-        id: crypto.randomUUID(),
-        user_id: cleanUserId,
-        type: isCredit ? "DEPOSIT" : "AD_PAYMENT",
-        amount: numAmount,
-        currency,
-        status: "completed",
-        reference: cleanReference,
-        description: `[Mock Payment] ${description} (Ref: ${cleanReference})`,
-        created_at: new Date().toISOString()
-      });
-    } catch {}
-  }
-
-  // 6. SYNCHRONIZE LOCAL CLIENT STORAGE
-  const txObj = {
-    id: crypto.randomUUID(),
-    user_id: cleanUserId,
-    type: isCredit ? "DEPOSIT" : "AD_PAYMENT",
-    amount: numAmount,
-    currency,
-    status: "completed",
-    reference: cleanReference,
-    description: `[Mock Payment] ${description} (Ref: ${cleanReference})`,
-    created_at: new Date().toISOString()
-  };
-  saveLocalWalletState(cleanUserId, newBalance, txObj);
-
-  // 7. RECORD IN PAYMENT REGISTRY
-  await recordPaymentTransaction({
-    user_id: cleanUserId,
-    payer_name: metadata.payerName || "Mock Payment User",
-    method: paymentMethod,
-    payment_mode: "mock_payment",
-    amount: numAmount,
-    currency,
-    reference: cleanReference,
-    purpose: description,
-    status: "completed",
-    tx_type: isCredit ? "DEPOSIT" : "AD_PAYMENT"
-  });
-
-  // 8. RETURN STRUCTURED VALIDATED TRANSACTION RECEIPT
-  return {
-    success: true,
-    transaction_id: cleanReference,
-    reference: cleanReference,
-    user_id: cleanUserId,
-    amount: numAmount,
-    currency,
-    type: normalizedType,
-    previous_balance: currentBalance,
-    user_balance: newBalance, // Updated 'user_balance' column value in Supabase 'users' table
-    status: "completed",
-    payment_method: paymentMethod,
-    description,
-    updated_in_supabase: updatedInSupabase,
-    supabase_record: supabaseRecord,
-    timestamp: new Date().toISOString()
-  };
+// ---- CEO: verify top-ups & withdrawals ----
+export async function getTopupRequests(status = "pending") {
+  let q = supabase.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(100);
+  if (status) q = q.eq("status", status);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
 }
 
-// Aliases for compatibility
+export async function reviewTopupRequest(requestId, approve) {
+  const { error } = await supabase.rpc("admin_review_topup", { p_request_id: requestId, p_approve: !!approve });
+  if (error) throw rpcError(error, "Imeshindikana kuthibitisha ombi.");
+}
+
+export async function getPendingWithdrawals() {
+  const { data, error } = await supabase.from("wallet_transactions").select("*")
+    .eq("type", "withdrawal").eq("status", "pending").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function reviewWithdrawal(txId, approve) {
+  const { error } = await supabase.rpc("admin_review_withdrawal", { p_tx_id: txId, p_approve: !!approve });
+  if (error) throw rpcError(error, "Imeshindikana kushughulikia ombi la kutoa pesa.");
+}
+
+// Mock payments are removed: balances can only change through the server-side functions above.
+export async function processMockPayment() {
+  throw new Error("Mock payment imezimwa. Tumia Wallet (Weka Pesa / Lipa kwa Wallet).");
+}
 export const mockProcessPayment = processMockPayment;
 export const processMockPaymentTransaction = processMockPayment;
-

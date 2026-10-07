@@ -3144,7 +3144,7 @@ function Wallet({ profile, lang }) {
     setErrorMsg("");
     try {
       await depositToWallet(profile.id, Number(amount), selectedMethod, phone, reference.trim());
-      setStatusMsg(`✓ Umefanikiwa kuweka TZS ${Number(amount).toLocaleString()} kupitia ${selectedMethod}! Salio limesasishwa.`);
+      setStatusMsg(`✓ Ombi la kuweka TZS ${Number(amount).toLocaleString()} kupitia ${selectedMethod} limetumwa. Salio litaongezeka baada ya kuthibitishwa.`);
       setUssdPromptActive(false);
       await loadWallet();
       setTimeout(() => {
@@ -3178,7 +3178,7 @@ function Wallet({ profile, lang }) {
     setErrorMsg("");
     try {
       await withdrawFromWallet(profile.id, Number(amount), selectedMethod, phone, accountName || profile.display_name);
-      setStatusMsg(`✓ Umefanikiwa kutoa TZS ${Number(amount).toLocaleString()} kwenda ${selectedMethod} (${phone})! Pesa zimetumwa kwa mtumiaji.`);
+      setStatusMsg(`✓ Ombi la kutoa TZS ${Number(amount).toLocaleString()} kwenda ${selectedMethod} (${phone}) limepokelewa. Utapokea pesa baada ya kuthibitishwa.`);
       await loadWallet();
       setTimeout(() => {
         setModalMode(null);
@@ -3194,9 +3194,9 @@ function Wallet({ profile, lang }) {
   const balance = wallet?.account?.balance || 0;
   const rawTxList = wallet?.transactions || [];
   const filteredTxList = rawTxList.filter((tx) => {
-    if (filterType === "deposits") return tx.type === "DEPOSIT";
-    if (filterType === "withdrawals") return tx.type === "WITHDRAW";
-    if (filterType === "ads") return tx.type === "AD_PAYMENT" || tx.type === "AD_FEE";
+    if (filterType === "deposits") return String(tx.type).toUpperCase() === "DEPOSIT";
+    if (filterType === "withdrawals") return ["WITHDRAW","WITHDRAWAL"].includes(String(tx.type).toUpperCase());
+    if (filterType === "ads") return ["AD_PAYMENT","AD_FEE","PURCHASE"].includes(String(tx.type).toUpperCase());
     return true;
   });
 
@@ -3236,31 +3236,7 @@ function Wallet({ profile, lang }) {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              id="btn-wallet-mock-test"
-              onClick={() => {
-                setMockModalOpen(true);
-                setMockError("");
-                setMockReceipt(null);
-              }}
-              style={{
-                background: "rgba(255,255,255,0.22)",
-                color: "#ffffff",
-                border: "1px solid rgba(255,255,255,0.45)",
-                borderRadius: 12,
-                padding: "12px 18px",
-                fontWeight: 800,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8
-              }}
-            >
-              <span>🧪</span>
-              <span>Mock Payment (Test)</span>
-            </button>
+            
             <button
               type="button"
               id="btn-wallet-deposit"
@@ -3378,8 +3354,8 @@ function Wallet({ profile, lang }) {
         {filteredTxList.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {filteredTxList.map((tx) => {
-              const isDeposit = tx.type === "DEPOSIT";
-              const isWithdraw = tx.type === "WITHDRAW";
+              const isDeposit = ["DEPOSIT","REFUND"].includes(String(tx.type).toUpperCase());
+              const isWithdraw = ["WITHDRAW","WITHDRAWAL"].includes(String(tx.type).toUpperCase());
               return (
                 <div
                   key={tx.id}

@@ -88,8 +88,8 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
         location: location.trim(),
         phone: phone.trim(),
         whatsapp: (whatsapp.trim() || phone.trim()).replace(/[^0-9]/g, ""),
-        status: isBoosted ? "boosted" : "active",
-        paid_amount: fee,
+        status: "pending_payment",
+        paid_amount: 0,
         payment_status: "pending_verification"
       });
 
@@ -97,6 +97,7 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
       setSelectedAdForPayment({
         ...newAd,
         amountToPay: fee,
+        isBoost: isBoosted,
         purposeName: isBoosted ? "Kipengele cha Boosted Ad (TZS 15,000)" : "Tangazo la Kawaida (TZS 5,000)"
       });
 
@@ -877,14 +878,15 @@ export function CustomerAdsDashboard({ profile, onShowToast, onOpenDirectMessage
           title={selectedAdForPayment.purposeName || "Malipo ya Tangazo"}
           amount={selectedAdForPayment.amountToPay || 5000}
           purpose={`Tangazo: ${selectedAdForPayment.title}`}
+          adId={selectedAdForPayment.id}
+          isBoost={Boolean(selectedAdForPayment.isBoost)}
           onPaymentSuccess={async (paymentDetails) => {
             try {
-              await updateAdStatus(selectedAdForPayment.id, selectedAdForPayment.isBoost ? "boosted" : "active", {
-                payment_status: "paid",
-                payment_method: paymentDetails.method,
-                payment_ref: paymentDetails.reference
-              });
-              if (onShowToast) onShowToast("Malipo yamethibitishwa! Tangazo lako lipo hewani.");
+              if (onShowToast) {
+                onShowToast(paymentDetails.pending
+                  ? "Ombi la malipo limepokelewa. Baada ya kuthibitishwa, lipia tangazo kupitia Wallet."
+                  : "Malipo yamethibitishwa! Tangazo lako lipo hewani.");
+              }
               fetchAds();
             } catch (err) {
               console.warn(err);

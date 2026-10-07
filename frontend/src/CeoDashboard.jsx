@@ -7,7 +7,11 @@ import {
   updatePayoutStatus,
   getPlatformSettings,
   updatePlatformSettings,
-  getAllPaymentTransactions
+  getAllPaymentTransactions,
+  getTopupRequests,
+  reviewTopupRequest,
+  getPendingWithdrawals,
+  reviewWithdrawal
 } from "./api/api";
 
 export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) {
@@ -18,6 +22,38 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
   const [payments, setPayments] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [topups, setTopups] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const loadWalletQueues = async () => {
+    try {
+      const [t, w] = await Promise.all([getTopupRequests("pending"), getPendingWithdrawals()]);
+      setTopups(t);
+      setWithdrawals(w);
+    } catch (err) {
+      console.warn("wallet queues:", err);
+    }
+  };
+  useEffect(() => {
+    loadWalletQueues();
+  }, []);
+  const handleTopup = async (id, approve) => {
+    try {
+      await reviewTopupRequest(id, approve);
+      if (onShowToast) onShowToast(approve ? "Malipo yamethibitishwa, salio limeongezwa." : "Ombi limekataliwa.");
+    } catch (err) {
+      if (onShowToast) onShowToast(err.message || "Imeshindikana.");
+    }
+    loadWalletQueues();
+  };
+  const handleWithdrawal = async (id, approve) => {
+    try {
+      await reviewWithdrawal(id, approve);
+      if (onShowToast) onShowToast(approve ? "Imewekwa kama imelipwa." : "Imekataliwa, pesa zimerudishwa.");
+    } catch (err) {
+      if (onShowToast) onShowToast(err.message || "Imeshindikana.");
+    }
+    loadWalletQueues();
+  };
   const [activeTab, setActiveTab] = useState("settings"); // 'settings' | 'payments' | 'overview' | 'payouts' | 'all_ads'
 
   // Manual CEO Settings State
@@ -274,6 +310,7 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, borderBottom: "1px solid var(--line)" }}>
         {[
+          { id: "topups", label: `✅ Thibitisha Malipo (${topups.length + withdrawals.length})` },
           { id: "settings", label: "⚙️ Lipa Namba & Gateway" },
           { id: "payments", label: `💳 Miamala (${payments.length})` },
           { id: "overview", label: `📦 Oda (${orders.length})` },
@@ -291,6 +328,50 @@ export function CeoDashboard({ profile, onShowToast, onOpenShop, lang = "sw" }) 
           </button>
         ))}
       </div>
+
+      {activeTab === "topups" && (
+        <div className="glass-card" style={{ padding: 18 }}>
+          <h3 style={{ margin: "0 0 6px", fontSize: 16 }}>✅ Maombi ya Kuweka Pesa ({topups.length})</h3>
+          <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
+            Linganisha Kumbukumbu Namba na SMS ya muamala kwenye simu yako ya Lipa Namba kabla ya kuthibitisha.
+          </p>
+          {topups.length === 0 ? (
+            <p className="muted" style={{ fontSize: 13 }}>Hakuna maombi yanayosubiri.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {topups.map((r) => (
+                <div key={r.id} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontWeight: 800 }}>TZS {Number(r.amount).toLocaleString()} · {r.method}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Simu: {r.phone || "-"} · Ref: <strong>{r.reference}</strong></div>
+                  <div className="muted" style={{ fontSize: 11 }}>{new Date(r.created_at).toLocaleString()}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button type="button" className="button button-primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleTopup(r.id, true)}>Thibitisha</button>
+                    <button type="button" className="button button-soft" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleTopup(r.id, false)}>Kataa</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <h3 style={{ margin: "22px 0 10px", fontSize: 16 }}>💸 Maombi ya Kutoa Pesa ({withdrawals.length})</h3>
+          {withdrawals.length === 0 ? (
+            <p className="muted" style={{ fontSize: 13 }}>Hakuna maombi yanayosubiri.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {withdrawals.map((w) => (
+                <div key={w.id} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontWeight: 800 }}>TZS {Number(w.amount).toLocaleString()}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{w.description}</div>
+                  <div className="muted" style={{ fontSize: 11 }}>Ref: {w.reference} · {new Date(w.created_at).toLocaleString()}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button type="button" className="button button-primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleWithdrawal(w.id, true)}>Nimelipa</button>
+                    <button type="button" className="button button-soft" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => handleWithdrawal(w.id, false)}>Kataa & Rudisha</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* TAB 1: SETTINGS (LIPA NAMBA, PAYMENT GATEWAY & SOCIAL MEDIA LINKS) */}
       {activeTab === "settings" && (
