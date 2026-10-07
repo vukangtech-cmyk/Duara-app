@@ -24,7 +24,7 @@ export function PaymentModal({
   adId = null,
   isBoost = false
 }) {
-  const [paymentMode, setPaymentMode] = useState("lipa_namba"); // 'lipa_namba' | 'ussd_push' | 'wallet' | 'mock_payment'
+  const [paymentMode, setPaymentMode] = useState("lipa_namba"); // 'lipa_namba' | 'ussd_push' | 'wallet'
   const [method, setMethod] = useState("mpesa");
   const [phone, setPhone] = useState("");
   const [transactionRef, setTransactionRef] = useState("");
@@ -36,8 +36,6 @@ export function PaymentModal({
   const [errorMsg, setErrorMsg] = useState("");
   const [settings, setSettings] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [mockAction, setMockAction] = useState("debit"); // 'debit' | 'credit'
-  const [mockReceipt, setMockReceipt] = useState(null);
 
   const activeUser = getActiveAccountOverride();
 
@@ -46,7 +44,6 @@ export function PaymentModal({
       setErrorMsg("");
       setSuccess(false);
       setPushStep("idle");
-      setMockReceipt(null);
       setCustomAmount(String(amount || ""));
       if (activeUser?.phone && !phone) {
         setPhone(activeUser.phone);
@@ -393,167 +390,7 @@ export function PaymentModal({
               ))}
             </div>
 
-            {paymentMode === "mock_payment" ? (
-              <div
-                style={{
-                  background: "var(--input-bg)",
-                  border: "1.5px dashed var(--primary)",
-                  borderRadius: 14,
-                  padding: 16,
-                  marginBottom: 16
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 18 }}>🧪</span>
-                    <strong style={{ fontSize: 13.5, color: "var(--primary)" }}>Mock Payment Processing Engine</strong>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      padding: "2px 8px",
-                      borderRadius: 10,
-                      background: "rgba(16, 185, 129, 0.15)",
-                      color: "#10b981",
-                      fontWeight: 800
-                    }}
-                  >
-                    Supabase users.user_balance
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    background: "var(--card-bg)",
-                    border: "1px solid var(--line)",
-                    borderRadius: 10,
-                    padding: "10px 12px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 12
-                  }}
-                >
-                  <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Salio la Sasa (users.user_balance):</span>
-                  <strong style={{ fontSize: 16, color: "var(--ink-heading)" }}>
-                    TZS {walletBalance.toLocaleString()}
-                  </strong>
-                </div>
-
-                {/* Direction Selector: Debit vs Credit */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => setMockAction("debit")}
-                    style={{
-                      padding: "9px 8px",
-                      borderRadius: 8,
-                      border: mockAction === "debit" ? "2px solid #ef4444" : "1px solid var(--line)",
-                      background: mockAction === "debit" ? "rgba(239, 68, 68, 0.1)" : "var(--card-bg)",
-                      color: mockAction === "debit" ? "#ef4444" : "var(--ink)",
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                  >
-                    🔴 Lipa (Debit -TZS {effectiveAmount.toLocaleString()})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMockAction("credit")}
-                    style={{
-                      padding: "9px 8px",
-                      borderRadius: 8,
-                      border: mockAction === "credit" ? "2px solid #10b981" : "1px solid var(--line)",
-                      background: mockAction === "credit" ? "rgba(16, 185, 129, 0.1)" : "var(--card-bg)",
-                      color: mockAction === "credit" ? "#10b981" : "var(--ink)",
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                  >
-                    🟢 Weka (+TZS {effectiveAmount.toLocaleString()} Credit)
-                  </button>
-                </div>
-
-                {/* Quick Test Top-up buttons */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Ongeza salio la majaribio:</span>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!activeUser?.id) return;
-                        setBusy(true);
-                        try {
-                          const res = await processMockPayment({
-                            userId: activeUser.id,
-                            amount: 20000,
-                            type: "credit",
-                            description: "Mock Sandbox Top-up (+20k)"
-                          });
-                          setWalletBalance(res.user_balance);
-                        } catch (e) {
-                          setErrorMsg(e.message);
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                      disabled={busy}
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: 11,
-                        borderRadius: 6,
-                        border: "1px solid var(--line)",
-                        background: "var(--card-bg)",
-                        cursor: "pointer",
-                        fontWeight: 700
-                      }}
-                    >
-                      +20,000
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!activeUser?.id) return;
-                        setBusy(true);
-                        try {
-                          const res = await processMockPayment({
-                            userId: activeUser.id,
-                            amount: 50000,
-                            type: "credit",
-                            description: "Mock Sandbox Top-up (+50k)"
-                          });
-                          setWalletBalance(res.user_balance);
-                        } catch (e) {
-                          setErrorMsg(e.message);
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                      disabled={busy}
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: 11,
-                        borderRadius: 6,
-                        border: "1px solid var(--line)",
-                        background: "var(--card-bg)",
-                        cursor: "pointer",
-                        fontWeight: 700
-                      }}
-                    >
-                      +50,000
-                    </button>
-                  </div>
-                </div>
-
-                <p style={{ margin: "8px 0 0", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.45 }}>
-                  {mockAction === "debit"
-                    ? `Kazi hii itathibitisha muamala (validates transaction) kisha itapunguza na kusasisha safu wima ya 'user_balance' kwenye jedwali la Supabase 'users'.`
-                    : `Kazi hii itathibitisha muamala na kuongeza TZS ${effectiveAmount.toLocaleString()} kwenye safu wima ya 'user_balance' kwenye jedwali la Supabase 'users'.`}
-                </p>
-              </div>
-            ) : paymentMode === "wallet" ? (
+            {paymentMode === "wallet" ? (
               <div
                 style={{
                   background: "var(--input-bg)",
@@ -832,17 +669,14 @@ export function PaymentModal({
                 className="button button-primary"
                 disabled={
                   busy ||
-                  (paymentMode === "wallet" && walletBalance < effectiveAmount) ||
-                  (paymentMode === "mock_payment" && mockAction === "debit" && walletBalance < effectiveAmount)
+                  (paymentMode === "wallet" && walletBalance < effectiveAmount)
                 }
               >
                 {busy
                   ? "Inathibitisha..."
-                  : paymentMode === "mock_payment"
-                  ? mockAction === "debit"
-                    ? "🧪 Thibitisha & Lipa (Mock)"
-                    : "🧪 Thibitisha & Weka (Mock)"
-                  : "✓ Thibitisha Malipo"}
+                  : paymentMode === "wallet"
+                  ? "✓ Lipa kwa Salio la Wallet"
+                  : "✓ Wasilisha Malipo ya Kuthibitishwa na CEO"}
               </button>
             </div>
           </form>
