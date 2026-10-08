@@ -2937,8 +2937,7 @@ function Reels({ profile, lang, onShowToast }) {
     setBusy(true);
     setMessage("");
     try {
-      const videoUrl = await uploadImage(profile.id, file);
-      const newReel = await publishReel(profile.id, videoUrl, caption);
+      const newReel = await createReel(profile.id, file, caption);
       setItems((current) => [{ ...newReel, profiles: profile }, ...current]);
       setFile(null);
       setCaption("");
@@ -6652,34 +6651,15 @@ export default function App() {
                   />
                 ) : (
                   <div className="glass-card" style={{ padding: "36px 20px", textAlign: "center", maxWidth: 520, margin: "24px auto", borderRadius: 16 }}>
-                    <span style={{ fontSize: 44, display: "block", marginBottom: 10 }}>👑</span>
+                    <span style={{ fontSize: 44, display: "block", marginBottom: 10 }}>🔒</span>
                     <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 800 }}>
-                      {isSw ? "Uthibitisho wa Miamala & Dashibodi ya CEO" : "Transaction Verification & CEO Dashboard"}
+                      {lang === "en" ? "Access restricted" : "Eneo hili ni la CEO pekee"}
                     </h3>
-                    <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, margin: "0 0 20px" }}>
-                      {isSw
-                        ? "Mfumo huu unamruhusu Msimamizi Mkuu (CEO) kuthibitisha miamala ya malipo ya wateja (M-Pesa, Tigo Pesa, Airtel, Benki) na kuongeza salio la wallet papo hapo."
-                        : "This panel allows the Chief Executive (CEO) to verify incoming customer payments and approve wallet balances."}
+                    <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, margin: 0 }}>
+                      {lang === "en"
+                        ? "Only the platform CEO can verify payments and manage the platform."
+                        : "Ni CEO wa jukwaa pekee anayeweza kuthibitisha malipo na kusimamia jukwaa."}
                     </p>
-                    <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="button button-primary"
-                        onClick={() => {
-                          const updated = {
-                            ...currentProfile,
-                            role: "ceo",
-                            display_name: currentProfile?.display_name || "CEO wa Duara"
-                          };
-                          setActiveAccountOverride(updated);
-                          setCurrentProfile(updated);
-                          showToast("👑 Umeingia kama CEO! Sasa unaweza kuthibitisha miamala.");
-                        }}
-                        style={{ padding: "12px 22px", fontSize: 13.5, fontWeight: 800, borderRadius: 12 }}
-                      >
-                        👑 {isSw ? "Washa Hali ya CEO (Thibitisha Miamala Sasa)" : "Activate CEO Mode (Verify Transactions Now)"}
-                      </button>
-                    </div>
                   </div>
                 )
               )}

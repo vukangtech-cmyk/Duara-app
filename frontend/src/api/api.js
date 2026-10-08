@@ -1000,13 +1000,14 @@ export async function getReels() {
 }
 
 export async function createReel(creatorId, file, caption) {
-  const url = await uploadImage(creatorId, file, "reels");
+  const uid = await requireSessionUserId();
+  const url = await uploadImage(uid, file, "reels");
   const { data, error } = await supabase
     .from("reels")
-    .insert({ creator_id: creatorId, video_url: url, caption })
+    .insert({ creator_id: uid, video_url: url, caption: (caption || "").slice(0, 500) })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw dbError(error, "Imeshindikana kuweka reel. Jaribu tena.");
   return data;
 }
 
@@ -1431,6 +1432,19 @@ export async function getAllPaymentTransactions() {
     created_at: tx.created_at
   }));
   return [...topupRows, ...txRows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+async function reviewPaymentOnServer(txId, approve) {
+  if (!txId) throw new Error("Kitambulisho cha muamala kinahitajika.");
+  const { data: topup } = await supabase.from("topup_requests").select("id,status").eq("id", txId).maybeSingle();
+  if (topup) {
+    const { error } = await supabase.rpc("admin_review_topup", { p_request_id: txId, p_approve: approve });
+    if (error) throw dbError(error, "Imeshindikana kushughulikia ombi la kuweka pesa.");
+    return { id: txId, status: approve ? "verified" : "rejected" };
+  }
+  const { error } = await supabase.rpc("admin_review_withdrawal", { p_tx_id: txId, p_approve: approve });
+  if (error) throw dbError(error, "Imeshindikana kushughulikia muamala.");
+  return { id: txId, status: approve ? "verified" : "rejected" };
 }
 
 export async function verifyPaymentTransactionByCeo(txId) {
