@@ -5,9 +5,6 @@ const SAVED_ACCOUNTS_KEY = "circle_saved_accounts_v2";
 const VERIFIED_DIRECTORY_KEY = "circle_verified_directory_v2";
 const LOCAL_DIRECT_MESSAGES_KEY = "circle_direct_messages_v2";
 const LOCAL_CONVERSATIONS_KEY = "circle_conversations_meta_v2";
-const LOCAL_WALLET_BALANCES_KEY = "circle_wallet_balances_v2";
-const LOCAL_WALLET_TX_KEY = "circle_wallet_tx_v2";
-const LOCAL_PAYMENTS_REGISTRY_KEY = "circle_payments_registry_v2";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEMO_USERNAMES = new Set(["amina_art", "baraka_tech", "circle_user", "demo", "test_user"]);
@@ -171,18 +168,37 @@ export function clearActiveAccountOverride() {
   } catch {}
 }
 
+function friendlyAuthError(error) {
+  const m = String(error?.message || "");
+  if (/invalid login credentials/i.test(m)) return "Barua pepe au nenosiri si sahihi. Kama ulijisajili kwa barua pepe, ingia kwa barua pepe hiyo.";
+  if (/email not confirmed/i.test(m)) return "Thibitisha barua pepe yako kwanza (angalia Inbox au Spam), kisha ingia.";
+  if (/rate limit|too many|security purposes/i.test(m)) return "Majaribio mengi. Subiri dakika chache kisha ujaribu tena.";
+  if (/already registered|already exists/i.test(m)) return "Akaunti yenye barua pepe hii tayari ipo. Tafadhali bonyeza Ingia (Login).";
+  if (/password/i.test(m) && /short|least|weak|characters|pwned|compromised/i.test(m)) return "Nenosiri ni dhaifu. Tumia angalau herufi 8 zisizo za kawaida.";
+  return m || "Imeshindikana. Jaribu tena.";
+}
+
+async function fetchOwnProfile(userId, tries = 4) {
+  for (let i = 0; i < tries; i++) {
+    const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (data) return data;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return null;
+}
+
 export async function registerUser({
   email,
   password,
   displayName,
   username,
-  role = "customer",
   location = "Dar es Salaam, Tanzania",
   phone = "",
   whatsapp = "",
   businessName = "",
   category = ""
 }) {
+  if (!supabase) throw new Error("Huduma haipatikani kwa sasa. Jaribu tena baadaye.");
   const cleanEmail = (email || "").trim().toLowerCase();
   const cleanUsername = (username || cleanEmail.split("@")[0] || "user")
     .trim()
@@ -192,328 +208,93 @@ export async function registerUser({
   if (!cleanUsername || cleanUsername.length < 2) {
     throw new Error("Tafadhali weka @username sahihi yenye angalau herufi 2.");
   }
-  const targetEmail = cleanEmail.includes("@") ? cleanEmail : `${cleanUsername}@thecircle.app`;
-  const isCeoEmail = isCeoIdentity(targetEmail) || isCeoIdentity(cleanUsername);
-  const safeRole = isCeoEmail ? "ceo" : "customer";
-  const safeWhatsapp = whatsapp || (phone ? phone.replace(/\D/g, "") : "");
-  const safePassword = normalizeSupabasePassword(password, targetEmail);
+  if (!cleanEmail.includes("@")) {
+    throw new Error("Tafadhali weka barua pepe sahihi (mfano: jina@gmail.com).");
+  }
+  if (!password || String(password).length < 8) {
+    throw new Error("Nenosiri liwe angalau herufi 8.");
+  }
+  const safeWhatsapp = whatsapp || (phone ? String(phone).replace(/\D/g, "") : "");
 
-  let authData = null;
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: targetEmail,
-        password: safePassword,
-        options: {
-          data: {
-            display_name: displayName || cleanUsername,
-            username: cleanUsername,
-            role: safeRole,
-            verified: true,
-            location,
-            phone,
-            whatsapp: safeWhatsapp,
-            business_name: businessName,
-            category
-          }
-        }
-      });
-      if (!error && data?.user) {
-        authData = data;
-      } else if (error && /already registered|already exists/i.test(error.message || "")) {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: targetEmail,
-          password: safePassword
-        });
-        if (!signInErr && signInData?.user) {
-          authData = signInData;
-        } else {
-          throw new Error("Akaunti yenye barua pepe au @username hii tayari ipo. Tafadhali bonyeza Ingia (Login).");
-        }
-      }
-    } catch (err) {
-      if (err?.message?.includes("tayari ipo")) throw err;
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      emailRedirectTo: window.location.origin,
+      data: { display_name: displayName || cleanUsername, username: cleanUsername }
     }
+  });
+  if (error) throw new Error(friendlyAuthError(error));
+  if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    throw new Error("Akaunti yenye barua pepe hii tayari ipo. Tafadhali bonyeza Ingia (Login).");
   }
 
-  const userId = authData?.user?.id || deterministicUuidFromKey(`verified_user::${targetEmail}`);
-  const profileObj = {
-    id: userId,
-    display_name: displayName || cleanUsername,
-    username: cleanUsername,
-    email: targetEmail,
-    role: safeRole,
-    verified: true,
-    location: location || "Dar es Salaam",
+  // Email confirmation is on: no session until the user confirms.
+  if (!data?.session) {
+    return { needsConfirmation: true, email: cleanEmail };
+  }
+
+  const userId = data.user.id;
+  const extra = {
+    location: location || "Dar es Salaam, Tanzania",
     phone: phone || "",
     whatsapp: safeWhatsapp,
     business_name: businessName || "",
-    category: category || "",
-    bio: businessName ? `${businessName} · ${category}` : ""
+    category: category || ""
   };
-
-  if (supabase) {
-    try {
-      await supabase.from("profiles").upsert({
-        id: profileObj.id,
-        display_name: profileObj.display_name,
-        username: profileObj.username,
-        role: profileObj.role,
-        verified: true,
-        location: profileObj.location,
-        phone: profileObj.phone,
-        whatsapp: profileObj.whatsapp,
-        bio: profileObj.bio
-      });
-    } catch {}
-  }
-
-  registerVerifiedAccountInDirectory(profileObj);
-  setActiveAccountOverride(profileObj);
-  const sessionObj = authData?.session || {
-    user: { id: profileObj.id, email: profileObj.email }
-  };
-  return { session: sessionObj, user: sessionObj.user, profile: profileObj };
+  await supabase.from("profiles").update(extra).eq("id", userId);
+  const profile = await fetchOwnProfile(userId);
+  if (profile) saveAccountToHistory({ ...profile, email: cleanEmail });
+  return { session: data.session, user: data.user, profile };
 }
 
 export async function loginUser(identifier, password) {
+  if (!supabase) throw new Error("Huduma haipatikani kwa sasa. Jaribu tena baadaye.");
   const raw = (identifier || "").trim();
   if (!raw || !password) {
-    throw new Error("Tafadhali weka @username au barua pepe pamoja na nenosiri.");
+    throw new Error("Tafadhali weka barua pepe pamoja na nenosiri.");
   }
   const isEmail = raw.includes("@") && !raw.startsWith("@");
-  const cleanHandle = raw.replace(/^@+/, "").toLowerCase().trim();
-  const usernamePart = isEmail ? raw.split("@")[0].toLowerCase() : cleanHandle;
-  const candidateEmail = isEmail ? raw.toLowerCase() : `${usernamePart}@thecircle.app`;
-  const normalizedPw = normalizeSupabasePassword(password, candidateEmail);
+  const handle = raw.replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9_]/g, "");
+  const email = isEmail ? raw.toLowerCase() : `${handle}@thecircle.app`;
 
-  // 1. Try Supabase signInWithPassword (both normalized password and raw password)
-  if (supabase) {
-    for (const pwAttempt of [normalizedPw, password]) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: candidateEmail,
-          password: pwAttempt
-        });
-        if (!error && data?.session?.user) {
-          const prof = await getCurrentProfile(data.session.user.id, candidateEmail).catch(() => null);
-          if (prof) {
-            const verifiedProf = { ...prof, verified: true, email: candidateEmail };
-            registerVerifiedAccountInDirectory(verifiedProf);
-            setActiveAccountOverride(verifiedProf);
-            return { ...data, profile: verifiedProf };
-          }
-        }
-      } catch {}
+  // Older accounts with very short passwords were stored with a padded password.
+  const attempts = [password];
+  if (String(password).trim().length < 6) {
+    attempts.push(`Duara#${String(password).trim()}#${email.slice(0, 6)}`);
+  }
+  let lastError = null;
+  for (const pw of attempts) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
+    if (!error && data?.session) {
+      const profile = await fetchOwnProfile(data.session.user.id);
+      if (profile) saveAccountToHistory({ ...profile, email });
+      return { session: data.session, user: data.session.user, profile };
     }
+    lastError = error;
   }
-
-  // 2. Look up matching verified account in Supabase profiles or verified directory
-  let matchedProfile = null;
-  if (supabase) {
-    try {
-      const { data: rows } = await supabase
-        .from("profiles")
-        .select("*")
-        .ilike("username", usernamePart)
-        .limit(5);
-      if (rows && rows.length > 0) {
-        matchedProfile = rows.find((r) => (r.username || "").toLowerCase() === usernamePart) || rows[0];
-      }
-    } catch {}
-  }
-
-  if (!matchedProfile) {
-    const verifiedList = [...getVerifiedAccountsRegistry(), ...getSavedAccounts()];
-    matchedProfile = verifiedList.find(
-      (a) =>
-        isValidVerifiedAccount(a) &&
-        ((a.username || "").toLowerCase() === usernamePart ||
-          (a.email || "").toLowerCase() === raw.toLowerCase())
-    );
-  }
-
-  // Only allow CEO auto-provision if CEO credentials are used; otherwise reject unregistered users!
-  if (!matchedProfile) {
-    if (isCeoIdentity(raw) || isCeoIdentity(usernamePart)) {
-      matchedProfile = {
-        id: deterministicUuidFromKey("verified_user::vukangtech@gmail.com"),
-        display_name: "HAMZA VUKANG",
-        username: "hamza_vukang",
-        email: "vukangtech@gmail.com",
-        role: "ceo",
-        verified: true,
-        location: "Dar es Salaam, Tanzania"
-      };
-    } else {
-      throw new Error(
-        "Akaunti hii haijasajiliwa au haijathibitishwa kwenye Duara. Tafadhali bonyeza 'Jisajili (Register)' au 'Endelea na Google' kufungua akaunti halisi."
-      );
-    }
-  }
-
-  const finalProfile = {
-    ...matchedProfile,
-    verified: true,
-    role: isCeoIdentity(raw) || isCeoIdentity(matchedProfile.username) || matchedProfile.role === "ceo" ? "ceo" : "customer"
-  };
-
-  registerVerifiedAccountInDirectory(finalProfile);
-  setActiveAccountOverride(finalProfile);
-  const sessionObj = {
-    user: {
-      id: finalProfile.id,
-      email: finalProfile.email || `${finalProfile.username}@thecircle.app`
-    }
-  };
-  return { session: sessionObj, user: sessionObj.user, profile: finalProfile };
+  throw new Error(friendlyAuthError(lastError));
 }
 
-export async function loginWithPlatform(provider, identifier = "", displayName = "") {
-  const cleanProvider = (provider || "google").toLowerCase();
-  const raw = (identifier || "").trim();
-  if (!raw) {
-    throw new Error(
-      cleanProvider === "google"
-        ? "Tafadhali weka barua pepe yako ya Gmail (mfano: jina@gmail.com)."
-        : `Tafadhali weka barua pepe au jina lako la ${provider}.`
-    );
-  }
-  const isEmail = raw.includes("@") && !raw.startsWith("@");
-  const cleanHandle = raw
-    .replace(/^@+/, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9_]/g, "");
-
-  const usernamePart = isEmail
-    ? raw.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "")
-    : cleanHandle;
-
-  if (!usernamePart) {
-    throw new Error("Tafadhali weka barua pepe au jina sahihi la akaunti.");
-  }
-
-  const targetEmail = isEmail ? raw.toLowerCase() : `${usernamePart}@${cleanProvider}.com`;
-  const isCeo = isCeoIdentity(targetEmail) || isCeoIdentity(usernamePart);
-  const safeRole = isCeo ? "ceo" : "customer";
-  const formattedName =
-    displayName.trim() ||
-    (isCeo
-      ? "HAMZA VUKANG"
-      : usernamePart
-          .split("_")
-          .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
-          .join(" ") || "Mwanachama");
-
-  // 1. Authenticate or register in Supabase Auth so user gets a real auth.uid() session and real profiles row
-  let authSession = null;
-  let authUserId = null;
-  const oauthPw = getPlatformAuthPassword(targetEmail);
-
-  if (supabase) {
-    try {
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-        email: targetEmail,
-        password: oauthPw
-      });
-      if (!signInErr && signInData?.user) {
-        authSession = signInData.session;
-        authUserId = signInData.user.id;
-      } else {
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: targetEmail,
-          password: oauthPw,
-          options: {
-            data: {
-              display_name: formattedName,
-              username: usernamePart,
-              role: safeRole,
-              verified: true,
-              location: "Dar es Salaam, Tanzania"
-            }
-          }
-        });
-        if (!signUpErr && signUpData?.user) {
-          authSession = signUpData.session;
-          authUserId = signUpData.user.id;
-        }
-      }
-    } catch {}
-  }
-
-  // 2. Check existing profile in Supabase or verified directory
-  let matchedProfile = null;
-  if (supabase) {
-    try {
-      const query = authUserId
-        ? supabase.from("profiles").select("*").eq("id", authUserId).maybeSingle()
-        : supabase.from("profiles").select("*").ilike("username", usernamePart).maybeSingle();
-      const { data: existingRow } = await query;
-      if (existingRow) matchedProfile = existingRow;
-    } catch {}
-  }
-
-  if (!matchedProfile) {
-    const savedList = [...getVerifiedAccountsRegistry(), ...getSavedAccounts()];
-    matchedProfile = savedList.find(
-      (a) =>
-        isValidVerifiedAccount(a) &&
-        ((a.username || "").toLowerCase() === usernamePart ||
-          (a.email || "").toLowerCase() === targetEmail)
-    );
-  }
-
-  const finalId =
-    authUserId ||
-    (matchedProfile && isValidVerifiedAccount(matchedProfile) ? matchedProfile.id : null) ||
-    deterministicUuidFromKey(`verified_user::${targetEmail}`);
-
-  const profileObj = {
-    ...(matchedProfile || {}),
-    id: finalId,
-    display_name: displayName.trim() || matchedProfile?.display_name || formattedName,
-    username: matchedProfile?.username || usernamePart,
-    email: targetEmail,
-    role: isCeo || matchedProfile?.role === "ceo" ? "ceo" : "customer",
-    verified: true,
-    location: matchedProfile?.location || "Dar es Salaam, Tanzania",
-    bio: matchedProfile?.bio || `✓ Akaunti iliyothibitishwa (${provider})`,
-    auth_provider: cleanProvider
-  };
-
-  if (supabase) {
-    try {
-      await supabase.from("profiles").upsert({
-        id: profileObj.id,
-        display_name: profileObj.display_name,
-        username: profileObj.username,
-        role: profileObj.role,
-        verified: true,
-        location: profileObj.location,
-        bio: profileObj.bio
-      });
-    } catch {}
-  }
-
-  registerVerifiedAccountInDirectory(profileObj);
-  setActiveAccountOverride(profileObj);
-  const sessionObj = authSession || {
-    user: {
-      id: profileObj.id,
-      email: profileObj.email,
-      app_metadata: { provider: cleanProvider }
+// Real OAuth only. The provider must be enabled in Supabase Dashboard > Authentication > Providers.
+export async function loginWithPlatform(provider) {
+  if (!supabase) throw new Error("Huduma haipatikani kwa sasa. Jaribu tena baadaye.");
+  const p = String(provider || "google").toLowerCase();
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: p,
+    options: { redirectTo: window.location.origin }
+  });
+  if (error) {
+    if (/not enabled|unsupported|provider/i.test(error.message || "")) {
+      throw new Error(`Kuingia kwa ${provider} bado hakujawashwa. Tafadhali tumia barua pepe na nenosiri.`);
     }
-  };
-  return { session: sessionObj, user: sessionObj.user, profile: profileObj };
+    throw new Error(friendlyAuthError(error));
+  }
+  return { redirecting: true };
 }
 
-export async function signInWithSupabaseOAuth(provider = "google", options = {}) {
-  const cleanProvider = (provider || "google").toLowerCase();
-  if (options?.identifier) {
-    return await loginWithPlatform(cleanProvider, options.identifier, options.displayName || "");
-  }
-  return { provider: cleanProvider, mode: "direct" };
+export async function signInWithSupabaseOAuth(provider = "google") {
+  return loginWithPlatform(provider);
 }
 
 export async function logoutUser() {
@@ -525,58 +306,14 @@ export async function logoutUser() {
   } catch {}
 }
 
-export async function getCurrentProfile(userId, userEmail = "") {
-  const override = getActiveAccountOverride();
-  if (override && (!userId || override.id === userId)) {
-    return override;
+// Profile always comes from the database for the real signed-in user. No client-side role elevation.
+export async function getCurrentProfile(userId) {
+  if (!userId) return null;
+  const profile = await fetchOwnProfile(userId, 5);
+  if (profile) {
+    saveAccountToHistory({ id: profile.id, username: profile.username, display_name: profile.display_name, avatar_url: profile.avatar_url });
   }
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-  if (error) throw error;
-  if (data) {
-    const finalProfile =
-      userEmail?.toLowerCase() === "vukangtech@gmail.com" && data.role !== "ceo"
-        ? { ...data, role: "ceo" }
-        : data;
-    saveAccountToHistory({ ...finalProfile, email: userEmail });
-    return finalProfile;
-  }
-
-  // Auto-provision profile for first-time Supabase OAuth users (Google, GitHub, etc.)
-  if (userId && supabase) {
-    try {
-      const { data: authUserRes } = await supabase.auth.getUser();
-      const authUser = authUserRes?.user;
-      const meta = authUser?.user_metadata || {};
-      const email = userEmail || authUser?.email || "";
-      const isCeo = email.toLowerCase() === "vukangtech@gmail.com";
-      const rawHandle =
-        meta.user_name ||
-        meta.preferred_username ||
-        email.split("@")[0] ||
-        `user_${userId.slice(0, 6)}`;
-      const cleanUsername = rawHandle.toLowerCase().replace(/[^a-z0-9_]/g, "") || `user_${userId.slice(0, 6)}`;
-      const displayName =
-        meta.full_name ||
-        meta.name ||
-        (isCeo ? "HAMZA VUKANG" : cleanUsername);
-
-      const newProfile = {
-        id: userId,
-        display_name: displayName,
-        username: cleanUsername,
-        avatar_url: meta.avatar_url || meta.picture || null,
-        role: isCeo ? "ceo" : "customer",
-        location: "Dar es Salaam, Tanzania",
-        bio: `Joined via ${authUser?.app_metadata?.provider || "OAuth"}`
-      };
-
-      await supabase.from("profiles").upsert(newProfile);
-      saveAccountToHistory({ ...newProfile, email });
-      return newProfile;
-    } catch {}
-  }
-
-  return override;
+  return profile;
 }
 
 export async function updateProfile(userId, values) {
@@ -597,13 +334,26 @@ export async function getFeed() {
   return data || [];
 }
 
+export async function requireSessionUserId() {
+  const { data } = await supabase.auth.getSession();
+  const uid = data?.session?.user?.id;
+  if (!uid) throw new Error("Session yako imeisha. Tafadhali toka kisha ingia tena.");
+  return uid;
+}
+
 export async function createPost(authorId, content, mediaUrl = null, mediaType = null) {
+  const uid = await requireSessionUserId();
   const { data, error } = await supabase
     .from("posts")
-    .insert({ author_id: authorId, content, media_url: mediaUrl, media_type: mediaType })
+    .insert({ author_id: uid, content, media_url: mediaUrl, media_type: mediaType })
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    if (/row-level security/i.test(error.message || "")) {
+      throw new Error("Huna ruhusa ya kuposti. Toka kisha ingia tena.");
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -628,74 +378,30 @@ export async function addComment(authorId, postId, content) {
 }
 
 export async function followUser(followerId, followingId, following) {
-  try {
-    if (following) {
-      const { error } = await supabase
-        .from("follows")
-        .delete()
-        .match({ follower_id: followerId, following_id: followingId });
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from("follows")
-        .insert({ follower_id: followerId, following_id: followingId });
-      if (error) throw error;
-
-      // Create notification for followed user
-      try {
-        await supabase.from("notifications").insert({
-          recipient_id: followingId,
-          actor_id: followerId,
-          type: "follow",
-          created_at: new Date().toISOString()
-        });
-      } catch {}
-    }
-  } catch (err) {
-    console.warn("followUser remote error:", err);
-  } finally {
-    try {
-      const key = `circle_following_${followerId}`;
-      const stored = JSON.parse(localStorage.getItem(key) || "[]");
-      const updated = following
-        ? stored.filter((id) => id !== followingId)
-        : Array.from(new Set([...stored, followingId]));
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch {}
-
-    // Dispatch intra-client event for real-time reactivity
-    try {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("circle:follow_updated", {
-            detail: { followerId, followingId, isFollowing: !following }
-          })
-        );
-      }
-    } catch {}
+  const uid = await requireSessionUserId();
+  if (following) {
+    const { error } = await supabase.from("follows").delete().match({ follower_id: uid, following_id: followingId });
+    if (error) throw dbError(error, "Imeshindikana kuacha kumfuata.");
+  } else {
+    const { error } = await supabase.from("follows").insert({ follower_id: uid, following_id: followingId });
+    if (error && !/duplicate key/i.test(error.message || "")) throw dbError(error, "Imeshindikana kumfuata.");
   }
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("circle:follow_updated", {
+          detail: { followerId: uid, followingId, isFollowing: !following }
+        })
+      );
+    }
+  } catch {}
 }
 
 export async function getFollowedUserIds(userId) {
-  let remoteIds = [];
-  if (supabase && userId) {
-    try {
-      const { data, error } = await supabase.from("follows").select("following_id").eq("follower_id", userId);
-      if (!error && data) {
-        remoteIds = data.map((r) => r.following_id);
-      }
-    } catch (err) {
-      console.warn("getFollowedUserIds remote error:", err);
-    }
-  }
-  try {
-    const local = JSON.parse(localStorage.getItem(`circle_following_${userId}`) || "[]");
-    const merged = Array.from(new Set([...remoteIds, ...local]));
-    localStorage.setItem(`circle_following_${userId}`, JSON.stringify(merged));
-    return merged;
-  } catch {
-    return remoteIds;
-  }
+  if (!userId) return [];
+  const { data, error } = await supabase.from("follows").select("following_id").eq("follower_id", userId);
+  if (error) throw dbError(error, "Imeshindikana kupakia unaowafuata.");
+  return (data || []).map((r) => r.following_id);
 }
 
 /**
@@ -741,28 +447,9 @@ export async function getFollowers(userId) {
     }
   }
 
-  // Fallback / merge with verified accounts if in local testing mode
-  const allVerified = await fetchMergedVerifiedProfiles();
-  const allVerifiedMap = new Map(allVerified.map((u) => [u.id, u]));
-
-  // If local follows exist
-  try {
-    // Check who has this user in their following list locally
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith("circle_following_")) {
-        const uId = k.replace("circle_following_", "");
-        const followingArray = JSON.parse(localStorage.getItem(k) || "[]");
-        if (followingArray.includes(userId) && allVerifiedMap.has(uId) && !map.has(uId)) {
-          map.set(uId, allVerifiedMap.get(uId));
-        }
-      }
-    }
-  } catch {}
 
   return Array.from(map.values()).map((p) => ({
     ...p,
-    verified: true,
     whatsapp: p.whatsapp || p.phone || ""
   }));
 }
@@ -809,23 +496,9 @@ export async function getFollowing(userId) {
     }
   }
 
-  // Merge with local following list
-  try {
-    const localFollowingIds = JSON.parse(localStorage.getItem(`circle_following_${userId}`) || "[]");
-    if (localFollowingIds.length > 0) {
-      const allVerified = await fetchMergedVerifiedProfiles();
-      const allVerifiedMap = new Map(allVerified.map((u) => [u.id, u]));
-      localFollowingIds.forEach((fId) => {
-        if (!map.has(fId) && allVerifiedMap.has(fId)) {
-          map.set(fId, allVerifiedMap.get(fId));
-        }
-      });
-    }
-  } catch {}
 
   return Array.from(map.values()).map((p) => ({
     ...p,
-    verified: true,
     whatsapp: p.whatsapp || p.phone || ""
   }));
 }
@@ -899,61 +572,17 @@ export function subscribeToFollows(userId, onFollowChange) {
 }
 
 async function fetchMergedVerifiedProfiles(excludeUserId = null) {
-  const map = new Map();
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, username, avatar_url, bio, role, verified, location, phone, whatsapp, created_at")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (!error && Array.isArray(data)) {
-        data.forEach((u) => {
-          if (isValidVerifiedAccount(u)) {
-            const entry = {
-              ...u,
-              verified: true,
-              whatsapp: u.whatsapp || u.phone || ""
-            };
-            map.set(u.id, entry);
-            registerVerifiedAccountInDirectory(entry);
-          }
-        });
-      }
-    } catch (err) {
-      console.warn("fetchMergedVerifiedProfiles remote warning:", err);
-    }
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, username, avatar_url, bio, role, verified, location, phone, whatsapp, created_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) {
+    console.warn("fetchMergedVerifiedProfiles warning:", error.message);
+    return [];
   }
-
-  const localVerified = getVerifiedAccountsRegistry();
-  localVerified.forEach((u) => {
-    if (isValidVerifiedAccount(u) && !map.has(u.id)) {
-      const duplicateByUsername = Array.from(map.values()).some(
-        (existing) => (existing.username || "").toLowerCase() === (u.username || "").toLowerCase()
-      );
-      if (!duplicateByUsername) {
-        map.set(u.id, { ...u, verified: true, whatsapp: u.whatsapp || u.phone || "" });
-      }
-    }
-  });
-
-  const savedAccs = getSavedAccounts();
-  savedAccs.forEach((u) => {
-    if (isValidVerifiedAccount(u) && !map.has(u.id)) {
-      const duplicateByUsername = Array.from(map.values()).some(
-        (existing) => (existing.username || "").toLowerCase() === (u.username || "").toLowerCase()
-      );
-      if (!duplicateByUsername) {
-        map.set(u.id, { ...u, verified: true, whatsapp: u.whatsapp || u.phone || "" });
-      }
-    }
-  });
-
-  let list = Array.from(map.values());
-  if (excludeUserId) {
-    list = list.filter((u) => u.id !== excludeUserId);
-  }
+  let list = (data || []).map((u) => ({ ...u, whatsapp: u.whatsapp || u.phone || "" }));
+  if (excludeUserId) list = list.filter((u) => u.id !== excludeUserId);
   return list.sort((a, b) => {
     const rank = (r) => (r === "ceo" ? 0 : 1);
     return rank(a.role) - rank(b.role);
@@ -1142,24 +771,22 @@ export async function getNotifications(userId) {
 }
 
 export async function uploadImage(userId, file, bucket = "post-media") {
-  try {
-    const extension = (file.name || "img.jpg").split(".").pop();
-    const path = `${userId}/${crypto.randomUUID()}.${extension}`;
-    const { error } = await supabase.storage
-      .from(bucket)
-      .upload(path, file, { upsert: false, contentType: file.type });
-    if (error) throw error;
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    return data.publicUrl;
-  } catch (storageErr) {
-    console.warn("Storage upload fallback to DataURL:", storageErr);
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (e) => reject(e);
-      reader.readAsDataURL(file);
-    });
+  if (!file) throw new Error("Chagua faili kwanza.");
+  const uid = await requireSessionUserId();
+  const maxMb = bucket === "reels" ? 100 : ["post-media", "statuses"].includes(bucket) ? 50 : 10;
+  if (file.size > maxMb * 1024 * 1024) {
+    throw new Error(`Faili ni kubwa mno. Ukubwa wa juu ni MB ${maxMb}.`);
   }
+  const extension = ((file.name || "img.jpg").split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `${uid}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type });
+  if (error) {
+    if (/mime|type/i.test(error.message || "")) throw new Error("Aina ya faili hairuhusiwi. Tumia picha (JPG/PNG/WebP) au video (MP4/WebM).");
+    if (/size|too large|exceeded/i.test(error.message || "")) throw new Error("Faili ni kubwa mno.");
+    throw dbError(error, "Imeshindikana kupakia faili. Jaribu tena.");
+  }
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export function subscribeToRealtime(onPost, onComment, onNotification) {
@@ -1172,210 +799,56 @@ export function subscribeToRealtime(onPost, onComment, onNotification) {
   return () => supabase.removeChannel(channel);
 }
 
-// --- REAL-TIME 1-TO-1 DIRECT MESSAGING (SUPABASE + WEBSOCKET BROADCAST) ---
-function getLocalConversationsMeta() {
-  try {
-    const raw = localStorage.getItem(LOCAL_CONVERSATIONS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveLocalConversationMeta(conversationId, userAProfile, userBProfile, lastMessage = null) {
-  if (!conversationId) return;
-  try {
-    const current = getLocalConversationsMeta();
-    const existing = current[conversationId] || {};
-    const participants = { ...(existing.participants || {}) };
-    if (userAProfile?.id) participants[userAProfile.id] = userAProfile;
-    if (userBProfile?.id) participants[userBProfile.id] = userBProfile;
-    current[conversationId] = {
-      conversationId,
-      participants,
-      lastMessage: lastMessage || existing.lastMessage || null,
-      updated_at: new Date().toISOString()
-    };
-    localStorage.setItem(LOCAL_CONVERSATIONS_KEY, JSON.stringify(current));
-  } catch {}
-}
-
-function getLocalMessagesForConversation(conversationId) {
-  try {
-    const raw = localStorage.getItem(LOCAL_DIRECT_MESSAGES_KEY);
-    const map = raw ? JSON.parse(raw) : {};
-    return Array.isArray(map[conversationId]) ? map[conversationId] : [];
-  } catch {
-    return [];
-  }
-}
-
-function appendLocalMessageToConversation(conversationId, msgObj) {
-  if (!conversationId || !msgObj?.id) return;
-  try {
-    const raw = localStorage.getItem(LOCAL_DIRECT_MESSAGES_KEY);
-    const map = raw ? JSON.parse(raw) : {};
-    const list = Array.isArray(map[conversationId]) ? map[conversationId] : [];
-    if (!list.some((m) => m.id === msgObj.id)) {
-      map[conversationId] = [...list, msgObj].slice(-200);
-      localStorage.setItem(LOCAL_DIRECT_MESSAGES_KEY, JSON.stringify(map));
-    }
-  } catch {}
-}
-
-export async function findOrCreateDirectConversation(userId, otherUserId, otherUserProfile = null) {
+// --- 1-TO-1 DIRECT MESSAGING: database is the single source of truth (RLS-protected, realtime via postgres_changes) ---
+export async function findOrCreateDirectConversation(userId, otherUserId) {
   if (!userId || !otherUserId) {
-    throw new Error("Chagua mtumiaji aliyethibitishwa kuanza mazungumzo.");
+    throw new Error("Chagua mtumiaji kuanza mazungumzo.");
   }
-  const deterministicConvId = computeDeterministicDirectConvId(userId, otherUserId);
-  const myProfile = getActiveAccountOverride();
-
-  // 1. Try atomic security-definer RPC first if installed
-  if (supabase) {
-    try {
-      const { data: rpcConvId, error: rpcErr } = await supabase.rpc("get_or_create_direct_conversation", {
-        other_user_id: otherUserId
-      });
-      if (!rpcErr && rpcConvId) {
-        saveLocalConversationMeta(rpcConvId, myProfile, otherUserProfile);
-        return rpcConvId;
-      }
-    } catch {}
-
-    // 2. Check existing shared conversation via conversation_members
-    try {
-      const { data: myMemberships } = await supabase
-        .from("conversation_members")
-        .select("conversation_id")
-        .eq("user_id", userId);
-
-      const myConvIds = (myMemberships || []).map((m) => m.conversation_id);
-      if (myConvIds.length > 0) {
-        const { data: otherMemberships } = await supabase
-          .from("conversation_members")
-          .select("conversation_id")
-          .eq("user_id", otherUserId)
-          .in("conversation_id", myConvIds);
-
-        if (otherMemberships && otherMemberships.length > 0) {
-          const foundId = otherMemberships[0].conversation_id;
-          saveLocalConversationMeta(foundId, myProfile, otherUserProfile);
-          return foundId;
-        }
-      }
-    } catch (err) {
-      console.warn("Membership lookup warning:", err);
-    }
-
-    // 3. Create or upsert direct conversation with deterministic UUID so both users always share the exact same ID
-    try {
-      await supabase
-        .from("conversations")
-        .upsert({ id: deterministicConvId, created_by: userId, kind: "direct" }, { onConflict: "id" });
-
-      await supabase
-        .from("conversation_members")
-        .upsert({ conversation_id: deterministicConvId, user_id: userId }, { onConflict: "conversation_id,user_id" });
-
-      await supabase
-        .from("conversation_members")
-        .upsert({ conversation_id: deterministicConvId, user_id: otherUserId }, { onConflict: "conversation_id,user_id" });
-    } catch (err) {
-      console.warn("Direct conversation upsert fallback:", err);
-    }
-  }
-
-  saveLocalConversationMeta(deterministicConvId, myProfile, otherUserProfile);
-  return deterministicConvId;
+  await requireSessionUserId();
+  const { data, error } = await supabase.rpc("get_or_create_direct_conversation", { other_user_id: otherUserId });
+  if (error) throw dbError(error, "Imeshindikana kuanza mazungumzo.");
+  return data;
 }
 
 export async function getUserConversations(userId) {
+  if (!userId) return [];
+  const { data: myRows, error } = await supabase
+    .from("conversation_members")
+    .select("conversation_id")
+    .eq("user_id", userId);
+  if (error) throw dbError(error, "Imeshindikana kupakia mazungumzo.");
+  const convIds = (myRows || []).map((r) => r.conversation_id);
+  if (convIds.length === 0) return [];
+
+  const [{ data: allMembers }, { data: recentMsgs }] = await Promise.all([
+    supabase
+      .from("conversation_members")
+      .select("conversation_id, user_id, profiles(id, display_name, username, avatar_url, role, verified, phone)")
+      .in("conversation_id", convIds),
+    supabase
+      .from("messages")
+      .select("id, conversation_id, sender_id, body, media_url, created_at")
+      .in("conversation_id", convIds)
+      .order("created_at", { ascending: false })
+      .limit(200)
+  ]);
+
+  const latestByConv = {};
+  (recentMsgs || []).forEach((m) => {
+    if (!latestByConv[m.conversation_id]) latestByConv[m.conversation_id] = m;
+  });
+
   const conversationsMap = {};
-
-  if (supabase && userId) {
-    try {
-      const { data: myRows, error } = await supabase
-        .from("conversation_members")
-        .select("conversation_id")
-        .eq("user_id", userId);
-
-      if (!error && myRows?.length) {
-        const convIds = myRows.map((r) => r.conversation_id);
-        const [{ data: allMembers }, { data: recentMsgs }] = await Promise.all([
-          supabase
-            .from("conversation_members")
-            .select("conversation_id, user_id, profiles(id, display_name, username, avatar_url, role, verified, phone)")
-            .in("conversation_id", convIds),
-          supabase
-            .from("messages")
-            .select("id, conversation_id, sender_id, body, media_url, created_at")
-            .in("conversation_id", convIds)
-            .order("created_at", { ascending: false })
-            .limit(200)
-        ]);
-
-        const latestByConv = {};
-        (recentMsgs || []).forEach((m) => {
-          if (!latestByConv[m.conversation_id]) {
-            latestByConv[m.conversation_id] = m;
-          }
-        });
-
-        (allMembers || []).forEach((row) => {
-          if (row.user_id !== userId && row.profiles && isValidVerifiedAccount(row.profiles)) {
-            const partnerProfile = { ...row.profiles, verified: true };
-            conversationsMap[row.conversation_id] = {
-              conversationId: row.conversation_id,
-              otherUser: partnerProfile,
-              partner: partnerProfile,
-              lastMessage: latestByConv[row.conversation_id] || null
-            };
-          }
-        });
-      }
-    } catch (err) {
-      console.warn("getUserConversations remote warning:", err);
+  (allMembers || []).forEach((row) => {
+    if (row.user_id !== userId && row.profiles) {
+      conversationsMap[row.conversation_id] = {
+        conversationId: row.conversation_id,
+        otherUser: row.profiles,
+        partner: row.profiles,
+        lastMessage: latestByConv[row.conversation_id] || null
+      };
     }
-  }
-
-  // Merge with local conversation metadata & messages
-  try {
-    const localMeta = getLocalConversationsMeta();
-    const verifiedDirectory = getVerifiedAccountsRegistry();
-    Object.values(localMeta).forEach((entry) => {
-      if (!entry?.conversationId) return;
-      const parts = entry.participants || {};
-      const hasMe = Boolean(parts[userId]);
-      const otherIds = Object.keys(parts).filter((id) => id !== userId);
-      if (!hasMe && otherIds.length === 0) return;
-      const otherId = otherIds[0];
-      if (!otherId) return;
-      const otherProfile =
-        parts[otherId] ||
-        verifiedDirectory.find((u) => u.id === otherId) ||
-        null;
-      if (!otherProfile || !isValidVerifiedAccount(otherProfile)) return;
-
-      const localMsgs = getLocalMessagesForConversation(entry.conversationId);
-      const latestLocalMsg = localMsgs.length > 0 ? localMsgs[localMsgs.length - 1] : entry.lastMessage || null;
-      const existing = conversationsMap[entry.conversationId];
-
-      if (!existing) {
-        conversationsMap[entry.conversationId] = {
-          conversationId: entry.conversationId,
-          otherUser: { ...otherProfile, verified: true },
-          partner: { ...otherProfile, verified: true },
-          lastMessage: latestLocalMsg
-        };
-      } else if (
-        latestLocalMsg &&
-        (!existing.lastMessage ||
-          new Date(latestLocalMsg.created_at).getTime() > new Date(existing.lastMessage.created_at).getTime())
-      ) {
-        existing.lastMessage = latestLocalMsg;
-      }
-    });
-  } catch {}
+  });
 
   return Object.values(conversationsMap).sort((a, b) => {
     const tA = a.lastMessage?.created_at ? new Date(a.lastMessage.created_at).getTime() : 0;
@@ -1385,37 +858,15 @@ export async function getUserConversations(userId) {
 }
 
 export async function getMessages(conversationId) {
-  const localMsgs = getLocalMessagesForConversation(conversationId);
-  let remoteMsgs = [];
-  if (supabase && conversationId) {
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*, profiles!messages_sender_id_fkey(display_name, username, avatar_url, role)")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true })
-        .limit(150);
-      if (!error && Array.isArray(data)) {
-        remoteMsgs = data;
-      }
-    } catch (err) {
-      console.warn("getMessages remote warning:", err);
-    }
-  }
-
-  const mergedMap = new Map();
-  remoteMsgs.forEach((m) => mergedMap.set(m.id, m));
-  localMsgs.forEach((m) => {
-    if (m?.id && !mergedMap.has(m.id)) {
-      mergedMap.set(m.id, m);
-    }
-  });
-
-  const sorted = Array.from(mergedMap.values()).sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-  sorted.forEach((m) => appendLocalMessageToConversation(conversationId, m));
-  return sorted;
+  if (!conversationId) return [];
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*, profiles!messages_sender_id_fkey(display_name, username, avatar_url, role)")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true })
+    .limit(150);
+  if (error) throw dbError(error, "Imeshindikana kupakia ujumbe.");
+  return data || [];
 }
 
 export async function sendMessage(conversationId, senderId, body, mediaUrl = null, recipientProfile = null) {
@@ -1423,68 +874,14 @@ export async function sendMessage(conversationId, senderId, body, mediaUrl = nul
   if (!safeBody && !mediaUrl) {
     throw new Error("Tafadhali andika ujumbe kabla ya kutuma.");
   }
-
-  const myProfile = getActiveAccountOverride();
-  const fallbackMsg = {
-    id: crypto.randomUUID(),
-    conversation_id: conversationId,
-    sender_id: senderId,
-    recipient_id: recipientProfile?.id || null,
-    body: safeBody,
-    media_url: mediaUrl,
-    created_at: new Date().toISOString(),
-    profiles: myProfile
-      ? {
-          display_name: myProfile.display_name,
-          username: myProfile.username,
-          avatar_url: myProfile.avatar_url,
-          role: myProfile.role
-        }
-      : null
-  };
-
-  let finalMsg = fallbackMsg;
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .insert({
-          id: fallbackMsg.id,
-          conversation_id: conversationId,
-          sender_id: senderId,
-          body: safeBody,
-          media_url: mediaUrl
-        })
-        .select("*, profiles!messages_sender_id_fkey(display_name, username, avatar_url, role)")
-        .single();
-      if (!error && data) {
-        finalMsg = { ...data, recipient_id: recipientProfile?.id || null };
-      }
-    } catch (err) {
-      console.warn("sendMessage DB insert fallback to realtime broadcast:", err);
-    }
-
-    // Broadcast over Supabase Realtime WebSockets so the recipient receives it immediately
-    try {
-      const convChannel = supabase.channel(`conversation-${conversationId}`);
-      convChannel.send({
-        type: "broadcast",
-        event: "direct_message",
-        payload: finalMsg
-      });
-      const globalChannel = supabase.channel("global-messages-listener");
-      globalChannel.send({
-        type: "broadcast",
-        event: "direct_message",
-        payload: finalMsg
-      });
-    } catch {}
-  }
-
-  appendLocalMessageToConversation(conversationId, finalMsg);
-  saveLocalConversationMeta(conversationId, myProfile, recipientProfile, finalMsg);
-  return finalMsg;
+  const uid = await requireSessionUserId();
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({ conversation_id: conversationId, sender_id: uid, body: safeBody, media_url: mediaUrl })
+    .select("*, profiles!messages_sender_id_fkey(display_name, username, avatar_url, role)")
+    .single();
+  if (error) throw dbError(error, "Ujumbe haukutumwa. Jaribu tena.");
+  return { ...data, recipient_id: recipientProfile?.id || null };
 }
 
 export async function sendCallSignal(conversationId, senderId, recipientId, signalType, payload = {}) {
@@ -1513,7 +910,6 @@ export function subscribeToConversation(conversationId, onMessage, onSignal) {
   const handleIncomingMsg = (payload) => {
     const msg = payload?.new || payload?.payload || payload;
     if (msg && msg.id && msg.conversation_id === conversationId) {
-      appendLocalMessageToConversation(conversationId, msg);
       if (onMessage) onMessage({ new: msg });
     }
   };
@@ -1525,7 +921,6 @@ export function subscribeToConversation(conversationId, onMessage, onSignal) {
       { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
       handleIncomingMsg
     )
-    .on("broadcast", { event: "direct_message" }, handleIncomingMsg)
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "call_signals", filter: `conversation_id=eq.${conversationId}` },
@@ -1545,14 +940,12 @@ export function subscribeToAllMessages(onNewMessage) {
   const handleGlobalMsg = (payload) => {
     const msg = payload?.new || payload?.payload || payload;
     if (msg && msg.id && msg.conversation_id) {
-      appendLocalMessageToConversation(msg.conversation_id, msg);
       if (onNewMessage) onNewMessage({ new: msg });
     }
   };
   const channel = supabase
     .channel("global-messages-listener")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, handleGlobalMsg)
-    .on("broadcast", { event: "direct_message" }, handleGlobalMsg)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -1737,258 +1130,121 @@ export function subscribeToInteractions(userId, onChange, onCallSignal) {
 }
 
 // --- SHOP, CUSTOMER ADS & CEO SETTINGS ---
-const LOCAL_ADS_KEY = "circle_customer_ads_local_v1";
-const LOCAL_CATALOGUES_KEY = "circle_catalogues_local_v1";
-const LOCAL_ORDERS_KEY = "circle_affiliate_orders_local_v1";
 
-function readLocalList(key) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalList(key, list) {
-  try {
-    localStorage.setItem(key, JSON.stringify(list));
-  } catch {}
+function dbError(error, fallback) {
+  const m = String(error?.message || "");
+  if (/row-level security/i.test(m)) return new Error("Huna ruhusa ya kufanya kitendo hiki. Toka kisha ingia tena.");
+  return new Error(m || fallback);
 }
 
 export async function getCustomerAds() {
-  const localAds = readLocalList(LOCAL_ADS_KEY);
-  try {
-    const { data, error } = await supabase
-      .from("customer_ads")
-      .select("*, profiles(id, display_name, username, avatar_url, phone)")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    const remoteList = (data || []).map((ad) => ({
-      ...ad,
-      profiles: ad.profiles
-        ? { ...ad.profiles, whatsapp: ad.profiles.whatsapp || ad.profiles.phone || "" }
-        : null
-    }));
-    const map = new Map();
-    remoteList.forEach((a) => map.set(a.id, a));
-    localAds.forEach((a) => {
-      if (a?.id && !map.has(a.id)) map.set(a.id, a);
-    });
-    return Array.from(map.values());
-  } catch (err) {
-    console.warn("getCustomerAds fallback:", err);
-    return localAds;
-  }
+  const { data, error } = await supabase
+    .from("customer_ads")
+    .select("*, profiles(id, display_name, username, avatar_url, phone)")
+    .order("created_at", { ascending: false });
+  if (error) throw dbError(error, "Imeshindikana kupakia matangazo.");
+  return (data || []).map((ad) => ({
+    ...ad,
+    profiles: ad.profiles ? { ...ad.profiles, whatsapp: ad.profiles.whatsapp || ad.profiles.phone || "" } : null
+  }));
 }
 
 export async function createCustomerAd(userId, adData) {
-  const localItem = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    ...adData,
-    status: adData.status || "active",
-    views_count: 0,
-    clicks_count: 0,
-    created_at: new Date().toISOString()
-  };
-  try {
-    const { data, error } = await supabase
-      .from("customer_ads")
-      .insert({
-        user_id: userId,
-        ...adData,
-        status: adData.status || "active",
-        views_count: 0,
-        clicks_count: 0
-      })
-      .select()
-      .single();
-    if (!error && data) {
-      const current = readLocalList(LOCAL_ADS_KEY);
-      writeLocalList(LOCAL_ADS_KEY, [data, ...current]);
-      return data;
-    }
-  } catch (err) {
-    console.warn("createCustomerAd fallback:", err);
-  }
-  const current = readLocalList(LOCAL_ADS_KEY);
-  writeLocalList(LOCAL_ADS_KEY, [localItem, ...current]);
-  return localItem;
+  const uid = await requireSessionUserId();
+  const { data, error } = await supabase
+    .from("customer_ads")
+    .insert({ ...adData, user_id: uid, status: "pending_payment", paid_amount: 0, payment_status: "pending_verification", views_count: 0, clicks_count: 0 })
+    .select()
+    .single();
+  if (error) throw dbError(error, "Imeshindikana kuhifadhi tangazo.");
+  return data;
 }
 
 export async function updateAdStatus(adId, status, paymentDetails = {}) {
-  try {
-    const current = readLocalList(LOCAL_ADS_KEY).map((a) =>
-      a.id === adId ? { ...a, status, ...paymentDetails } : a
-    );
-    writeLocalList(LOCAL_ADS_KEY, current);
-  } catch {}
-  try {
-    const { data, error } = await supabase
-      .from("customer_ads")
-      .update({ status, ...paymentDetails })
-      .eq("id", adId)
-      .select()
-      .single();
-    if (!error && data) return data;
-  } catch {}
-  return { id: adId, status, ...paymentDetails };
+  // Payment fields can only be changed by the server (wallet_pay_ad) or the CEO.
+  const allowed = {};
+  if (status) allowed.status = status;
+  const { data, error } = await supabase.from("customer_ads").update(allowed).eq("id", adId).select().single();
+  if (error) throw dbError(error, "Imeshindikana kusasisha tangazo.");
+  return data;
 }
 
 export async function getManagerCatalogues(managerId = null) {
-  const localCats = readLocalList(LOCAL_CATALOGUES_KEY);
-  try {
-    let query = supabase
-      .from("catalogues")
-      .select("*, profiles(id, display_name, username, avatar_url, phone)");
-    if (managerId) {
-      query = query.eq("manager_id", managerId);
-    }
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) throw error;
-    const remoteList = (data || []).map((c) => ({
-      ...c,
-      profiles: c.profiles
-        ? { ...c.profiles, whatsapp: c.profiles.whatsapp || c.profiles.phone || "" }
-        : null
-    }));
-    const map = new Map();
-    remoteList.forEach((c) => map.set(c.id, c));
-    localCats.forEach((c) => {
-      if (c?.id && !map.has(c.id)) map.set(c.id, c);
-    });
-    return Array.from(map.values());
-  } catch (err) {
-    console.warn("getManagerCatalogues fallback:", err);
-    return managerId ? localCats.filter((c) => c.manager_id === managerId) : localCats;
-  }
+  let query = supabase.from("catalogues").select("*, profiles(id, display_name, username, avatar_url, phone)");
+  if (managerId) query = query.eq("manager_id", managerId);
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) throw dbError(error, "Imeshindikana kupakia bidhaa.");
+  return (data || []).map((c) => ({
+    ...c,
+    profiles: c.profiles ? { ...c.profiles, whatsapp: c.profiles.whatsapp || c.profiles.phone || "" } : null
+  }));
 }
 
 export async function createCatalogueProduct(managerId, productData) {
+  const uid = await requireSessionUserId();
   const code = productData.affiliate_code || `SHOP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-  const localItem = {
-    id: crypto.randomUUID(),
-    manager_id: managerId,
-    ...productData,
-    affiliate_code: code,
-    in_stock: productData.in_stock !== undefined ? productData.in_stock : true,
-    views_count: 0,
-    orders_count: 0,
-    created_at: new Date().toISOString()
-  };
-  try {
-    const { data, error } = await supabase
-      .from("catalogues")
-      .insert({
-        manager_id: managerId,
-        ...productData,
-        affiliate_code: code,
-        in_stock: productData.in_stock !== undefined ? productData.in_stock : true,
-        views_count: 0,
-        orders_count: 0
-      })
-      .select()
-      .single();
-    if (!error && data) {
-      const current = readLocalList(LOCAL_CATALOGUES_KEY);
-      writeLocalList(LOCAL_CATALOGUES_KEY, [data, ...current]);
-      return data;
-    }
-  } catch (err) {
-    console.warn("createCatalogueProduct fallback:", err);
-  }
-  const current = readLocalList(LOCAL_CATALOGUES_KEY);
-  writeLocalList(LOCAL_CATALOGUES_KEY, [localItem, ...current]);
-  return localItem;
+  const { data, error } = await supabase
+    .from("catalogues")
+    .insert({
+      ...productData,
+      manager_id: uid,
+      affiliate_code: code,
+      in_stock: productData.in_stock !== undefined ? productData.in_stock : true,
+      views_count: 0,
+      orders_count: 0
+    })
+    .select()
+    .single();
+  if (error) throw dbError(error, "Imeshindikana kuhifadhi bidhaa. Hakikisha akaunti yako ni ya Meneja.");
+  return data;
 }
 
 export async function updateCatalogueProduct(productId, updates) {
-  const current = readLocalList(LOCAL_CATALOGUES_KEY);
-  const updatedLocal = current.map((c) =>
-    c.id === productId ? { ...c, ...updates, updated_at: new Date().toISOString() } : c
-  );
-  writeLocalList(LOCAL_CATALOGUES_KEY, updatedLocal);
-
-  try {
-    const { data, error } = await supabase
-      .from("catalogues")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", productId)
-      .select()
-      .single();
-    if (!error && data) return data;
-  } catch (err) {
-    console.warn("updateCatalogueProduct fallback:", err);
-  }
-  return updatedLocal.find((c) => c.id === productId) || { id: productId, ...updates };
+  const { data, error } = await supabase
+    .from("catalogues")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", productId)
+    .select()
+    .single();
+  if (error) throw dbError(error, "Imeshindikana kusasisha bidhaa.");
+  return data;
 }
 
 export async function deleteCatalogueProduct(productId) {
-  const current = readLocalList(LOCAL_CATALOGUES_KEY).filter((c) => c.id !== productId);
-  writeLocalList(LOCAL_CATALOGUES_KEY, current);
-  try {
-    await supabase.from("catalogues").delete().eq("id", productId);
-  } catch (err) {
-    console.warn("deleteCatalogueProduct warning:", err);
-  }
+  const { error } = await supabase.from("catalogues").delete().eq("id", productId);
+  if (error) throw dbError(error, "Imeshindikana kufuta bidhaa.");
 }
 
+// Amounts, manager and status are computed by the database trigger, never trusted from the client.
 export async function createAffiliateOrder(orderData) {
-  const payload = {
-    id: crypto.randomUUID(),
-    product_id: orderData.product_id || null,
-    manager_id: orderData.manager_id || null,
-    customer_name: orderData.customer_name || "",
-    customer_phone: orderData.customer_phone || "",
-    customer_location: orderData.delivery_address || orderData.customer_location || "",
-    total_amount: Number(orderData.amount || orderData.total_amount || 0),
-    commission_amount: Number(orderData.commission_earned || orderData.commission_amount || 0),
-    status: orderData.status || "completed",
-    payment_reference: orderData.payment_reference || "",
-    created_at: new Date().toISOString()
-  };
-  const current = readLocalList(LOCAL_ORDERS_KEY);
-  writeLocalList(LOCAL_ORDERS_KEY, [payload, ...current]);
-
-  try {
-    const { data, error } = await supabase.from("affiliate_orders").insert(payload).select().single();
-    if (!error && data) return data;
-  } catch (err) {
-    console.warn("createAffiliateOrder fallback:", err);
-  }
-  return payload;
+  await requireSessionUserId();
+  const { data, error } = await supabase
+    .from("affiliate_orders")
+    .insert({
+      product_id: orderData.product_id || null,
+      quantity: Number(orderData.quantity || 1) || 1,
+      customer_name: orderData.customer_name || "",
+      customer_phone: orderData.customer_phone || "",
+      customer_location: orderData.delivery_address || orderData.customer_location || "",
+      payment_reference: orderData.payment_reference || ""
+    })
+    .select()
+    .single();
+  if (error) throw dbError(error, "Imeshindikana kutuma oda.");
+  return data;
 }
 
 export async function getAffiliateOrders(managerId = null) {
-  const localOrders = readLocalList(LOCAL_ORDERS_KEY);
-  try {
-    let query = supabase.from("affiliate_orders").select("*");
-    if (managerId) {
-      query = query.eq("manager_id", managerId);
-    }
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) throw error;
-    const map = new Map();
-    (data || []).forEach((o) => map.set(o.id, o));
-    localOrders.forEach((o) => {
-      if (o?.id && !map.has(o.id)) map.set(o.id, o);
-    });
-    return Array.from(map.values()).map((o) => ({
-      ...o,
-      amount: o.amount ?? o.total_amount ?? 0,
-      commission_earned: o.commission_earned ?? o.commission_amount ?? 0,
-      delivery_address: o.delivery_address ?? o.customer_location ?? ""
-    }));
-  } catch (err) {
-    console.warn("getAffiliateOrders fallback:", err);
-    return localOrders.map((o) => ({
-      ...o,
-      amount: o.amount ?? o.total_amount ?? 0,
-      commission_earned: o.commission_earned ?? o.commission_amount ?? 0,
-      delivery_address: o.delivery_address ?? o.customer_location ?? ""
-    }));
-  }
+  let query = supabase.from("affiliate_orders").select("*");
+  if (managerId) query = query.eq("manager_id", managerId);
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) throw dbError(error, "Imeshindikana kupakia oda.");
+  return (data || []).map((o) => ({
+    ...o,
+    amount: o.amount ?? o.total_amount ?? 0,
+    commission_earned: o.commission_earned ?? o.commission_amount ?? 0,
+    delivery_address: o.delivery_address ?? o.customer_location ?? ""
+  }));
 }
 
 const DEFAULT_EMPTY_SETTINGS = {
@@ -2035,123 +1291,40 @@ function sanitizeLegacyFakeNumbers(paymentNumbers = {}) {
 }
 
 export async function getPlatformSettings() {
-  let localCached = null;
-  try {
-    const raw = localStorage.getItem("circle_platform_settings_v2");
-    if (raw) localCached = JSON.parse(raw);
-  } catch {}
-
-  try {
-    const { data } = await supabase.from("platform_settings").select("*").maybeSingle();
-    if (data) {
-      const rawPayment = sanitizeLegacyFakeNumbers(data.payment_numbers || {});
-      const socialLinks = {
-        ...DEFAULT_EMPTY_SETTINGS.social_links,
-        ...(localCached?.social_links || {}),
-        ...(rawPayment.social_links || {}),
-        ...(data.social_links || {})
-      };
-      const paymentNumbers = {
-        ...DEFAULT_EMPTY_SETTINGS.payment_numbers,
-        ...(localCached?.payment_numbers || {}),
-        ...rawPayment
-      };
-      const merged = {
-        ...DEFAULT_EMPTY_SETTINGS,
-        ...data,
-        payment_numbers: paymentNumbers,
-        social_links: socialLinks
-      };
-      try {
-        localStorage.setItem("circle_platform_settings_v2", JSON.stringify(merged));
-      } catch {}
-      return merged;
-    }
-  } catch (err) {
-    console.warn("getPlatformSettings warning:", err);
-  }
-
-  return localCached || DEFAULT_EMPTY_SETTINGS;
+  const { data, error } = await supabase.from("platform_settings").select("*").eq("id", "primary").maybeSingle();
+  if (error) console.warn("getPlatformSettings warning:", error.message);
+  if (!data) return DEFAULT_EMPTY_SETTINGS;
+  return {
+    ...DEFAULT_EMPTY_SETTINGS,
+    ...data,
+    payment_numbers: { ...DEFAULT_EMPTY_SETTINGS.payment_numbers, ...sanitizeLegacyFakeNumbers(data.payment_numbers || {}) },
+    social_links: { ...DEFAULT_EMPTY_SETTINGS.social_links, ...(data.social_links || {}) }
+  };
 }
 
+// Only the CEO can write (enforced by RLS). Errors are surfaced, never hidden in localStorage.
 export async function updatePlatformSettings(settings) {
   const current = await getPlatformSettings();
-  const nextPaymentNumbers = {
-    ...(current.payment_numbers || {}),
-    ...(settings.payment_numbers || {}),
-    social_links: {
-      ...(current.social_links || {}),
-      ...(settings.social_links || {})
-    }
-  };
-  const nextSocialLinks = {
-    ...(current.social_links || {}),
-    ...(settings.social_links || {})
-  };
-
-  const mergedForLocal = {
-    ...current,
-    ...settings,
-    payment_numbers: nextPaymentNumbers,
-    social_links: nextSocialLinks,
-    updated_at: new Date().toISOString()
-  };
-
-  try {
-    localStorage.setItem("circle_platform_settings_v2", JSON.stringify(mergedForLocal));
-  } catch {}
-
-  // Try updating with social_links column; fallback to payment_numbers only if column not yet migrated
-  const payloadWithSocial = {
+  const payload = {
     id: "primary",
-    default_commission_rate: Number(mergedForLocal.default_commission_rate ?? 10),
-    ad_posting_fee: Number(mergedForLocal.ad_posting_fee ?? 5000),
-    ad_boost_fee: Number(mergedForLocal.ad_boost_fee ?? 15000),
-    payment_numbers: nextPaymentNumbers,
-    social_links: nextSocialLinks,
+    default_commission_rate: Number(settings.default_commission_rate ?? current.default_commission_rate ?? 10),
+    ad_posting_fee: Number(settings.ad_posting_fee ?? current.ad_posting_fee ?? 5000),
+    ad_boost_fee: Number(settings.ad_boost_fee ?? current.ad_boost_fee ?? 15000),
+    payment_numbers: { ...(current.payment_numbers || {}), ...(settings.payment_numbers || {}) },
+    social_links: { ...(current.social_links || {}), ...(settings.social_links || {}) },
     updated_at: new Date().toISOString()
   };
-
-  const { data, error } = await supabase
-    .from("platform_settings")
-    .upsert(payloadWithSocial, { onConflict: "id" })
-    .select()
-    .maybeSingle();
-
-  if (error) {
-    // Fallback if social_links column doesn't exist yet on remote DB
-    const fallbackPayload = {
-      id: "primary",
-      default_commission_rate: Number(mergedForLocal.default_commission_rate ?? 10),
-      ad_posting_fee: Number(mergedForLocal.ad_posting_fee ?? 5000),
-      ad_boost_fee: Number(mergedForLocal.ad_boost_fee ?? 15000),
-      payment_numbers: nextPaymentNumbers,
-      updated_at: new Date().toISOString()
-    };
-    const { data: fbData } = await supabase
-      .from("platform_settings")
-      .upsert(fallbackPayload, { onConflict: "id" })
-      .select()
-      .maybeSingle();
-    return fbData || mergedForLocal;
-  }
-
-  return data || mergedForLocal;
+  const { data, error } = await supabase.from("platform_settings").upsert(payload).select().single();
+  if (error) throw dbError(error, "Imeshindikana kuhifadhi mipangilio. Hakikisha umeingia kama CEO.");
+  return { ...DEFAULT_EMPTY_SETTINGS, ...data };
 }
 
 export async function getPayoutRequests(managerId = null) {
-  try {
-    let query = supabase.from("payout_requests").select("*");
-    if (managerId) {
-      query = query.eq("manager_id", managerId);
-    }
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    console.warn("getPayoutRequests fallback:", err);
-    return [];
-  }
+  let query = supabase.from("payout_requests").select("*");
+  if (managerId) query = query.eq("manager_id", managerId);
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) throw dbError(error, "Imeshindikana kupakia maombi ya malipo.");
+  return data || [];
 }
 
 export async function requestPayout(managerId, amount, method, accountNumber) {
@@ -2183,22 +1356,6 @@ export async function updatePayoutStatus(requestId, status) {
 }
 
 // --- MOBILE MONEY WALLET & LIVE PAYMENT GATEWAY ENGINE ---
-function saveLocalWalletState(userId, newBalance, txObj) {
-  if (!userId) return;
-  try {
-    const balances = JSON.parse(localStorage.getItem(LOCAL_WALLET_BALANCES_KEY) || "{}");
-    balances[userId] = Number(newBalance) || 0;
-    localStorage.setItem(LOCAL_WALLET_BALANCES_KEY, JSON.stringify(balances));
-
-    if (txObj?.id) {
-      const txMap = JSON.parse(localStorage.getItem(LOCAL_WALLET_TX_KEY) || "{}");
-      const list = Array.isArray(txMap[userId]) ? txMap[userId] : [];
-      txMap[userId] = [txObj, ...list.filter((t) => t.id !== txObj.id)].slice(0, 60);
-      localStorage.setItem(LOCAL_WALLET_TX_KEY, JSON.stringify(txMap));
-    }
-  } catch {}
-}
-
 export function extractTransactionRefFromSms(rawInput = "") {
   const text = String(rawInput || "").trim();
   if (!text) return "";
@@ -2233,153 +1390,55 @@ export function validateTanzaniaPhone(rawPhone = "") {
   return null;
 }
 
+// Payments are recorded only on the server (wallet_transactions / topup_requests). Nothing is stored in the browser.
 export async function recordPaymentTransaction(paymentData) {
-  const cleanRef = extractTransactionRefFromSms(paymentData.reference || "") || `TX-${Date.now().toString().slice(-8)}`;
-  const record = {
-    id: crypto.randomUUID(),
-    user_id: paymentData.user_id || getActiveAccountOverride()?.id || null,
-    payer_name: paymentData.payer_name || getActiveAccountOverride()?.display_name || "Mteja",
-    payer_phone: paymentData.phone || "",
-    method: paymentData.method || "Mobile Money",
-    payment_mode: paymentData.payment_mode || "lipa_namba",
-    amount: Number(paymentData.amount || 0),
-    currency: paymentData.currency || "TZS",
-    reference: cleanRef,
-    raw_sms: paymentData.raw_sms || "",
-    purpose: paymentData.purpose || "Malipo ya Bidhaa / Huduma",
-    status: paymentData.status || "verified",
-    created_at: new Date().toISOString()
-  };
-
-  try {
-    const existing = JSON.parse(localStorage.getItem(LOCAL_PAYMENTS_REGISTRY_KEY) || "[]");
-    localStorage.setItem(LOCAL_PAYMENTS_REGISTRY_KEY, JSON.stringify([record, ...existing].slice(0, 200)));
-  } catch {}
-
-  return record;
+  return { reference: extractTransactionRefFromSms(paymentData?.reference || "") };
 }
 
 export async function getAllPaymentTransactions() {
-  let localList = [];
-  try {
-    localList = JSON.parse(localStorage.getItem(LOCAL_PAYMENTS_REGISTRY_KEY) || "[]");
-  } catch {}
-
-  let remoteList = [];
-  if (supabase) {
-    try {
-      const { data } = await supabase
-        .from("wallet_transactions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (Array.isArray(data)) remoteList = data;
-    } catch {}
-  }
-
-  const map = new Map();
-  localList.forEach((item) => map.set(item.id, item));
-  remoteList.forEach((tx) => {
-    if (tx?.id && !map.has(tx.id)) {
-      map.set(tx.id, {
-        id: tx.id,
-        user_id: tx.user_id,
-        payer_name: "Mwanachama",
-        payer_phone: "",
-        method: tx.type,
-        amount: tx.amount,
-        currency: tx.currency || "TZS",
-        reference: tx.reference || "",
-        purpose: tx.description || tx.type,
-        status: tx.status || "completed",
-        created_at: tx.created_at
-      });
-    }
-  });
-
-  return Array.from(map.values()).sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  const [{ data: topups, error: e1 }, { data: txs, error: e2 }] = await Promise.all([
+    supabase.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(200),
+    supabase.from("wallet_transactions").select("*").neq("type", "deposit").order("created_at", { ascending: false }).limit(200)
+  ]);
+  if (e1 && e2) throw dbError(e1, "Imeshindikana kupakia miamala.");
+  const statusMap = { pending: "pending", approved: "verified", rejected: "rejected" };
+  const topupRows = (topups || []).map((r) => ({
+    id: r.id,
+    user_id: r.user_id,
+    payer_name: "Mwanachama",
+    payer_phone: r.phone || "",
+    method: r.method,
+    payment_mode: "lipa_namba",
+    amount: r.amount,
+    currency: "TZS",
+    reference: r.reference,
+    purpose: "Kuweka pesa kwenye Wallet",
+    status: statusMap[r.status] || r.status,
+    created_at: r.created_at
+  }));
+  const txRows = (txs || []).map((tx) => ({
+    id: tx.id,
+    user_id: tx.user_id,
+    payer_name: "Mwanachama",
+    payer_phone: "",
+    method: tx.type,
+    payment_mode: "wallet",
+    amount: tx.amount,
+    currency: tx.currency || "TZS",
+    reference: tx.reference || "",
+    purpose: tx.description || tx.type,
+    status: tx.status || "completed",
+    created_at: tx.created_at
+  }));
+  return [...topupRows, ...txRows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-export async function verifyPaymentTransactionByCeo(txId, notes = "Imethibitishwa na CEO") {
-  if (!txId) throw new Error("Kitambulisho cha muamala kinahitajika.");
-  let updatedRecord = null;
-
-  try {
-    const list = JSON.parse(localStorage.getItem(LOCAL_PAYMENTS_REGISTRY_KEY) || "[]");
-    const updated = list.map((item) => {
-      if (item.id === txId || item.reference === txId) {
-        updatedRecord = {
-          ...item,
-          status: "verified",
-          verified_at: new Date().toISOString(),
-          verified_by: "ceo",
-          ceo_notes: notes
-        };
-        return updatedRecord;
-      }
-      return item;
-    });
-    localStorage.setItem(LOCAL_PAYMENTS_REGISTRY_KEY, JSON.stringify(updated));
-  } catch {}
-
-  // If this was a top-up / deposit, add balance to user
-  if (updatedRecord && updatedRecord.user_id && updatedRecord.amount > 0) {
-    try {
-      const isDeposit = (updatedRecord.purpose || "").toLowerCase().includes("deposit") ||
-                        (updatedRecord.purpose || "").toLowerCase().includes("weka");
-      if (isDeposit && supabase) {
-        await supabase.rpc("admin_review_topup", { p_request_id: txId, p_approve: true }).catch(() => {});
-      }
-    } catch {}
-  }
-
-  // Also update Supabase wallet_transactions table if exists
-  if (supabase) {
-    try {
-      await supabase
-        .from("wallet_transactions")
-        .update({ status: "completed" })
-        .eq("id", txId);
-    } catch {}
-  }
-
-  return updatedRecord || { id: txId, status: "verified" };
+export async function verifyPaymentTransactionByCeo(txId) {
+  return reviewPaymentOnServer(txId, true);
 }
 
-export async function rejectPaymentTransactionByCeo(txId, reason = "Imekataliwa na CEO") {
-  if (!txId) throw new Error("Kitambulisho cha muamala kinahitajika.");
-  let updatedRecord = null;
-
-  try {
-    const list = JSON.parse(localStorage.getItem(LOCAL_PAYMENTS_REGISTRY_KEY) || "[]");
-    const updated = list.map((item) => {
-      if (item.id === txId || item.reference === txId) {
-        updatedRecord = {
-          ...item,
-          status: "rejected",
-          rejected_at: new Date().toISOString(),
-          rejected_by: "ceo",
-          rejection_reason: reason
-        };
-        return updatedRecord;
-      }
-      return item;
-    });
-    localStorage.setItem(LOCAL_PAYMENTS_REGISTRY_KEY, JSON.stringify(updated));
-  } catch {}
-
-  if (supabase) {
-    try {
-      await supabase
-        .from("wallet_transactions")
-        .update({ status: "rejected" })
-        .eq("id", txId);
-    } catch {}
-  }
-
-  return updatedRecord || { id: txId, status: "rejected" };
+export async function rejectPaymentTransactionByCeo(txId) {
+  return reviewPaymentOnServer(txId, false);
 }
 
 export async function initiateLiveMobileMoneyPush({ userId, phone, amount, method, purpose }) {
