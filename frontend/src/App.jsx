@@ -1130,11 +1130,9 @@ function AccountSwitcherModal({ currentProfile, onClose, onSelectAccount, onLogo
     setBusy(true);
     setError("");
     try {
-      setActiveAccountOverride(acc);
-      const sessionObj = {
-        user: { id: acc.id, email: acc.email || `${acc.username}@thecircle.app` }
-      };
-      onSelectAccount(sessionObj, acc);
+      setIdentifier(acc.email || acc.username || "");
+      setPassword("");
+      setError(isSw ? "Weka nenosiri la akaunti hii kuingia." : "Enter this account's password to sign in.");
     } catch (err) {
       setError(err.message || "Imeshindikana kubadilisha akaunti.");
     } finally {
@@ -1389,8 +1387,11 @@ function AuthScreen({
       if (!form.displayName.trim() && !form.username.trim()) {
         return setMessage(isSw ? "Jaza jina lako au @username." : "Enter your name or @username.");
       }
-      if (form.password.length < 4) {
-        return setMessage(isSw ? "Nenosiri liwe angalau herufi 4." : "Password must be at least 4 characters.");
+      if (form.password.length < 8) {
+        return setMessage(isSw ? "Nenosiri liwe angalau herufi 8." : "Password must be at least 8 characters.");
+      }
+      if (!identifier.includes("@")) {
+        return setMessage(isSw ? "Weka barua pepe sahihi kujisajili (mfano: jina@gmail.com)." : "Enter a valid email to register (e.g. name@gmail.com).");
       }
     }
     setBusy(true);
@@ -1413,7 +1414,12 @@ function AuthScreen({
               whatsapp: form.whatsapp || form.phone || "",
               role
             });
-      if (result?.session && onAuthSuccess) {
+      if (result?.needsConfirmation) {
+        setMessage(isSw
+          ? `Tumekutumia barua pepe ya uthibitisho kwa ${result.email}. Ifungue (angalia pia Spam), kisha ingia.`
+          : `We sent a confirmation email to ${result.email}. Open it (check Spam too), then sign in.`);
+        setMode("login");
+      } else if (result?.session && onAuthSuccess) {
         onAuthSuccess(result.session, result.profile || null);
       }
     } catch (err) {
@@ -6361,7 +6367,7 @@ export default function App() {
 
   const load = async (user) => {
     const [p, f, n] = await Promise.all([
-      getCurrentProfile(user.id, user.email).catch(() => getActiveAccountOverride()),
+      getCurrentProfile(user.id).catch(() => null),
       getFeed().catch(() => []),
       getNotifications(user.id).catch(() => [])
     ]);
@@ -6410,38 +6416,25 @@ export default function App() {
       setBooting(false);
       return undefined;
     }
-    const override = getActiveAccountOverride();
-    if (override && override.id) {
-      const overrideSession = {
-        user: { id: override.id, email: override.email || `${override.username}@thecircle.app` }
-      };
-      setSession(overrideSession);
-      setProfile(override);
-      getFeed().then((f) => setPosts(f || [])).catch(() => {});
-      getNotifications(override.id).then((n) => setNotifications(n || [])).catch(() => {});
-      setBooting(false);
-    } else {
-      supabase.auth.getSession()
-        .then(async (res) => {
-          const nextSession = res?.data?.session || null;
-          setSession(nextSession);
-          if (nextSession?.user) {
-            try {
-              await load(nextSession.user);
-            } catch (err) {
-              console.warn("Initial load failed:", err);
-            }
+    supabase.auth.getSession()
+      .then(async (res) => {
+        const nextSession = res?.data?.session || null;
+        setSession(nextSession);
+        if (nextSession?.user) {
+          try {
+            await load(nextSession.user);
+          } catch (err) {
+            console.warn("Initial load failed:", err);
           }
-        })
-        .catch((err) => console.warn("Session check error:", err))
-        .finally(() => setBooting(false));
-    }
+        } else {
+          clearActiveAccountOverride();
+        }
+      })
+      .catch((err) => console.warn("Session check error:", err))
+      .finally(() => setBooting(false));
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, next) => {
-      const activeOverride = getActiveAccountOverride();
-      if (activeOverride && activeOverride.id) {
-        return;
-      }
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, next) => {
+      if (event === "SIGNED_OUT") clearActiveAccountOverride();
       setSession(next);
       if (next?.user) {
         try {
