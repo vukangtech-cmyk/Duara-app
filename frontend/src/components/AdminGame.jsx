@@ -2,6 +2,7 @@
 // Real security is in the database functions (is_admin()); this just hides the screen from everyone else.
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { gameAudio } from "../lib/gameAudio";
 
 export default function AdminGame({ user }) {
   const [allowed, setAllowed] = useState(null);
@@ -47,30 +48,36 @@ export default function AdminGame({ user }) {
   const label = (u) => u.display_name || u.username || u.phone || "(bila jina)";
 
   async function search() {
+    gameAudio.playButtonClick();
     const { data, error } = await supabase.rpc("admin_find_users", { p_query: query });
     if (error) return say(error.message);
     setFound(data ?? []);
   }
 
   async function credit() {
+    gameAudio.playButtonClick();
     const n = parseInt(amount, 10);
     if (!selected || !n || n <= 0) return say("Chagua mchezaji na weka idadi sahihi ya coins.");
     if (!window.confirm(`Ongeza 🪙 ${n} kwa ${label(selected)}?`)) return;
     const { error } = await supabase.rpc("admin_credit_coins", { p_user: selected.id, p_amount: n, p_note: note || null });
     if (error) return say(error.message);
+    gameAudio.playJoinRound();
     say("Coins zimeongezwa ✅");
     setAmount(""); setNote(""); setSelected(null); setFound([]);
     refresh();
   }
 
   async function createRound() {
+    gameAudio.playButtonClick();
     const { error } = await supabase.rpc("admin_create_round", { p_fee: Number(fee), p_max: Number(max), p_prize_percent: Number(pct) });
     if (error) return say(error.message);
+    gameAudio.playJoinRound();
     say("Raundi imetengenezwa ✅");
     refresh();
   }
 
   async function cancelRound(id) {
+    gameAudio.playButtonClick();
     if (!window.confirm(`Futa raundi #${id} na kurudisha coins zote?`)) return;
     const { error } = await supabase.rpc("admin_cancel_round", { p_round: id });
     if (error) return say(error.message);
