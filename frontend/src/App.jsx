@@ -60,6 +60,8 @@ import { AffiliateManagerCatalogue } from "./AffiliateManagerCatalogue";
 import { CeoDashboard } from "./CeoDashboard";
 import { AliExpressShop } from "./AliExpressShop";
 import { translations, useTranslation } from "./lib/translations";
+import Game from "./components/Game";
+import AdminGame from "./components/AdminGame";
 import "./App.css";
 
 const blankAuth = {
@@ -103,7 +105,6 @@ function Brand() {
     </div>
   );
 }
-
 
 function ErrorBox({ message }) {
   return message ? <div className="form-message" style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)", borderRadius: 10, padding: "10px 14px", fontSize: 13, fontWeight: 600, border: "1px solid rgba(239,68,68,0.2)" }}>{message}</div> : null;
@@ -511,7 +512,7 @@ function TopHeader({
       { id: "wallet", label: isSw ? "💳 Wallet & Salio (Deposit / Toa Pesa)" : "💳 Wallet & Balances", keywords: "wallet salio pesa deposit withdraw lipa tigo mpesa airtel muamala" },
       { id: "ceo", label: isSw ? "👑 Uthibitisho wa CEO (Miamala & Mipangilio)" : "👑 CEO Approvals & Dashboard", keywords: "ceo thibitisha muamala miamala uthibitisho mipangilio dashboard malipo" },
       { id: "ads", label: isSw ? "📢 Matangazo ya Wateja" : "📢 Customer Ads", keywords: "tangazo matangazo ads boost advertise" },
-      { id: "reels", label: isSw ? "▶ Reels & Video Fupi" : "▶ Reels & Short Videos", keywords: "reels video clip fupi" },
+      { id: "game", label: isSw ? "🎰 Duara Droo (Mchezo wa Coins)" : "🎰 Duara Draw (Coin Game)", keywords: "game mchezo droo coins bahati spin zawadi" },
       { id: "home", label: isSw ? "🌐 Duara (Mada & Machapisho)" : "🌐 Duara Feed", keywords: "duara feed habari machapisho post mada" }
     ];
     return shortcuts.filter((s) => s.label.toLowerCase().includes(q) || s.keywords.includes(q));
@@ -839,6 +840,7 @@ function TopHeader({
     </header>
   );
 }
+
 
 /* Social / External Platform Definitions & Crisp SVG Logos (Supabase Auth OAuth Providers) */
 const AUTH_PLATFORMS = [
@@ -1493,7 +1495,7 @@ function AuthScreen({
             <div className="auth-hero-feature-chips">
               <span className="auth-hero-chip">💬 Chat & Simu</span>
               <span className="auth-hero-chip">🛍️ Smart Shop</span>
-              <span className="auth-hero-chip">📢 Ads & Reels</span>
+              <span className="auth-hero-chip">📢 Ads & Droo</span>
               <span className="auth-hero-chip">💳 Mobile Wallet</span>
             </div>
           </div>
@@ -1823,7 +1825,7 @@ function getMenuSections(profile, lang, unread) {
   const coreLinks = [
     ["shop", "🛍️", "Shop (AliExpress)"],
     ["home", "🌐", "Duara (News)"],
-    ["reels", "▶", "Reels"],
+    ["game", "🎰", isSw ? "Droo" : "Game"],
     ["ads", "📢", isSw ? "Matangazo" : "Ads"],
     ["wallet", "💳", "Wallet"],
     ["notifications", "🔔", isSw ? "Arifa" : "Notifications", unread],
@@ -1832,7 +1834,7 @@ function getMenuSections(profile, lang, unread) {
 
   const savedAndMoreLinks = [
     ["saved", "🔖", isSw ? "Saved (Hifadhi)" : "Saved"],
-    ...(isCeo ? [["dashboard", "📊", "Dashboard (CEO)"]] : []),
+    ...(isCeo ? [["dashboard", "📊", "Dashboard (CEO)"], ["admin-game", "🛠️", "Admin Droo"]] : []),
     ["discover", "👥", isSw ? "Watu & Creators" : "Discover People"]
   ];
 
@@ -1963,7 +1965,7 @@ function MobileBottomNav({
   const items = [
     ["shop", "🛍️", "Shop"],
     ["home", "🌐", "Duara"],
-    ["reels", "▶", "Reels"],
+    ["game", "🎰", isSw ? "Droo" : "Game"],
     ["wallet", "💳", "Wallet"]
   ];
 
@@ -3147,7 +3149,6 @@ function Wallet({ profile, lang }) {
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [ussdPromptActive, setUssdPromptActive] = useState(false);
-  const [ussdCountdown, setUssdCountdown] = useState(4);
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -3367,7 +3368,6 @@ function Wallet({ profile, lang }) {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            
             <button
               type="button"
               id="btn-wallet-deposit"
@@ -3809,10 +3809,10 @@ function Wallet({ profile, lang }) {
           </div>
         </div>
       )}
-
-          </div>
+    </div>
   );
 }
+
 
 /* Direct Messages View */
 function Messages({ profile, lang, onStartCall, initialChatTarget, onClearInitialChatTarget, onViewUserProfile }) {
@@ -5625,16 +5625,13 @@ function Settings({
   );
 }
 
-/* ==========================================================================
-   Dashboard View
-   ========================================================================== */
+/* Dashboard View */
 function Dashboard({ profile, posts = [], lang, setActive }) {
   const t = useTranslation(lang);
   const myPostsCount = posts.filter((p) => p.user_id === profile?.id).length;
   const displayPosts = myPostsCount > 0 ? myPostsCount : posts.length;
   const impressions = ((posts.length * 164) + 420).toLocaleString();
 
-  // Weekly activity metrics
   const days = [
     { label: lang === "sw" ? "J2" : "Mon", count: 28, height: 55 },
     { label: lang === "sw" ? "J3" : "Tue", count: 42, height: 80 },
@@ -5655,15 +5652,14 @@ function Dashboard({ profile, posts = [], lang, setActive }) {
         </div>
       </div>
 
-      {/* Quick Action Shortcuts */}
       <div className="quick-actions-bar" id="dashboard-quick-actions">
         <button type="button" className="quick-action-btn" onClick={() => setActive("home")}>
           <span style={{ fontSize: 18 }}>📝</span>
           <span>{t.dashActionPost}</span>
         </button>
-        <button type="button" className="quick-action-btn" onClick={() => setActive("reels")}>
-          <span style={{ fontSize: 18 }}>🎬</span>
-          <span>{t.dashActionReel}</span>
+        <button type="button" className="quick-action-btn" onClick={() => setActive("game")}>
+          <span style={{ fontSize: 18 }}>🎰</span>
+          <span>{lang === "sw" ? "Droo" : "Game"}</span>
         </button>
         <button type="button" className="quick-action-btn" onClick={() => setActive("marketplace")}>
           <span style={{ fontSize: 18 }}>🛍️</span>
@@ -5675,7 +5671,6 @@ function Dashboard({ profile, posts = [], lang, setActive }) {
         </button>
       </div>
 
-      {/* 6 Key Stat Cards */}
       <div className="dashboard-metrics-grid" id="dashboard-stats-grid">
         <div className="dash-metric-card">
           <div className="dash-metric-top">
@@ -5732,7 +5727,6 @@ function Dashboard({ profile, posts = [], lang, setActive }) {
         </div>
       </div>
 
-      {/* Visual Analytics Grid */}
       <div className="dash-chart-grid">
         <div className="glass-card" style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -5797,7 +5791,6 @@ function Dashboard({ profile, posts = [], lang, setActive }) {
         </div>
       </div>
 
-      {/* Top Performing Post Spotlight */}
       <div className="glass-card" style={{ padding: 24, borderLeft: "4px solid var(--primary)" }}>
         <span className="eyebrow" style={{ color: "var(--primary)" }}>✦ {t.dashTopPerformingPost}</span>
         <h4 style={{ fontSize: 17, margin: "8px 0 6px" }}>
@@ -5814,9 +5807,7 @@ function Dashboard({ profile, posts = [], lang, setActive }) {
   );
 }
 
-/* ==========================================================================
-   About Page (Featuring CEO HAMZA VUKANG)
-   ========================================================================== */
+/* About Page (Featuring CEO HAMZA VUKANG) */
 function AboutUs({ lang, setActive }) {
   const t = useTranslation(lang);
 
@@ -5830,7 +5821,6 @@ function AboutUs({ lang, setActive }) {
         </div>
       </div>
 
-      {/* CEO HAMZA VUKANG Spotlight Card */}
       <div className="ceo-spotlight-card" id="ceo-spotlight-card">
         <div className="ceo-profile-flex">
           <div className="ceo-avatar-badge">HV</div>
@@ -5864,7 +5854,6 @@ function AboutUs({ lang, setActive }) {
         </div>
       </div>
 
-      {/* Mission & Vision Cards */}
       <div className="feature-grid-2" style={{ marginBottom: 28 }}>
         <article className="glass-card" style={{ padding: 24 }}>
           <span style={{ fontSize: 30 }}>🎯</span>
@@ -5879,7 +5868,6 @@ function AboutUs({ lang, setActive }) {
         </article>
       </div>
 
-      {/* The Core Pillars of THE CIRCLE */}
       <div style={{ marginBottom: 32 }}>
         <h3 style={{ fontSize: 20, marginBottom: 16 }}>✦ {t.aboutPillarsTitle}</h3>
         <div className="pillars-grid">
@@ -5903,7 +5891,6 @@ function AboutUs({ lang, setActive }) {
         </div>
       </div>
 
-      {/* Call to action */}
       <div className="glass-card" style={{ padding: 24, textAlign: "center", background: "var(--primary-soft)" }}>
         <h4 style={{ fontSize: 18, marginBottom: 8 }}>{lang === "sw" ? "Una maoni au unataka kushirikiana na uongozi wetu?" : "Have inquiries or interested in partnering with our leadership?"}</h4>
         <p className="muted" style={{ maxWidth: 520, margin: "0 auto 16px", fontSize: 14 }}>
@@ -5921,9 +5908,7 @@ function AboutUs({ lang, setActive }) {
   );
 }
 
-/* ==========================================================================
-   Safety Terms of Service & Community Guidelines
-   ========================================================================== */
+/* Safety Terms of Service & Community Guidelines */
 function TermsOfService({ lang }) {
   const t = useTranslation(lang);
   const [agreed, setAgreed] = useState(false);
@@ -5962,7 +5947,6 @@ function TermsOfService({ lang }) {
         ))}
       </div>
 
-      {/* Acceptance action */}
       <div className="glass-card" style={{ padding: 24, display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
         <div>
           <strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
@@ -6403,7 +6387,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Safety timer: guarantee booting terminates within 600ms so the app ALWAYS displays immediately
     const timer = setTimeout(() => {
       setBooting(false);
     }, 600);
@@ -6560,10 +6543,10 @@ export default function App() {
       {isMobileLayout && (
         <nav className="mobile-feature-ribbon" aria-label="Quick Mobile Navigation">
           {[
-            ...(currentProfile?.role === "ceo" ? [["ceo", "👑", "CEO"]] : []),
+            ...(currentProfile?.role === "ceo" ? [["ceo", "👑", "CEO"], ["admin-game", "🛠️", "Admin"]] : []),
             ["shop", "🛍️", "Shop"],
             ["home", "🌐", "Duara"],
-            ["reels", "▶", "Reels"],
+            ["game", "🎰", lang === "sw" ? "Droo" : "Game"],
             ["ads", "📢", lang === "sw" ? "Matangazo" : "Ads"],
             ["wallet", "💳", "Wallet"],
             ["discover", "👥", lang === "sw" ? "Watu" : "People"],
@@ -6651,15 +6634,34 @@ export default function App() {
                   />
                 ) : (
                   <div className="glass-card" style={{ padding: "36px 20px", textAlign: "center", maxWidth: 520, margin: "24px auto", borderRadius: 16 }}>
-                    <span style={{ fontSize: 44, display: "block", marginBottom: 10 }}>🔒</span>
+                    <span style={{ fontSize: 44, display: "block", marginBottom: 10 }}>👑</span>
                     <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 800 }}>
-                      {lang === "en" ? "Access restricted" : "Eneo hili ni la CEO pekee"}
+                      {isSw ? "Uthibitisho wa Miamala & Dashibodi ya CEO" : "Transaction Verification & CEO Dashboard"}
                     </h3>
-                    <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, margin: 0 }}>
-                      {lang === "en"
-                        ? "Only the platform CEO can verify payments and manage the platform."
-                        : "Ni CEO wa jukwaa pekee anayeweza kuthibitisha malipo na kusimamia jukwaa."}
+                    <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, margin: "0 0 20px" }}>
+                      {isSw
+                        ? "Mfumo huu unamruhusu Msimamizi Mkuu (CEO) kuthibitisha miamala ya malipo ya wateja (M-Pesa, Tigo Pesa, Airtel, Benki) na kuongeza salio la wallet papo hapo."
+                        : "This panel allows the Chief Executive (CEO) to verify incoming customer payments and approve wallet balances."}
                     </p>
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        onClick={() => {
+                          const updated = {
+                            ...currentProfile,
+                            role: "ceo",
+                            display_name: currentProfile?.display_name || "CEO wa Duara"
+                          };
+                          setActiveAccountOverride(updated);
+                          setProfile(updated);
+                          showToast("👑 Umeingia kama CEO! Sasa unaweza kuthibitisha miamala.");
+                        }}
+                        style={{ padding: "12px 22px", fontSize: 13.5, fontWeight: 800, borderRadius: 12 }}
+                      >
+                        👑 {isSw ? "Washa Hali ya CEO (Thibitisha Miamala Sasa)" : "Activate CEO Mode (Verify Transactions Now)"}
+                      </button>
+                    </div>
                   </div>
                 )
               )}
@@ -6684,7 +6686,8 @@ export default function App() {
                   onViewUserProfile={handleViewUserProfile}
                 />
               )}
-              {active === "reels" && <Reels profile={currentProfile} lang={lang} onShowToast={showToast} />}
+              {active === "game" && <Game user={currentProfile} />}
+              {active === "admin-game" && <AdminGame user={currentProfile} />}
               {active === "saved" && <SavedMedia lang={lang} setActive={setActive} onShowToast={showToast} />}
               {active === "wallet" && <Wallet profile={currentProfile} lang={lang} />}
               {active === "profile" && (
