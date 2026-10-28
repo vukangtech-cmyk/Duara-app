@@ -773,7 +773,7 @@ export async function getNotifications(userId) {
 export async function uploadImage(userId, file, bucket = "post-media") {
   if (!file) throw new Error("Chagua faili kwanza.");
   const uid = await requireSessionUserId();
-  const maxMb = bucket === "reels" ? 100 : ["post-media", "statuses"].includes(bucket) ? 50 : 10;
+  const maxMb = ["post-media", "statuses"].includes(bucket) ? 50 : 10;
   if (file.size > maxMb * 1024 * 1024) {
     throw new Error(`Faili ni kubwa mno. Ukubwa wa juu ni MB ${maxMb}.`);
   }
@@ -986,28 +986,6 @@ export async function createMarketplaceListing(sellerId, values) {
     .select()
     .single();
   if (error) throw error;
-  return data;
-}
-
-export async function getReels() {
-  const { data, error } = await supabase
-    .from("reels")
-    .select("*, profiles!reels_creator_id_fkey(display_name, username, avatar_url)")
-    .order("created_at", { ascending: false })
-    .limit(30);
-  if (error) throw error;
-  return data || [];
-}
-
-export async function createReel(creatorId, file, caption) {
-  const uid = await requireSessionUserId();
-  const url = await uploadImage(uid, file, "reels");
-  const { data, error } = await supabase
-    .from("reels")
-    .insert({ creator_id: uid, video_url: url, caption: (caption || "").slice(0, 500) })
-    .select()
-    .single();
-  if (error) throw dbError(error, "Imeshindikana kuweka reel. Jaribu tena.");
   return data;
 }
 
